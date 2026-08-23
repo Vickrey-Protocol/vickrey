@@ -1,0 +1,37 @@
+[package]
+name = "anonymizer"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[tool]
+fmt.workspace = true
+scarb.workspace = true
+
+[dependencies]
+starknet.workspace = true
+auction = { path = "../auction" }
+
+[dev-dependencies]
+snforge_std.workspace = true
+assert_macros.workspace = true
+
+[lib]
+
+[[test]]
+name = "anonymizer_tests"
+test-type = "integration"
+source-path = "tests/lib.cairo"
+build-external-contracts = [
+    "anonymizer::auction_anonymizer::AuctionAnonymizer",
+    "anonymizer::mocks::MockPrivacyPool",
+    "auction::auction::SealedBidAuction",
+    "auction::mocks::MockERC20",
+]
+
+[[target.starknet-contract]]
+sierra = true
+casm = true
+
+[scripts]
+test = "snforge test"
