@@ -1,3 +1,4 @@
 [sncast.default]
-# Filled in by scripts/deploy.sh. Never commit a private key here.
-url = "https://starknet-sepolia.public.blastapi.io/rpc/v0_9"
+# Blast API was retired; this endpoint is verified working and supports the full
+# method set (getClassAt included, which some public endpoints omit).
+url = "https://api.cartridge.gg/x/starknet/sepolia"

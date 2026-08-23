@@ -6,11 +6,14 @@ import { AuctionKind, type AuctionTerms } from "@vickrey/client";
  * pretending to be live.
  */
 export const config = {
-  rpcUrl: process.env.NEXT_PUBLIC_RPC_URL ?? "https://starknet-sepolia.public.blastapi.io/rpc/v0_9",
+  rpcUrl: process.env.NEXT_PUBLIC_RPC_URL ?? "https://api.cartridge.gg/x/starknet/sepolia",
   network: process.env.NEXT_PUBLIC_NETWORK ?? "sepolia",
   auctionAddress: process.env.NEXT_PUBLIC_AUCTION_ADDRESS ?? "",
   anonymizerAddress: process.env.NEXT_PUBLIC_ANONYMIZER_ADDRESS ?? "",
-  poolAddress: process.env.NEXT_PUBLIC_POOL_ADDRESS ?? "",
+  /** Live STRK20 pool on Sepolia; verified deployed and answering get_fee_amount. */
+  poolAddress:
+    process.env.NEXT_PUBLIC_POOL_ADDRESS ??
+    "0x254a6b2997ef52e9f830ce1f543f6b29768295e8d17e2267d672c552cfe0d91",
   explorer: process.env.NEXT_PUBLIC_EXPLORER ?? "https://sepolia.voyager.online",
 };
 
