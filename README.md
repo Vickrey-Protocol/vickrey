@@ -29,9 +29,13 @@ The long form, including everything this does *not* protect against, is in
 
 ## Status — read this before believing anything above
 
-**Nothing is deployed yet.** No mainnet address, no Sepolia address, no transaction
-hashes. [strk20.json](strk20.json) has empty fields and will stay empty until they are
-real.
+**Nothing is on mainnet yet, and mainnet is the deliverable.** There is a full Sepolia
+rehearsal — contracts deployed and a complete ten-transaction auction run, see
+[docs/deployments.md](docs/deployments.md) — and the site is hosted at
+**https://vickrey-ten.vercel.app**, currently pointed at that rehearsal. The mainnet
+fields in [strk20.json](strk20.json) stay empty until they are real.
+
+Mainnet cost is measured rather than estimated: [docs/mainnet.md](docs/mainnet.md).
 
 | Piece | State |
 |---|---|
@@ -39,7 +43,11 @@ real.
 | Anonymizer helper | Written, 7 tests passing, **not deployed, not audited** |
 | Client library | Written, 32 tests passing, hash-conformant with Cairo, action shapes type-checked against the wallet's own types |
 | Web app | Reads and writes the contracts. **Design under review — the current UI is a working prototype, not the shipped design** |
+| Sepolia rehearsal | **Done.** Contracts deployed, one complete auction, 10 transactions |
+| Hosted demo | **Done**, pointed at Sepolia. Mainnet is three env vars away |
+| Mainnet deployment | Not done — needs ~40 STRK, itemised in [docs/mainnet.md](docs/mainnet.md) |
 | Mainnet run with ≥5 bidders | Not done |
+| A wallet-signed bid through the pool | Not done — the one step needing a human |
 | Demo video | Not made |
 
 Two dependency advisories are open and deliberately not chased: `postcss` and `sharp`

@@ -49,3 +49,26 @@ deliberately malformed controls fail on shape. See PHASE0.md.
 
 - **Mainnet.** The deliverable. See `docs/mainnet.md`.
 - **A wallet-signed pool bid.** Needs a human and a privacy-enabled wallet.
+
+## Hosting
+
+Live at **https://vickrey-ten.vercel.app** — Vercel, project root `web/`, npm
+workspaces so the sibling `client` package is reachable at build time.
+
+Network is entirely env-driven, so pointing the site at mainnet is three variables and
+a redeploy, not a code change:
+
+```
+NEXT_PUBLIC_NETWORK=mainnet
+NEXT_PUBLIC_AUCTION_ADDRESS=…
+NEXT_PUBLIC_ANONYMIZER_ADDRESS=…
+```
+
+Set them with `vercel env add <NAME> production`, then `vercel --prod`. Until then the
+site says which network it is on, in the masthead and the footer, so a judge is never
+looking at Sepolia thinking it is mainnet.
+
+**The reveal relay is not durable.** It is an in-memory route on serverless, so a
+posted reveal can vanish with the instance. That is why the bidder UI can emit the same
+payload as text and the auctioneer console accepts pasted reveals — the demo does not
+depend on the relay surviving.

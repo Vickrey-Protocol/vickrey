@@ -1,17 +1,30 @@
 {
-  "$comment": "Empty fields stay empty until they are real. See README 'Status'.",
+  "$comment": "network, contracts and transactions stay empty until mainnet. The Sepolia rehearsal is recorded separately so it is never mistaken for the deliverable. See README 'Status'.",
   "name": "Vickrey",
   "tagline": "Sealed-bid auctions where the losing bids are never published",
   "rfp": "RFP-08",
   "license": "MIT",
-  "repo": "",
+  "repo": "https://github.com/Vickrey-Protocol/vickrey",
   "demo_video": "",
-  "live_url": "",
+  "live_url": "https://vickrey-ten.vercel.app",
   "network": "",
   "contracts": {
-    "SealedBidAuction": { "address": "", "class_hash": "" },
-    "AuctionAnonymizer": { "address": "", "class_hash": "" }
+    "SealedBidAuction": {
+      "address": "",
+      "class_hash": ""
+    },
+    "AuctionAnonymizer": {
+      "address": "",
+      "class_hash": ""
+    }
   },
   "transactions": [],
-  "trust_statement": "What is assured: the winner and the clearing price are established by hash-preimage proofs verified on-chain over a bid set the contract froze before any bid could be opened, so the auctioneer cannot alter the outcome, exclude a bid, or misreport the price without failing a proof or being slashed in the dispute window. What is not: after sealing, the auctioneer learns every bid amount - it can never publish them, prove a false outcome, or spend anyone's funds, but it knows them; and the number of bids, their timing, and the uniform escrow amount are public on-chain."
+  "trust_statement": "What is assured: the winner and the clearing price are established by hash-preimage proofs verified on-chain over a bid set the contract froze before any bid could be opened, so the auctioneer cannot alter the outcome, exclude a bid, or misreport the price without failing a proof or being slashed in the dispute window. What is not: after sealing, the auctioneer learns every bid amount - it can never publish them, prove a false outcome, or spend anyone's funds, but it knows them; and the number of bids, their timing, and the uniform escrow amount are public on-chain.",
+  "rehearsal_sepolia": {
+    "note": "Rehearsal only. Not the sprint deliverable.",
+    "SealedBidAuction": "0x0335410610f81d3028be938f9476006935c3098de5b88a6647b67efb89db4ff3",
+    "AuctionAnonymizer": "0x0316389f97ce430e56a80dbfff0fab9725889a021a9ea29b14fa3f48ac65fe16",
+    "pool": "0x254a6b2997ef52e9f830ce1f543f6b29768295e8d17e2267d672c552cfe0d91",
+    "complete_auction_run": "docs/sepolia-run-1.json"
+  }
 }
