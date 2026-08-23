@@ -1,0 +1,3 @@
+[sncast.default]
+# Filled in by scripts/deploy.sh. Never commit a private key here.
+url = "https://starknet-sepolia.public.blastapi.io/rpc/v0_9"

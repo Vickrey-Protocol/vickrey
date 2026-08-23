@@ -1,0 +1,13 @@
+target/
+.snfoundry_cache/
+tsconfig.tsbuildinfo
+*.tsbuildinfo
+node_modules/
+.next/
+out/
+.env
+.env.local
+*.log
+.DS_Store
+deployments.local.json
+deployments.*.json

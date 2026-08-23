@@ -1,0 +1,21 @@
+[workspace]
+members = ["packages/auction", "packages/anonymizer"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024_07"
+license = "MIT"
+
+[workspace.dependencies]
+starknet = "2.14.0"
+snforge_std = "0.53.0"
+assert_macros = "2.14.0"
+
+[workspace.tool.fmt]
+sort-module-level-items = true
+
+[workspace.tool.scarb]
+allow-prebuilt-plugins = ["snforge_std"]
+
+[scripts]
+test = "snforge test"
