@@ -10,6 +10,8 @@ import { bidsFor, type StoredBid } from "@/lib/vault";
 import { connect, sameAddress, type Connection } from "@/lib/wallet";
 import { Ladder } from "@/components/Ladder";
 import { Hero, HowItWorks } from "@/components/Hero";
+import { CountUp } from "@/components/CountUp";
+import { initMotion, onReplayKey, replayMotion } from "@/lib/motion";
 import { AuctionCard } from "@/components/AuctionCard";
 import { BidPanel, ClaimPanel, DisputePanel, RevealPanel } from "@/components/Panels";
 import { AuctioneerSection } from "@/components/AuctioneerSection";
@@ -45,6 +47,19 @@ export default function Home() {
     const t = setInterval(() => setNow(Math.floor(Date.now() / 1000)), 1000);
     return () => clearInterval(t);
   }, []);
+
+  const [playing, setPlaying] = useState(false);
+  const [motionKey, setMotionKey] = useState(0);
+
+  const replay = useCallback(() => {
+    setMotionKey((k) => k + 1);
+    setPlaying(replayMotion());
+  }, []);
+
+  useEffect(() => {
+    setPlaying(initMotion());
+    return onReplayKey(replay);
+  }, [replay]);
 
   // Read every auction so the index always has something to show, and default to a
   // live one rather than merely the newest - a visitor should land on a sealed ladder
@@ -124,9 +139,12 @@ export default function Home() {
   return (
     <main>
       <header className="masthead">
-        <div className="wordmark">
-          Vickrey<span>.</span>
-          <small>{config.label}</small>
+        <div>
+          <div className="wordmark">Vickrey<span aria-hidden="true" /></div>
+          <small style={{ display: "block", fontFamily: "var(--font-mono)", fontSize: "var(--s--1)",
+            letterSpacing: ".1em", textTransform: "uppercase", color: "var(--muted)", marginTop: ".15rem" }}>
+            {config.label}
+          </small>
         </div>
         <div className="row">
           {connection ? (
@@ -137,6 +155,7 @@ export default function Home() {
           ) : (
             <button className="primary" onClick={doConnect}>Connect wallet</button>
           )}
+          <button onClick={replay} title="Or press R">Replay · R</button>
         </div>
       </header>
 
@@ -146,6 +165,7 @@ export default function Home() {
           <aside className="showcase" aria-label="A settled auction">
             <p className="eyebrow" style={{ marginBottom: ".7rem" }}>Settled, and nothing to reveal</p>
             <AuctionCard
+              key={`showcase-${motionKey}`}
               auction={showcase}
               now={now}
               selected={selected === showcase.terms.auctionId}
@@ -276,8 +296,16 @@ export default function Home() {
               <dl className="facts" style={{ marginTop: "1rem" }}>
                 <div className="fact">
                   <dt>Paid</dt>
-                  <dd style={{ color: "var(--seal)", fontWeight: 600 }}>
-                    {formatUnits(clearingPrice ?? 0n)} {auction.paymentSymbol}
+                  <dd>
+                    <span className="price">
+                      <CountUp
+                        key={`paid-${motionKey}`}
+                        value={clearingPrice ?? 0n}
+                        animate={playing}
+                        format={(v) => formatUnits(v)}
+                      />
+                    </span>{" "}
+                    <span style={{ color: "var(--ink-2)" }}>{auction.paymentSymbol}</span>
                   </dd>
                 </div>
                 <div className="fact">
@@ -309,6 +337,7 @@ export default function Home() {
                 <>
                   <p className="eyebrow">The ladder</p>
                   <Ladder
+                    key={`detail-${motionKey}`}
                     numLevels={auction.terms.numLevels}
                     reservePrice={auction.terms.reservePrice}
                     tick={auction.terms.tick}

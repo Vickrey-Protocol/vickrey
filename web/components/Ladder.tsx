@@ -1,5 +1,6 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import { Status } from "@vickrey/client";
 import { formatUnits } from "@/lib/config";
 
@@ -107,12 +108,13 @@ export function Ladder({
                 <button
                   type="button"
                   className={cls}
+                  style={{ "--i": rows.length - 1 - level } as CSSProperties}
                   onClick={() => onPick(level)}
                   aria-pressed={isPicked}
                   aria-label={`Bid ${formatUnits(price(level), decimals)} ${symbol}`}
                 />
               ) : (
-                <span className={cls} />
+                <span className={cls} style={{ "--i": rows.length - 1 - level } as CSSProperties} />
               )}
 
               {!compact && (

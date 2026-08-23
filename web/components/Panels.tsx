@@ -118,44 +118,56 @@ export function BidPanel({
         </p>
       </div>
 
-      <Ladder
-        numLevels={auction.terms.numLevels}
-        reservePrice={auction.terms.reservePrice}
-        tick={auction.terms.tick}
-        symbol={auction.paymentSymbol}
-        bidCount={auction.bidCount}
-        status={auction.status}
-        pickedLevel={level}
-        onPick={setLevel}
-      />
+      {/* Ladder left, the numbers and the action right, so the panel is not mostly
+          empty glass at full width. */}
+      <div className="bid-grid">
+        <Ladder
+          numLevels={auction.terms.numLevels}
+          reservePrice={auction.terms.reservePrice}
+          tick={auction.terms.tick}
+          symbol={auction.paymentSymbol}
+          bidCount={auction.bidCount}
+          status={auction.status}
+          pickedLevel={level}
+          onPick={setLevel}
+        />
 
-      <dl className="facts">
-        <div className="fact">
-          <dt>Your bid</dt>
-          <dd>
-            {level === null
-              ? "—"
-              : `${formatUnits(priceAt(auction.terms, level))} ${auction.paymentSymbol}`}
-          </dd>
-        </div>
-        <div className="fact">
-          <dt>You escrow</dt>
-          <dd>{formatUnits(auction.collateral)} {auction.paymentSymbol}</dd>
-        </div>
-        <div className="fact">
-          {/* The pool always charges its fee in STRK, whatever the auction settles in. */}
-          <dt>Pool fee</dt>
-          <dd>{auction.poolFee === null ? "—" : `${formatUnits(auction.poolFee)} STRK`}</dd>
-        </div>
-      </dl>
+        <div className="stack" style={{ gap: ".9rem" }}>
+          <dl className="facts">
+            <div className="fact">
+              <dt>Your bid</dt>
+              <dd>
+                {level === null ? (
+                  "—"
+                ) : (
+                  <span className="price" style={{ fontSize: "1.6rem" }}>
+                    {formatUnits(priceAt(auction.terms, level))}
+                  </span>
+                )}
+                {level !== null && ` ${auction.paymentSymbol}`}
+              </dd>
+            </div>
+            <div className="fact">
+              <dt>You escrow</dt>
+              <dd>{formatUnits(auction.collateral)} {auction.paymentSymbol}</dd>
+            </div>
+            <div className="fact">
+              {/* The pool charges its fee in STRK whatever the auction settles in. */}
+              <dt>Pool fee</dt>
+              <dd>{auction.poolFee === null ? "—" : `${formatUnits(auction.poolFee)} STRK`}</dd>
+            </div>
+          </dl>
 
-      <div className="row">
-        <button className="primary" onClick={submit} disabled={!!busy || !connection}>
-          {busy ? "Working…" : "Bid privately"}
-        </button>
-        {/* R5: name the wait before it starts. */}
-        <span className="note">{busy ?? "Proving takes about 30 seconds."}</span>
+          <div className="row">
+            <button className="primary" onClick={submit} disabled={!!busy || !connection}>
+              {busy ? "Working…" : "Bid privately"}
+            </button>
+            {/* R5: name the wait before it starts. */}
+            <span className="note">{busy ?? "Proving takes about 30 seconds."}</span>
+          </div>
+        </div>
       </div>
+
       {error && <p className="err">{error}</p>}
     </div>
   );
