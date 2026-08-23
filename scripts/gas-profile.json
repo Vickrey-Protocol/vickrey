@@ -1,0 +1,29 @@
+{
+  "_comment": [
+    "Resource usage per step, measured from Sepolia receipts on the classes that",
+    "match the current build (see docs/mainnet.md). Resource *amounts* do not depend",
+    "on which network you are on, so these project onto mainnet by repricing them at",
+    "mainnet gas.",
+    "",
+    "'measured' is what the receipt actually charged. 'bound' is what the estimator",
+    "demands the account hold before it will submit. The bound is what decides whether",
+    "a transaction goes through, and it runs ~38% above measured on the declares.",
+    "Fund against bound, expect to be charged measured."
+  ],
+  "steps": [
+    { "step": "declare SealedBidAuction",   "measured": { "l2_gas": 1038760640, "l1_data_gas": 192  }, "bound": { "l2_gas": 1437474240, "l1_data_gas": 288  } },
+    { "step": "declare AuctionAnonymizer",  "measured": { "l2_gas": 226468800,  "l1_data_gas": 192  }, "bound": { "l2_gas": 313000000,  "l1_data_gas": 288  } },
+    { "step": "deploy SealedBidAuction",    "measured": { "l2_gas": 1328000,    "l1_data_gas": 224  }, "bound": { "l2_gas": 2000000,    "l1_data_gas": 336  } },
+    { "step": "deploy AuctionAnonymizer",   "measured": { "l2_gas": 2312480,    "l1_data_gas": 416  }, "bound": { "l2_gas": 3500000,    "l1_data_gas": 624  } },
+    { "step": "create_auction",             "measured": { "l2_gas": 12004560,   "l1_data_gas": 1824 }, "bound": { "l2_gas": 18000000,   "l1_data_gas": 2736 } },
+    { "step": "place_bid",                  "measured": { "l2_gas": 7638080,    "l1_data_gas": 1024 }, "bound": { "l2_gas": 11500000,   "l1_data_gas": 1536 } },
+    { "step": "seal",                       "measured": { "l2_gas": 3351520,    "l1_data_gas": 448  }, "bound": { "l2_gas": 5000000,    "l1_data_gas": 672  } },
+    { "step": "settle (3 bids)",            "measured": { "l2_gas": 6946080,    "l1_data_gas": 896  }, "bound": { "l2_gas": 10400000,   "l1_data_gas": 1344 } },
+    { "step": "finalize",                   "measured": { "l2_gas": 4496080,    "l1_data_gas": 480  }, "bound": { "l2_gas": 6700000,    "l1_data_gas": 720  } },
+    { "step": "claim_lot",                  "measured": { "l2_gas": 3590480,    "l1_data_gas": 352  }, "bound": { "l2_gas": 5400000,    "l1_data_gas": 528  } },
+    { "step": "claim_refund",               "measured": { "l2_gas": 3325840,    "l1_data_gas": 416  }, "bound": { "l2_gas": 5000000,    "l1_data_gas": 624  } }
+  ],
+  "deploy_steps": 4,
+  "pool_fee_strk": { "mainnet": 6, "sepolia": 2 },
+  "pool_txs_for_submission": 4
+}

@@ -1,0 +1,24 @@
+{
+  "_comment": "Second full Sepolia rehearsal, run on the merged main build (the one being shipped to mainnet). Its class hashes were verified byte-for-byte against the local artifacts before the run: see docs/mainnet.md. Ten transactions, list through claim, no bid ever opened.",
+  "network": "sepolia",
+  "date": "2026-08-23",
+  "class_hashes": {
+    "SealedBidAuction": "0x1489a905a59d25614300504355ecd9df25e34bc8b099485512d44cc7b94b341",
+    "AuctionAnonymizer": "0x5197552b8a5d886b024ed281242c001c8b84aabc8d95edd014ff2b673646e0e"
+  },
+  "anonymizer": "0x05e42a6c5be0e4edffec0eb04261b6e44e7327ab41d4aff80443f8570c596389",
+  "clearing_level": 4,
+  "clearing_price_wei": "5000000000000000",
+  "winner_index": 0,
+  "auction": "0x03c0bbc2b279a4d9c4440e6cf578efb8eea7cb17321be061fcb3a13323c17f3e",
+  "id": "0",
+  "create": "0x467db3e109c7f2a300f8a89115dbc366b8e3b9aef7096ed9201211bcb1e181",
+  "bid0": "0x49d8dd38934e59585bac79b1cc48c3f1a13c46bcd7fbdcb25f46f7bd6a5508e",
+  "bid1": "0x68dc60ee3b04b5dd646e1417f400e1b23188e2876a652483a54100215187f2",
+  "bid2": "0x6333e333798af609fd9b8aba4c2a7600874fccf1537274bd381d4671ca9d0e8",
+  "seal": "0x3074656ea4efab66ecd81d8e1e5861b970b6565068557ed7619d324d06dd3fa",
+  "settle": "0x63a48426ed7c617e09aaba564a1930cb7bf7c98e50bbeccbf39af5f804a011b",
+  "finalize": "0x3308681cf89ea600b5335faf88dec98c24f4aba4235eb74aa5932bada2827bd",
+  "claimLot": "0x26f54a550c5d81881fa2d1df97cfb9503da7a28bada545093d9be6392bd690f",
+  "claimRefund": "0x3c9be40fc2967bc67182a9fd8d0f8c7c61f207c796ed95dc6b4d4bcb00e24b6"
+}

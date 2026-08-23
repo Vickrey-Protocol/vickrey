@@ -1,31 +1,77 @@
 {
-  "$comment": "network, contracts and transactions stay empty until mainnet. The Sepolia rehearsal is recorded separately so it is never mistaken for the deliverable. See README 'Status'.",
+  "$comment": "Every field here is either a real, verifiable value or listed under 'pending' with the reason it cannot exist yet. Nothing is a placeholder. 'contracts.*.class_hash' is filled before the mainnet declare because a class hash is deterministic from the build - it is computed from the artifacts in target/dev and checked against mainnet, where it is currently absent. Addresses depend on the deploy salt and appear when they are real.",
   "name": "Vickrey",
   "tagline": "Sealed-bid auctions where the losing bids are never published",
+  "description": "A Vickrey (second-price) auction on Starknet where no bid is ever revealed - not the losers', not the winner's. Bidders commit to a price level with two Poseidon hash chains that let the contract verify 'my bid is at least X' and 'my bid is at most X' without learning the bid. Settlement proves the Vickrey outcome from N+1 such witnesses: the winner is at or above the clearing level, the runner-up is exactly at it, everyone else is at or below. Funds move through the STRK20 privacy pool, so the bidder's identity is unlinked from the bid as well.",
   "rfp": "RFP-08",
+  "category": "privacy-application",
   "license": "MIT",
   "repo": "https://github.com/Vickrey-Protocol/vickrey",
-  "demo_video": "",
   "live_url": "https://vickrey-ten.vercel.app",
-  "network": "",
+  "strk20_integration": {
+    "pool_mainnet": "0x040337b1af3c663e86e333bab5a4b28da8d4652a15a69beee2b677776ffe812a",
+    "pool_sepolia": "0x254a6b2997ef52e9f830ce1f543f6b29768295e8d17e2267d672c552cfe0d91",
+    "how": "Bid collateral is withdrawn from the pool straight into the auction escrow inside a single privacy_invoke, so the bidder's public address never holds the funds and never appears as the escrow's source. Refunds and the winner's surplus return the same way.",
+    "actions_used": [
+      "withdraw",
+      "invoke",
+      "transfer"
+    ],
+    "proving": "Fixed-program (VIRTUAL_SNOS). No custom circuit slot is required, so the entry runs against the pool exactly as deployed.",
+    "verification": "client/scripts/verify-pool-shapes.mjs checks our encoded actions against the live pool's compile_actions view, which is read-only. Three deliberately malformed controls confirm the check can still fail.",
+    "action_note": "These are the STRK20_ACTION variants the client encodes, verified against the pool's own type. packages/anonymizer/src/privacy_objects.cairo mirrors the pool's OpenNoteDeposit struct byte-for-byte against the STRK20 monorepo at commit 36eac4ea88cd8c59dde1493176e16501c6e90328."
+  },
   "contracts": {
     "SealedBidAuction": {
-      "address": "",
-      "class_hash": ""
+      "class_hash": "0x1489a905a59d25614300504355ecd9df25e34bc8b099485512d44cc7b94b341",
+      "source": "packages/auction/src/auction.cairo"
     },
     "AuctionAnonymizer": {
-      "address": "",
-      "class_hash": ""
+      "class_hash": "0x5197552b8a5d886b024ed281242c001c8b84aabc8d95edd014ff2b673646e0e",
+      "source": "packages/anonymizer/src/auction_anonymizer.cairo",
+      "constructor": [
+        "privacy_pool",
+        "auction_contract"
+      ]
     }
   },
-  "transactions": [],
+  "build": {
+    "cairo": "2.14.0",
+    "scarb_profile": "dev",
+    "starknet_foundry": "0.53.0",
+    "note": "The dev profile is what ships. See docs/mainnet.md - the release profile's smaller Sierra does not reduce the declare bound, and the dev build is the one verified byte-for-byte against the rehearsed Sepolia deployment.",
+    "tests": "58 passing (51 auction + 7 anonymizer): snforge test",
+    "scarb": "2.14.0",
+    "sierra": "1.7.0"
+  },
   "trust_statement": "What is assured: the winner and the clearing price are established by hash-preimage proofs verified on-chain over a bid set the contract froze before any bid could be opened, so the auctioneer cannot alter the outcome, exclude a bid, or misreport the price without failing a proof or being slashed in the dispute window. What is not: after sealing, the auctioneer learns every bid amount - it can never publish them, prove a false outcome, or spend anyone's funds, but it knows them; and the number of bids, their timing, and the uniform escrow amount are public on-chain.",
-  "rehearsal_sepolia": {
-    "note": "Rehearsal only. Not the sprint deliverable.",
-    "SealedBidAuction": "0x07c9fe011b361470c6269807aae021ecbd8c809b8b29443fb0a2d8df6da3955c",
-    "AuctionAnonymizer": "0x0496bd7ec79591a05289c1dd5faf55bd16476c724756152f3ba2aee9e2e34e8e",
-    "pool": "0x254a6b2997ef52e9f830ce1f543f6b29768295e8d17e2267d672c552cfe0d91",
-    "complete_auction_run": "docs/sepolia-run-1.json",
-    "lot_token_CRATE": "0x06faa5f22e11ab496cb4dff52e0c0f93376c1861c51a3f6f8472b0d83580019f"
+  "rehearsals": [
+    {
+      "network": "sepolia",
+      "run": 2,
+      "date": "2026-08-23",
+      "note": "On the merged main build. Deployed class hashes verified byte-for-byte against the local artifacts before the run.",
+      "SealedBidAuction": "0x03c0bbc2b279a4d9c4440e6cf578efb8eea7cb17321be061fcb3a13323c17f3e",
+      "AuctionAnonymizer": "0x05e42a6c5be0e4edffec0eb04261b6e44e7327ab41d4aff80443f8570c596389",
+      "clearing_level": 4,
+      "clearing_price_wei": "5000000000000000",
+      "transactions": "docs/sepolia-run-2.json"
+    },
+    {
+      "network": "sepolia",
+      "run": 1,
+      "date": "2026-08-22",
+      "SealedBidAuction": "0x07c9fe011b361470c6269807aae021ecbd8c809b8b29443fb0a2d8df6da3955c",
+      "AuctionAnonymizer": "0x0496bd7ec79591a05289c1dd5faf55bd16476c724756152f3ba2aee9e2e34e8e",
+      "lot_token_CRATE": "0x06faa5f22e11ab496cb4dff52e0c0f93376c1861c51a3f6f8472b0d83580019f",
+      "transactions": "docs/sepolia-run-1.json"
+    }
+  ],
+  "pending": {
+    "$comment": "Fields the sprint requires that cannot hold a true value yet. Each says what unblocks it. They are listed rather than left as empty strings so a reader can tell 'not yet' from 'forgotten'.",
+    "network": "Set to 'mainnet' when the declare lands. Scheduled Wed 26 Aug 2026.",
+    "contracts.*.address": "Deploy-time. The class hashes above are already final.",
+    "transactions": "At least three mainnet hashes that touched the STRK20 pool, per the submission rule. Needs a funded mainnet account and a privacy wallet - see docs/mainnet.md.",
+    "demo_video": "Script is written and timed at docs/demo-script.md. Records after the mainnet auction runs, so the footage shows real hashes."
   }
 }

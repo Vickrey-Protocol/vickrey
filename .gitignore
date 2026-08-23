@@ -13,3 +13,9 @@ deployments.local.json
 deployments.*.json
 .vercel
 .env*
+
+# Output of scripts/live-auction.mjs. bids.json holds the claim secrets that open a
+# bid commitment — committing it would publish exactly what the auction exists to keep
+# sealed. hashes.json is scratch; the runs worth keeping are copied into docs/.
+bids.json
+hashes.json

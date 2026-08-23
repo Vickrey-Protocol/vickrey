@@ -5,8 +5,40 @@ can open, so mainnet is the target and nothing in the code assumes a testnet run
 be available for the pool leg.
 
 Everything below is **measured**, not estimated from documentation: Sepolia resource
-usage read from the receipts of the ten-transaction run in
-[`sepolia-run-1.json`](sepolia-run-1.json), repriced at live mainnet gas.
+usage read from transaction receipts and repriced at live mainnet gas.
+
+The build being shipped has been rehearsed twice —
+[`sepolia-run-1.json`](sepolia-run-1.json) and
+[`sepolia-run-2.json`](sepolia-run-2.json). The second ran on the merged `main` build
+after confirming the deployed classes match the local artifacts byte-for-byte:
+
+```
+SealedBidAuction    local dev build == Sepolia  0x1489a905…b94b341
+AuctionAnonymizer   local dev build == Sepolia  0x5197552b…3646e0e
+```
+
+That check is the point of the rehearsal. "We tested on Sepolia" means nothing if the
+bytes differ; comparing computed class hashes is the only way to say the deployment path
+was exercised on exactly the code that ships.
+
+### What the second rehearsal caught
+
+Three separate bugs in `scripts/deploy.sh`, all of which would have fired on mainnet:
+
+1. **`--network` conflicted with the `url` in `snfoundry.toml`** — every sncast call
+   failed. Fixed by passing `--url` explicitly and depending on nothing in that file.
+2. **The output parser never matched.** `field 'Class'` looked for a line starting
+   `Class:`; sncast prints `Class Hash: 0x…`. It returned empty, so the script would have
+   *paid for the declare* and then exited with "declare produced no class hash", losing
+   the class hash of a transaction that had already succeeded. The same bug hit
+   `Contract Address:`.
+3. **A re-run re-declared.** With the class already on chain, a resumed deploy tried to
+   pay for it again. `deploy.sh` now computes the class hash from the artifact, asks the
+   node whether it exists, and skips only when *this* build is already there — so a run
+   interrupted between the two declares picks up where it stopped.
+
+Bugs 2 and 3 compound: the first loses the class hash of a paid declare, the second makes
+the obvious recovery — just run it again — cost another 31 STRK.
 
 ## What differs on mainnet
 
@@ -33,44 +65,91 @@ node client/scripts/verify-pool-shapes.mjs
 All five cases behave identically to Sepolia — our two shapes fail on state, the three
 controls fail on shape. The encoding carries over.
 
-## Gas, measured
+## Gas: two numbers per step, and the one that matters
 
-Sepolia resource usage repriced at mainnet gas. Declaring dominates everything else by
-two orders of magnitude, because it scales with Sierra size.
+Every step below has a **measured** cost and a **bound**. Measured is what the receipt
+charged. Bound is what the fee estimator demands the account hold before it will submit
+at all. They are not close: on the declares the bound runs ~38% above measured.
 
-| Operation | l2 gas | Mainnet cost |
+The bound is the gate. A rehearsal on 58.99 test STRK died at
+
+```
+Resources bounds ({ … l2_gas: { max_amount: 1437474240, … } }) exceed balance (58990874389328446572)
+```
+
+even though the same declare had previously *charged* 1,038,760,640 — about 31 STRK
+against a 65 STRK bar. **Fund against the bound; expect to be charged the measured
+figure.** Budgeting from the receipts of a previous run is how you arrive at a wallet
+that cannot submit the transaction it just paid to estimate.
+
+Amounts are network-independent, so Sepolia measurements reprice directly onto mainnet.
+Both columns below are those amounts at mainnet gas of the time of writing
+(l2 30,303,966,046 fri/unit); the source of truth is
+[`scripts/gas-profile.json`](../scripts/gas-profile.json), which `deploy.sh` reads so the
+script and this table cannot drift apart.
+
+| Operation | l2 gas (measured) | Measured | **Must hold** |
+|---|---|---|---|
+| declare `SealedBidAuction` | 1,038,760,640 | 31.48 | **43.56** |
+| declare `AuctionAnonymizer` | 226,468,800 | 6.86 | 9.49 |
+| deploy `SealedBidAuction` | 1,328,000 | 0.04 | 0.06 |
+| deploy `AuctionAnonymizer` | 2,312,480 | 0.07 | 0.11 |
+| `create_auction` | 12,004,560 | 0.36 | 0.55 |
+| `place_bid` (first) | 7,638,080 | 0.23 | 0.35 |
+| `place_bid` (subsequent) | 6,834,080 | 0.21 | 0.31 |
+| `seal` | 3,351,520 | 0.10 | 0.15 |
+| `settle`, 3 bids | 6,946,080 | 0.21 | 0.32 |
+| `finalize` | 4,496,080 | 0.14 | 0.20 |
+| `claim_lot` | 3,590,480 | 0.11 | 0.16 |
+| `claim_refund` | 3,325,840 | 0.10 | 0.15 |
+| **declares + deploys** | | **38.45** | **53.21** |
+| **full lifecycle** | | **39.71** | **55.09** |
+
+The first `place_bid` costs more than the ones after it — it pays to initialise the
+auction's bid storage. Only the declare bounds are measured; the rest are the same
+1.384 ratio applied to the measured figure, which is conservative for the small steps
+and exact where it matters.
+
+### The release profile does not help, and we are not using it
+
+`Scarb.toml` carries `[profile.release.cairo] inlining-strategy = 75`, added after a
+sweep, on the theory that a smaller Sierra makes the largest one-off cost smaller. It
+does shrink the artifact:
+
+| | dev | release |
 |---|---|---|
-| declare `SealedBidAuction` | 1,038,760,640 | **30.5 STRK** |
-| declare `AuctionAnonymizer` | 226,468,800 | 7.4 STRK |
-| deploy `SealedBidAuction` | 1,328,000 | 0.04 STRK |
-| deploy `AuctionAnonymizer` | 2,312,480 | 0.08 STRK |
-| `create_auction` | 12,004,560 | 0.39 STRK |
-| `place_bid` | 7,638,080 | 0.25 STRK |
-| `seal` | 3,351,520 | 0.11 STRK |
-| `settle`, 3 bids | 6,946,080 | 0.23 STRK |
-| `finalize` | 4,496,080 | 0.15 STRK |
-| `claim_lot` / `claim_refund` | ~3.5M each | 0.12 STRK each |
+| `SealedBidAuction` Sierra | 511,355 B | 387,276 B (−24%) |
+| `SealedBidAuction` CASM | 17,147 felts | 15,807 felts (−8%) |
+| `AuctionAnonymizer` CASM | 3,616 felts | 3,829 felts (**+6%**) |
 
-The declare figure is **after** a 10% Sierra reduction from sweeping
-`inlining-strategy` (75 beat the default; see `Scarb.toml`). Gas prices move, so treat
-these as the right order of magnitude rather than a quote.
+**But the declare bound is identical either way — 1,437,474,240 l2 gas, measured both
+ways against the live node.** The saving does not exist where it was claimed, and
+inlining makes the anonymizer *larger*. An earlier version of this file said the declare
+figure was "after a 10% Sierra reduction"; that was wrong on both counts — the figure
+came from a dev build, and the reduction does not move the number that gates the spend.
+
+So we declare the **dev** build. It is the build whose class hashes are verified byte-for-byte
+against the contracts that ran the full Sepolia lifecycle, and switching to an unverified
+artifact to chase a saving that measurement says is zero is a bad trade on the single most
+expensive transaction in the project.
 
 ## What to fund, itemised
 
-Two separate questions: getting the contracts up, and running the judged auction.
+Two separate questions: getting the contracts up, and running the judged auction. The
+first is a *holding* requirement, the second a *spending* one.
 
-### A. One-off, unavoidable — **≈ 39 STRK**
+### A. One-off, unavoidable
 
-| Item | STRK | Note |
+| Item | Must hold | Actually spends |
 |---|---|---|
-| Deploy a mainnet account | ~0.5 | The keystore only has a Sepolia account today |
-| Declare `SealedBidAuction` | 30.5 | One-off per class hash. Redeclaring after a code change costs this again |
-| Declare `AuctionAnonymizer` | 7.4 | Same |
-| Deploy both | 0.12 | |
-| Headroom for gas movement | ~1 | |
+| Deploy a mainnet account | ~0.5 | ~0.5 |
+| Declare `SealedBidAuction` | 43.56 | 31.48 |
+| Declare `AuctionAnonymizer` | 9.49 | 6.86 |
+| Deploy both | 0.17 | 0.11 |
+| | **≈ 54 STRK at the first declare** | **≈ 39 STRK gone** |
 
-**Budget 40 STRK, and do not change the contracts after declaring** — every code change
-is another 38 STRK.
+**Do not change the contracts after declaring** — every code change is another 38 STRK
+spent and 53 that has to be sitting there.
 
 ### B. The judged auction, run through the pool
 
@@ -87,20 +166,13 @@ Per bidder, a full round trip is three private operations:
 
 **18 STRK per bidder**, plus the winner's `claim_lot` at another 6.
 
-| Scenario | Bidders | Pool fees | Auction gas | Escrow (returned) | **Total** |
-|---|---|---|---|---|---|
-| Minimum viable — 3 mainnet transactions, no pool | 3 | 0 | ~2 | nominal | **~2 STRK** |
-| Small pool demo | 3 | 60 | ~2 | nominal | **~62 STRK** |
-| Full demo, plan's target | 5 | 96 | ~3 | nominal | **~99 STRK** |
-
 Escrow is the ladder cap and is refunded, so set it nominal — 0.001 STRK ladder, 8
 levels, cap 0.008. It is public and identical for everyone, so a small number costs
 nothing in credibility.
 
-### The honest total — revised upward
+### The honest total
 
-An earlier version of this file put the working minimum at ~42 STRK. **That was wrong**,
-and the sprint's own submission rule is why:
+The sprint's submission rule sets the floor:
 
 > at least three mainnet transaction hashes … it must exist, have succeeded, and **have
 > touched the STRK20 pool**.
@@ -108,19 +180,28 @@ and the sprint's own submission rule is why:
 Bids placed directly on our contract do not touch the pool, so they cannot be the three
 transactions. At least three **pool** transactions are unavoidable, at 6 STRK each.
 
-| | STRK | Buys |
-|---|---|---|
-| Deploy only | ~39 | Contracts on mainnet, nothing running |
-| **Submission minimum** | **~65** | Deploy, shield once, three pool transactions, gas |
-| Judge-friendly | ~125 | The above plus ten sponsored private bids |
-| Five-bidder pool auction | ~160 | The plan's full target |
+| | Spends | Peak holding | Buys |
+|---|---|---|---|
+| Deploy only | ~39 | ~54 | Contracts on mainnet, nothing running |
+| **Submission minimum** | **~65** | **~54** | Deploy, shield once, three pool transactions, gas |
+| Judge-friendly | ~125 | ~54 | The above plus ten sponsored private bids |
+| Five-bidder pool auction | ~160 | ~54 | The plan's full target |
 
-**50 STRK does not reach the submission minimum.** It covers deployment and one pool
-transaction, leaving us two short of the three the hub checks for. **65 is the number
-that makes the entry scoreable**; I would send 70 for gas movement.
+Peak holding is flat across the rows because the declare is the first thing that happens
+and the most expensive single moment; everything after it is cheap by comparison.
 
-Beyond that, sponsorship is what buys the score rather than more of our own
-transactions — see [access.md](access.md).
+**70 STRK covers this at today's gas** — it clears the 54 bound at the declare and the
+65 of total spending, with ~5 STRK of slack. That slack is the whole margin, and it is
+thin:
+
+- **If mainnet l2 gas rises ~30% before the declare, 70 stops being enough.** The bound
+  scales linearly with gas price, so a 43.56 declare becomes 56.6 and the run strands
+  with nothing declared.
+- **Declare first, on a full wallet, when gas is low.** `deploy.sh` prints the bound,
+  the balance and the headroom before it spends anything, and refuses to start if the
+  balance is under the bound.
+- **85 STRK removes the gas-movement risk.** If the funding decision is still open, that
+  is the number I would send.
 
 ## Open questions this raises
 
