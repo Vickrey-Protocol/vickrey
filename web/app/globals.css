@@ -39,7 +39,7 @@
   --s-1:  1.18rem;
   --s-2:  1.6rem;
   --s-3:  clamp(1.7rem, 1.3rem + 1.7vw, 2.5rem);
-  --s-4:  clamp(2rem, 1.35rem + 2.7vw, 3.5rem);
+  --s-4:  clamp(2rem, 1.2rem + 3.4vw, 4.15rem);
 
   --measure: 62ch;
   --gutter: clamp(1.1rem, 3.5vw, 4rem);
@@ -48,7 +48,24 @@
 }
 
 * { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; }
+html {
+  -webkit-text-size-adjust: 100%;
+  /* Dark scrollbars and form controls to match. */
+  color-scheme: dark;
+  /* The ground lives here, not on body, for two reasons. The overscroll
+     rubber-band paints the *canvas*, which comes from the root element — on body
+     it flashed white. And a z-index:-1 layer paints behind its stacking root but
+     above the canvas, so with an opaque gradient on body the backdrop grid was
+     buried underneath it and never appeared at all. */
+  background-color: #0A1514;
+  background-image:
+    radial-gradient(34% 24% at 91% -4%, rgba(255, 176, 102, .44), transparent 66%),
+    radial-gradient(52% 34% at 86% 2%, rgba(232, 96, 58, .26), transparent 64%),
+    radial-gradient(64% 42% at -4% 22%, rgba(58, 142, 133, .11), transparent 62%),
+    radial-gradient(80% 34% at 50% 106%, rgba(226, 81, 60, .07), transparent 68%),
+    linear-gradient(172deg, #0D1A18 0%, #0A1514 40%, #071110 74%, #040909 100%);
+  background-repeat: no-repeat;
+}
 
 body {
   margin: 0;
@@ -57,15 +74,8 @@ body {
   font-size: var(--s-0);
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
-  /* Sized to the document rather than the viewport, so the ground genuinely
-     shifts in value from top to bottom instead of being pinned behind scroll. */
-  background:
-    radial-gradient(34% 24% at 91% -4%, rgba(255, 176, 102, .44), transparent 66%),
-    radial-gradient(52% 34% at 86% 2%, rgba(232, 96, 58, .26), transparent 64%),
-    radial-gradient(64% 42% at -4% 22%, rgba(58, 142, 133, .11), transparent 62%),
-    radial-gradient(80% 34% at 50% 106%, rgba(226, 81, 60, .07), transparent 68%),
-    linear-gradient(172deg, #0D1A18 0%, #0A1514 40%, #071110 74%, #040909 100%);
-  background-repeat: no-repeat;
+  /* Transparent: the ground is on <html>. See the note there. */
+  background: transparent;
   min-height: 100vh;
 }
 
@@ -118,6 +128,7 @@ section { padding-block: clamp(1.3rem, 3vw, 2.3rem); }
 
 /* ── masthead ───────────────────────────────────────────────────────── */
 .masthead {
+  position: relative;
   display: flex; justify-content: space-between; align-items: center;
   gap: 1rem; flex-wrap: wrap;
   /* Breathing room under the nav; the hero's min-height accounts for it. */
@@ -168,10 +179,10 @@ section { padding-block: clamp(1.3rem, 3vw, 2.3rem); }
 /* ── hero ───────────────────────────────────────────────────────────── */
 .hero-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(22rem, 28rem);
+  grid-template-columns: minmax(0, 1fr) minmax(24rem, 33rem);
   grid-template-rows: 1fr auto;
   grid-template-areas: "left right" "trust trust";
-  gap: clamp(1.25rem, 3vw, 2.25rem) clamp(1.25rem, 2.2vw, 2rem);
+  gap: clamp(1.25rem, 3vw, 2.25rem) clamp(1rem, 1.6vw, 1.5rem);
   /* Exactly one screen, less the masthead. Nothing below this is above the fold. */
   /* One screen, but capped: on a very tall monitor an 1800px hero is not a hero. */
   min-height: min(calc(100svh - 5.2rem), 54rem);
@@ -195,14 +206,23 @@ section { padding-block: clamp(1.3rem, 3vw, 2.3rem); }
 .hero-cta { display: flex; gap: .6rem; flex-wrap: wrap; margin-block-start: 1.5rem; }
 
 .hero { padding: 0; }
-.hero h1 { font-size: var(--s-4); line-height: .98; max-width: 15ch; }
+.hero h1 { font-size: var(--s-4); line-height: 1.06; max-width: 24ch; }
 .hero h1 em {
   font-style: italic;
   background: var(--accent);
   -webkit-background-clip: text; background-clip: text; color: transparent;
+  /* The italic overhangs its box and background-clip: text paints only inside it,
+     so the d was losing its ascender and its top-right corner.
+     Padding on an *inline* element extends the paint box without moving the line;
+     the negative inline margin keeps "sealed." tight. It must stay inline —
+     inline-block makes the following full stop a separate wrap opportunity, and
+     it drops to the next line. */
+  padding-inline-end: .12em;
+  margin-inline-end: -.12em;
+  padding-block: .14em;
 }
-.hero-body { max-width: 42ch; margin-block-start: 1rem; }
-.hero-body p { margin: 0 0 .5rem; color: var(--ink-2); font-size: var(--s-1); }
+.hero-body { max-width: 70ch; margin-block-start: 1.1rem; }
+.hero-body p { margin: 0 0 .5rem; color: var(--ink-2); font-size: clamp(1.05rem, .95rem + .4vw, 1.32rem); }
 .hero-body p:last-child { margin-bottom: 0; }
 .hero-body strong { color: var(--ink); font-weight: 600; }
 .showcase { padding-block-start: 0; }
@@ -487,8 +507,8 @@ td.undisclosed { color: var(--muted); font-style: italic; }
 }
 .rig-replay:hover { color: var(--ember); border-color: var(--accent-edge); }
 
-.rig-ladder { flex: 1; display: flex; min-height: 0; }
-.rig-ladder .ladder-wrap { flex: 1; display: flex; width: auto; }
+.rig-ladder { flex: 1; display: flex; min-height: 0; justify-content: center; }
+.rig-ladder .ladder-wrap { display: flex; width: auto; flex: 0 1 auto; }
 .rig .ladder { flex: 1; }
 /* Rows share the available height exactly, so the instrument always fills its
    column whatever the viewport is. */
@@ -564,7 +584,12 @@ td.undisclosed { color: var(--muted); font-style: italic; }
 @keyframes skel { from { opacity: .35; } to { opacity: .8; } }
 
 /* ── nav ────────────────────────────────────────────────────────────── */
-.nav { display: flex; gap: clamp(1rem, 2vw, 1.9rem); align-items: center; flex-wrap: wrap; }
+/* Centred on the page rather than in the space between the wordmark and the
+   wallet button, which are different widths and so pushed it off-centre. */
+.nav {
+  position: absolute; left: 50%; transform: translateX(-50%);
+  display: flex; gap: clamp(1rem, 2vw, 1.9rem); align-items: center;
+}
 .nav a {
   font-size: var(--s--1); color: var(--ink-2); text-decoration: none;
   letter-spacing: .02em; padding-block: .25rem;
@@ -629,4 +654,141 @@ footer {
   padding-block-start: 1.1rem;
   border-block-start: 1px solid var(--line);
   font-family: var(--font-mono), monospace; font-size: var(--s--1); color: var(--muted);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Chrome polish, informed by Aceternity UI.
+   
+   Nothing is installed. Every effect below is CSS plus one pointer listener,
+   which keeps the bundle flat — framer-motion and the component package would
+   have cost more than the polish is worth.
+
+   What was deliberately NOT taken, and why: aurora, spotlight, background
+   beams, meteors, sparkles, vortex and wavy backgrounds are the recognisable
+   Aceternity signatures. With 128 entries in this sprint a good number will
+   ship them, and looking like a template costs us on the criterion they would
+   be decorating. They would also sit over content and pull contrast down on
+   the numbers, which the instrument's boundary forbids outright.
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* ── the ground ───────────────────────────────────────────────────────
+   An interactive grid, after Aceternity's grid and ripple backgrounds but
+   rebuilt in our own palette and without their DOM cost: their version
+   renders a cell per square, which is hundreds of nodes. Two fixed layers
+   and a masked gradient give the same read for two elements.
+
+   Layer one is the grid itself. Layer two is the same grid in ember,
+   revealed only in a radius around the pointer, so the ground lights up
+   where you are looking. Both sit at z-index -1 behind everything and
+   neither ever crosses a number. */
+.backdrop {
+  position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  --gx: 50vw; --gy: 30vh;
+}
+.backdrop::before,
+.backdrop::after {
+  content: ""; position: absolute; inset: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, .055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, .055) 1px, transparent 1px);
+  background-size: 64px 64px;
+}
+/* The resting grid, fading out down the page so it never fights the content. */
+.backdrop::before {
+  mask-image: linear-gradient(180deg, #000 0%, #000 42%, transparent 88%);
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 42%, transparent 88%);
+}
+/* The same grid in ember, revealed around the pointer. */
+.backdrop::after {
+  background-image:
+    linear-gradient(rgba(242, 145, 63, .5) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(242, 145, 63, .5) 1px, transparent 1px);
+  mask-image: radial-gradient(16rem circle at var(--gx) var(--gy), #000 0%, transparent 68%);
+  -webkit-mask-image: radial-gradient(16rem circle at var(--gx) var(--gy), #000 0%, transparent 68%);
+  transition: opacity .4s ease;
+}
+@media (hover: none) { .backdrop::after { display: none; } }
+
+/* Cursor-follow glow on cards. Applied to chrome only — never the instrument,
+   never over a number. Driven by two custom properties set from one listener. */
+.glow { position: relative; isolation: isolate; }
+.glow::after {
+  content: "";
+  position: absolute; inset: 0; z-index: -1;
+  border-radius: inherit;
+  opacity: 0;
+  transition: opacity .35s ease;
+  background: radial-gradient(
+    18rem circle at var(--mx, 50%) var(--my, 50%),
+    rgba(242, 145, 63, .13), transparent 62%);
+}
+.glow:hover::after { opacity: 1; }
+
+/* The header condenses on scroll — product chrome rather than a signature
+   look, so it reads as considered without reading as borrowed. */
+.masthead {
+  position: sticky; top: 0; z-index: 40;
+  isolation: isolate;
+  transition: padding-block .25s ease;
+}
+[data-scrolled="true"] .masthead { padding-block: .6rem; }
+/* Spans the viewport, not the container. `inset-inline` rather than 100vw so it
+   cannot introduce a horizontal scrollbar. */
+.masthead::after {
+  content: "";
+  position: absolute; inset-block: 0; inset-inline: calc(50% - 50vw);
+  z-index: -1;
+  opacity: 0;
+  transition: opacity .25s ease;
+  background: rgba(8, 16, 15, .74);
+  backdrop-filter: blur(14px) saturate(1.3);
+  -webkit-backdrop-filter: blur(14px) saturate(1.3);
+  border-block-end: 1px solid var(--line);
+}
+[data-scrolled="true"] .masthead::after { opacity: 1; }
+
+/* A travelling ember edge on the primary action. Restyled from the
+   hover-border-gradient idea; the fill stays solid so the label never loses
+   contrast. */
+button.primary { position: relative; }
+button.primary::before {
+  content: "";
+  position: absolute; inset: -1px; border-radius: inherit; z-index: -1;
+  background: conic-gradient(from var(--a, 0deg),
+    transparent 0deg, var(--ember) 40deg, transparent 110deg, transparent 360deg);
+  opacity: 0; transition: opacity .3s ease;
+}
+button.primary:hover::before { opacity: .9; animation: spinEdge 2.4s linear infinite; }
+@property --a { syntax: "<angle>"; initial-value: 0deg; inherits: false; }
+@keyframes spinEdge { to { --a: 360deg; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .masthead { transition: none; }
+  button.primary:hover::before { animation: none; }
+}
+
+/* ── reveals ──────────────────────────────────────────────────────────
+   The same easing and rise as the instrument's rungs, so the page moves
+   in one language rather than two.
+
+   The hidden state is scoped to [data-motion="play"] on purpose: if the
+   script does not run, nothing is hidden. Content is never gated behind
+   an animation succeeding. */
+[data-motion="play"] [data-reveal] {
+  opacity: 0;
+  transform: translateY(14px);
+}
+[data-motion="play"] [data-reveal][data-shown="true"] {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity .62s cubic-bezier(.2, .7, .3, 1) var(--d, 0s),
+    transform .62s cubic-bezier(.2, .7, .3, 1) var(--d, 0s);
+}
+
+/* The headline reveals a line at a time, staggered like the rungs. */
+.hero h1 .line { display: block; }
+
+@media (prefers-reduced-motion: reduce) {
+  [data-motion="play"] [data-reveal] { opacity: 1 !important; transform: none !important; }
 }
