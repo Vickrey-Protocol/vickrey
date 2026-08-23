@@ -65,7 +65,131 @@ node client/scripts/verify-pool-shapes.mjs
 All five cases behave identically to Sepolia — our two shapes fail on state, the three
 controls fail on shape. The encoding carries over.
 
-## Gas: two numbers per step, and the one that matters
+## Mainnet cost, estimated against mainnet
+
+Superseding the Sepolia reprice that used to be here. These come from
+`starknet_estimateFee` called on the mainnet RPC with `simulation_flags:
+["SKIP_VALIDATE"]`, at **block 13756429**, l2 gas 30,383,114,633 fri/unit.
+
+It is a read call. Nothing was signed and nothing was submitted. The sender is
+borrowed from a recent mainnet block so the nonce resolves — with `SKIP_VALIDATE` the
+node ignores the signature, which is why a zero-balance stranger can price a declare.
+Pin the estimate to the block the nonce was read at, or a busy borrowed sender's nonce
+moves underneath you and the failure reads as a nonce bug rather than a race.
+
+| Step | l2 gas | **Node estimate** |
+|---|---|---|
+| declare `SealedBidAuction` | 1,142,449,440 | **34.71 STRK** |
+| declare `AuctionAnonymizer` | 248,928,416 | **7.56 STRK** |
+| deploy an OZ account | — | 0.07 STRK |
+| deploy both contracts | ~3.6M | ~0.12 STRK |
+| full auction lifecycle, 9 tx | ~55.0M | ~1.84 STRK |
+
+> **A trap worth naming.** `starknet.js`'s `EstimateFee.overall_fee` is **pre-padded by
+> ~2.05×** — it returned 71.00 and 15.47 for the two declares. The node's own
+> `overall_fee` is 34.71 and 7.56. Read the raw JSON-RPC result; a number taken from
+> the library and treated as the estimate overstates the cost by more than double.
+
+**The Sepolia reprice was low but not wrong.** It projected 31.48 STRK for the auction
+declare against an actual mainnet estimate of 34.71 — mainnet consumes about 1.10× the
+l2 gas Sepolia does for the same class. The method was sound; it just had no way to see
+the network difference.
+
+### What must be *held*, which is still the gate
+
+`sncast` demanded 1,437,474,240 l2 gas for a class whose Sepolia receipt charged
+1,038,760,640 — a **1.384× margin**. Applied to the mainnet estimates:
+
+| | Spends | Must hold |
+|---|---|---|
+| declare `SealedBidAuction` | 34.71 | **~48.0** |
+| declare `AuctionAnonymizer` | 7.56 | ~10.5 |
+| deploys + account | 0.19 | ~0.3 |
+| **contracts up** | **~42.5** | **~58.8** |
+
+### The submission total
+
+| | STRK |
+|---|---|
+| Contracts up (spent) | 42.5 |
+| Shield into the pool, once | 6 |
+| Three qualifying pool transactions | 18 |
+| Auction gas, mainnet | 1.8 |
+| **Total spent** | **≈ 68.3** |
+| **Peak held, at the first declare** | **≈ 58.8** |
+
+**70 STRK leaves 1.7 STRK of slack.** That is not a margin, it is a rounding error —
+one gas spike, one retried transaction, or one extra pool operation and the run stops
+with the entry unscoreable. **Send 85.**
+
+## What the submission rule actually requires
+
+Verified verbatim from `starkience/strk20-hackathon` `CONTRIBUTING.md`, not inferred:
+
+> **`transactions`** - at least three mainnet transaction hashes. Each is checked
+> against the chain: it must exist, have succeeded, and have touched the STRK20 pool.
+> **If you listed anything in `contracts`, the transaction must also carry an event from
+> one of them** - touching the pool through someone else's contract is not your project
+> running on mainnet.
+
+And from `README.md`:
+
+> To win, your app must run on **Starknet mainnet** against the live STRK20 pool, with
+> at least **three mainnet transactions** that touched the pool, listed by hash in your
+> `strk20.json`.
+
+**So a direct auction-contract bid does not count, and neither does a bare pool
+deposit.** The rule is conjunctive: each of the three must touch the pool *and* carry an
+event from a contract we listed. Only transactions that route pool → anonymizer →
+auction satisfy both.
+
+Our path does. `SealedBidAuction` emits `BidPlaced`, `RefundClaimed` and `LotClaimed`,
+so a bid, a refund and a lot claim placed through the pool are three qualifying
+transactions.
+
+Two consequences:
+
+- **The shield does not count.** It touches the pool but carries no event of ours. It is
+  still required — bids are funded from shielded balance — so budget four pool
+  operations, not three.
+- **`AuctionAnonymizer` emits no events at all.** The rule is satisfied by the auction's
+  events, so this is not a blocker. But the contract that performs the actual STRK20
+  integration is currently invisible in its own transactions, and STRK20 integration
+  depth is 30% of the score. Adding an event costs nothing before the declare and is
+  impossible after it without paying 42.5 STRK to redeclare.
+
+Also worth noting, since it settles how sponsorship is treated:
+
+> Hashes rather than an address because private transactions are relayed, so the
+> on-chain sender is never you.
+
+Relayed transactions are expected, not tolerated. The sponsored rail is not a workaround.
+
+## Verified endpoints
+
+Fetched, not assumed.
+
+| | Result |
+|---|---|
+| `api.cartridge.gg/x/starknet/mainnet` | alive, spec **0.10.2**, chain `0x534e5f4d41494e` |
+| `starkscan.co/contract/<addr>` | **200** |
+| `starkscan.co/tx/<hash>` | **200** |
+| `voyager.online/*` | 403 — Cloudflare bot-block, fine in a browser |
+| `sepolia.starkscan.co` | **no DNS record, no response.** Still dead |
+
+Mainnet uses `starkscan.co`; Sepolia uses `sepolia.voyager.online`. The patterns are
+not symmetric and assuming they were is what produced the original dead link.
+
+Live pool reads at the same block: `get_fee_amount` = **6 STRK**,
+`get_proof_validity_blocks` = 450, `is_paused` = 0.
+
+## Per-step lifecycle gas, measured on Sepolia
+
+*Superseded for the declares by the mainnet estimates above; still the best source for
+the per-step lifecycle costs, which cannot be estimated on mainnet until the classes
+are declared. Multiply by ~1.10 for mainnet.*
+
+### Two numbers per step, and the one that matters
 
 Every step below has a **measured** cost and a **bound**. Measured is what the receipt
 charged. Bound is what the fee estimator demands the account hold before it will submit
@@ -142,14 +266,14 @@ first is a *holding* requirement, the second a *spending* one.
 
 | Item | Must hold | Actually spends |
 |---|---|---|
-| Deploy a mainnet account | ~0.5 | ~0.5 |
-| Declare `SealedBidAuction` | 43.56 | 31.48 |
-| Declare `AuctionAnonymizer` | 9.49 | 6.86 |
+| Deploy a mainnet account | ~0.1 | 0.07 |
+| Declare `SealedBidAuction` | 48.0 | 34.71 |
+| Declare `AuctionAnonymizer` | 10.5 | 7.56 |
 | Deploy both | 0.17 | 0.11 |
-| | **≈ 54 STRK at the first declare** | **≈ 39 STRK gone** |
+| | **≈ 58.8 STRK at the first declare** | **≈ 42.5 STRK gone** |
 
-**Do not change the contracts after declaring** — every code change is another 38 STRK
-spent and 53 that has to be sitting there.
+**Do not change the contracts after declaring** — every code change is another 42.5 STRK
+spent and 58.8 that has to be sitting there.
 
 ### B. The judged auction, run through the pool
 
@@ -172,36 +296,27 @@ nothing in credibility.
 
 ### The honest total
 
-The sprint's submission rule sets the floor:
-
-> at least three mainnet transaction hashes … it must exist, have succeeded, and **have
-> touched the STRK20 pool**.
-
-Bids placed directly on our contract do not touch the pool, so they cannot be the three
-transactions. At least three **pool** transactions are unavoidable, at 6 STRK each.
+Per the submission rule quoted above, each of the three transactions must touch the pool
+**and** carry an event from a contract we listed. A bare shield satisfies the first and
+not the second, so it is a fourth pool operation rather than one of the three.
 
 | | Spends | Peak holding | Buys |
 |---|---|---|---|
-| Deploy only | ~39 | ~54 | Contracts on mainnet, nothing running |
-| **Submission minimum** | **~65** | **~54** | Deploy, shield once, three pool transactions, gas |
-| Judge-friendly | ~125 | ~54 | The above plus ten sponsored private bids |
-| Five-bidder pool auction | ~160 | ~54 | The plan's full target |
+| Deploy only | 42.5 | 58.8 | Contracts on mainnet, nothing running |
+| **Submission minimum** | **68.3** | **58.8** | Deploy, shield once, three qualifying pool transactions, gas |
+| Judge-friendly | ~128 | 58.8 | The above plus ten sponsored private bids |
+| Five-bidder pool auction | ~164 | 58.8 | The plan's full target |
 
-Peak holding is flat across the rows because the declare is the first thing that happens
-and the most expensive single moment; everything after it is cheap by comparison.
+Peak holding is flat because the declare is the first thing that happens and the most
+expensive single moment; everything after it is cheap by comparison.
 
-**70 STRK covers this at today's gas** — it clears the 54 bound at the declare and the
-65 of total spending, with ~5 STRK of slack. That slack is the whole margin, and it is
-thin:
+**Send 85 STRK.** 70 covers the 68.3 minimum by 1.7 STRK, which is not a margin — one
+gas spike, one retried transaction, or one extra pool operation and the run stops with
+the entry unscoreable. The declare bound scales linearly with gas price, so a 15% rise
+between funding and declaring eats the difference on its own.
 
-- **If mainnet l2 gas rises ~30% before the declare, 70 stops being enough.** The bound
-  scales linearly with gas price, so a 43.56 declare becomes 56.6 and the run strands
-  with nothing declared.
-- **Declare first, on a full wallet, when gas is low.** `deploy.sh` prints the bound,
-  the balance and the headroom before it spends anything, and refuses to start if the
-  balance is under the bound.
-- **85 STRK removes the gas-movement risk.** If the funding decision is still open, that
-  is the number I would send.
+`deploy.sh` prints the bound, the balance and the headroom before it spends anything,
+and refuses to start when the balance is under the bound.
 
 ## Open questions this raises
 

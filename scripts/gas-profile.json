@@ -11,19 +11,153 @@
     "Fund against bound, expect to be charged measured."
   ],
   "steps": [
-    { "step": "declare SealedBidAuction",   "measured": { "l2_gas": 1038760640, "l1_data_gas": 192  }, "bound": { "l2_gas": 1437474240, "l1_data_gas": 288  } },
-    { "step": "declare AuctionAnonymizer",  "measured": { "l2_gas": 226468800,  "l1_data_gas": 192  }, "bound": { "l2_gas": 313000000,  "l1_data_gas": 288  } },
-    { "step": "deploy SealedBidAuction",    "measured": { "l2_gas": 1328000,    "l1_data_gas": 224  }, "bound": { "l2_gas": 2000000,    "l1_data_gas": 336  } },
-    { "step": "deploy AuctionAnonymizer",   "measured": { "l2_gas": 2312480,    "l1_data_gas": 416  }, "bound": { "l2_gas": 3500000,    "l1_data_gas": 624  } },
-    { "step": "create_auction",             "measured": { "l2_gas": 12004560,   "l1_data_gas": 1824 }, "bound": { "l2_gas": 18000000,   "l1_data_gas": 2736 } },
-    { "step": "place_bid",                  "measured": { "l2_gas": 7638080,    "l1_data_gas": 1024 }, "bound": { "l2_gas": 11500000,   "l1_data_gas": 1536 } },
-    { "step": "seal",                       "measured": { "l2_gas": 3351520,    "l1_data_gas": 448  }, "bound": { "l2_gas": 5000000,    "l1_data_gas": 672  } },
-    { "step": "settle (3 bids)",            "measured": { "l2_gas": 6946080,    "l1_data_gas": 896  }, "bound": { "l2_gas": 10400000,   "l1_data_gas": 1344 } },
-    { "step": "finalize",                   "measured": { "l2_gas": 4496080,    "l1_data_gas": 480  }, "bound": { "l2_gas": 6700000,    "l1_data_gas": 720  } },
-    { "step": "claim_lot",                  "measured": { "l2_gas": 3590480,    "l1_data_gas": 352  }, "bound": { "l2_gas": 5400000,    "l1_data_gas": 528  } },
-    { "step": "claim_refund",               "measured": { "l2_gas": 3325840,    "l1_data_gas": 416  }, "bound": { "l2_gas": 5000000,    "l1_data_gas": 624  } }
+    {
+      "step": "declare SealedBidAuction",
+      "measured": {
+        "l2_gas": 1038760640,
+        "l1_data_gas": 192
+      },
+      "bound": {
+        "l2_gas": 1437474240,
+        "l1_data_gas": 288
+      }
+    },
+    {
+      "step": "declare AuctionAnonymizer",
+      "measured": {
+        "l2_gas": 226468800,
+        "l1_data_gas": 192
+      },
+      "bound": {
+        "l2_gas": 313000000,
+        "l1_data_gas": 288
+      }
+    },
+    {
+      "step": "deploy SealedBidAuction",
+      "measured": {
+        "l2_gas": 1328000,
+        "l1_data_gas": 224
+      },
+      "bound": {
+        "l2_gas": 2000000,
+        "l1_data_gas": 336
+      }
+    },
+    {
+      "step": "deploy AuctionAnonymizer",
+      "measured": {
+        "l2_gas": 2312480,
+        "l1_data_gas": 416
+      },
+      "bound": {
+        "l2_gas": 3500000,
+        "l1_data_gas": 624
+      }
+    },
+    {
+      "step": "create_auction",
+      "measured": {
+        "l2_gas": 12004560,
+        "l1_data_gas": 1824
+      },
+      "bound": {
+        "l2_gas": 18000000,
+        "l1_data_gas": 2736
+      }
+    },
+    {
+      "step": "place_bid",
+      "measured": {
+        "l2_gas": 7638080,
+        "l1_data_gas": 1024
+      },
+      "bound": {
+        "l2_gas": 11500000,
+        "l1_data_gas": 1536
+      }
+    },
+    {
+      "step": "seal",
+      "measured": {
+        "l2_gas": 3351520,
+        "l1_data_gas": 448
+      },
+      "bound": {
+        "l2_gas": 5000000,
+        "l1_data_gas": 672
+      }
+    },
+    {
+      "step": "settle (3 bids)",
+      "measured": {
+        "l2_gas": 6946080,
+        "l1_data_gas": 896
+      },
+      "bound": {
+        "l2_gas": 10400000,
+        "l1_data_gas": 1344
+      }
+    },
+    {
+      "step": "finalize",
+      "measured": {
+        "l2_gas": 4496080,
+        "l1_data_gas": 480
+      },
+      "bound": {
+        "l2_gas": 6700000,
+        "l1_data_gas": 720
+      }
+    },
+    {
+      "step": "claim_lot",
+      "measured": {
+        "l2_gas": 3590480,
+        "l1_data_gas": 352
+      },
+      "bound": {
+        "l2_gas": 5400000,
+        "l1_data_gas": 528
+      }
+    },
+    {
+      "step": "claim_refund",
+      "measured": {
+        "l2_gas": 3325840,
+        "l1_data_gas": 416
+      },
+      "bound": {
+        "l2_gas": 5000000,
+        "l1_data_gas": 624
+      }
+    }
   ],
   "deploy_steps": 4,
-  "pool_fee_strk": { "mainnet": 6, "sepolia": 2 },
-  "pool_txs_for_submission": 4
+  "pool_fee_strk": {
+    "mainnet": 6,
+    "sepolia": 2
+  },
+  "pool_txs_for_submission": 4,
+  "mainnet_estimates": {
+    "_comment": "Real starknet_estimateFee against the mainnet RPC, block 13756429, simulation_flags ['SKIP_VALIDATE'], sender borrowed from a recent mainnet block so the nonce resolves. Nothing signed, nothing submitted, no balance required. These supersede the Sepolia reprice: mainnet consumes ~1.10x the Sepolia l2 gas for the same class. NOTE starknet.js's EstimateFee.overall_fee is pre-padded by ~2.05x; these are the node's own overall_fee, read from the raw JSON-RPC result.",
+    "block": 13756429,
+    "l2_gas_price_fri": 30383114633,
+    "declare_SealedBidAuction": {
+      "l2_gas": 1142449440,
+      "l1_data_gas": 192,
+      "strk": 34.71
+    },
+    "declare_AuctionAnonymizer": {
+      "l2_gas": 248928416,
+      "l1_data_gas": 192,
+      "strk": 7.56
+    },
+    "deploy_account_oz": {
+      "strk": 0.0668
+    },
+    "pool_fee_read_live_strk": 6,
+    "sncast_bound_multiplier": 1.384,
+    "sncast_bound_note": "sncast demanded 1,437,474,240 l2 gas for a class whose Sepolia receipt charged 1,038,760,640 - a 1.384x margin. Applied to the mainnet estimates that projects to ~48.0 and ~10.5 STRK that must be held, against ~42.3 spent."
+  }
 }

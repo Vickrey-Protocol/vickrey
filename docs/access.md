@@ -112,14 +112,24 @@ experiment, not as the answer to this problem.
 
 ## The constraint that forces a private-rail run either way
 
-From the sprint's `CONTRIBUTING.md`:
+Verified verbatim from `starkience/strk20-hackathon` `CONTRIBUTING.md`:
 
-> at least three mainnet transaction hashes. Each is checked against the chain: it must
-> exist, have succeeded, and **have touched the STRK20 pool**. If you listed anything in
-> `contracts`, the transaction must also carry an event from one of them.
+> **`transactions`** - at least three mainnet transaction hashes. Each is checked
+> against the chain: it must exist, have succeeded, and have touched the STRK20 pool.
+> **If you listed anything in `contracts`, the transaction must also carry an event from
+> one of them** - touching the pool through someone else's contract is not your project
+> running on mainnet.
 
-Public-rail bids do **not** touch the pool, so they cannot be our three transactions. We
-need at least three real pool transactions that route through our anonymizer — a bid
-through the pool does exactly that: pool → anonymizer → `place_bid` → `BidPlaced`.
+The rule is conjunctive, and both halves bite:
 
-**That is 18 STRK in pool fees we cannot avoid**, on top of deployment.
+- **Public-rail bids do not touch the pool**, so they cannot be our three.
+- **A bare shield touches the pool but carries no event of ours**, so it cannot be one
+  either. It is still required, since bids are funded from shielded balance — which
+  makes it a *fourth* pool operation, not one of the three.
+
+Only pool → anonymizer → auction satisfies both halves. `SealedBidAuction` emits
+`BidPlaced`, `RefundClaimed` and `LotClaimed`, so a bid, a refund and a lot claim
+placed through the pool are three qualifying transactions.
+
+**That is 24 STRK in pool fees we cannot avoid** — three qualifying transactions plus
+the shield that funds them — on top of deployment.
