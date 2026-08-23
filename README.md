@@ -13,6 +13,9 @@ on-chain by hash-preimage witnesses over a bid set the contract froze before any
 could open it. The losing bids are never published — not on chain, not in the app, not
 anywhere except the bidders' own devices. Neither is the winner's.
 
+**Submissions close 31 Aug 2026, 23:59 UTC.** Whatever this repository shows at that
+moment is the entry — there is no separate submission step.
+
 ## Trust statement
 
 > **What is assured:** the winner and the clearing price are established by
@@ -49,6 +52,7 @@ Mainnet cost is measured rather than estimated: [docs/mainnet.md](docs/mainnet.m
 | Mainnet run with ≥5 bidders | Not done |
 | A wallet-signed bid through the pool | Not done — the one step needing a human |
 | Demo video | Not made |
+| Visual direction | Second pass under review — the shipped UI is the previous direction |
 
 Two dependency advisories are open and deliberately not chased: `postcss` and `sharp`
 reach the web app only as Next.js build-time transitives, and clearing them needs

@@ -146,7 +146,8 @@ transactions — see [access.md](access.md).
 
 ## The declare date
 
-Deadline **Mon 31 Aug 2026, 23:59 UTC**. Whatever the repo shows then is the entry.
+Deadline **Mon 31 Aug 2026, 23:59 UTC** — submissions close, and whatever the repo
+shows at that moment is the entry. There is no separate submission step.
 
 Working backwards from what has to be true at the end — a five-bidder auction run, a
 video recorded, and `strk20.json` filled with three verified pool transactions:
