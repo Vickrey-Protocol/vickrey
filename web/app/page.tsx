@@ -13,6 +13,8 @@ import { Hero, HowItWorks } from "@/components/Hero";
 import { CountUp } from "@/components/CountUp";
 import { initMotion, onReplayKey, replayMotion } from "@/lib/motion";
 import { AuctionCard } from "@/components/AuctionCard";
+import { Faq } from "@/components/Faq";
+import { Footer } from "@/components/Footer";
 import { HeroInstrument } from "@/components/HeroInstrument";
 import { BidPanel, ClaimPanel, DisputePanel, RevealPanel } from "@/components/Panels";
 import { AuctioneerSection } from "@/components/AuctioneerSection";
@@ -165,6 +167,15 @@ export default function Home() {
           <div className="wordmark">Vickrey<span aria-hidden="true" /></div>
           <span className="badge">{config.label}</span>
         </div>
+        <nav className="nav" aria-label="Sections">
+          <a href="#auctions">Auctions</a>
+          <a href="#how">How it works</a>
+          <a href="#faq">FAQ</a>
+          <a href="https://github.com/Vickrey-Protocol/vickrey" target="_blank" rel="noreferrer">
+            GitHub
+          </a>
+        </nav>
+
         <div className="row">
           {connection ? (
             <span className="pill sealed">
@@ -459,10 +470,8 @@ export default function Home() {
         </>
       )}
 
-      <footer>
-        <span>Vickrey · sealed-bid auctions on STRK20 · MIT</span>
-        <span>{config.label}</span>
-      </footer>
+      <Faq />
+      <Footer />
     </main>
   );
 }

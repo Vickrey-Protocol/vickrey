@@ -1,36 +1,21 @@
 "use client";
 
 /**
- * The three motion beats, and when they are allowed to run.
+ * The three motion beats, and when they run.
  *
- * They play on a visitor's first arrival and then stay out of the way — an
- * auctioneer refreshing all day should not sit through them. Recording a demo
- * needs the opposite, so playback is deterministic three ways:
+ * **On every load.** An earlier version gated this behind a first-visit flag in
+ * `localStorage`, which was a mistake: the settlement animation is the argument the
+ * page exists to make, and anyone who had opened the site once never saw it again —
+ * including, in practice, the people reviewing it. Suppressing it is now opt-in
+ * rather than automatic.
  *
- *   ?motion=1   force the beats        ?motion=0   force the settled state
- *   press R     replay                 the replay control
+ *   default     the beats run
+ *   ?motion=0   force the settled state
+ *   ?motion=1   force the beats, even where they would otherwise be suppressed
+ *   press R     replay, as does the control on the instrument
  *
- * `localStorage` throws outright in a private window or with site data blocked,
- * so every access is guarded; a failure just means the motion plays.
+ * `prefers-reduced-motion` still wins unless `?motion=1` says otherwise.
  */
-const KEY = "vickrey.motion.seen";
-
-const seen = (): boolean => {
-  try {
-    return localStorage.getItem(KEY) === "1";
-  } catch {
-    return false;
-  }
-};
-
-const markSeen = () => {
-  try {
-    localStorage.setItem(KEY, "1");
-  } catch {
-    /* nothing to remember it with; the beats simply play again */
-  }
-};
-
 const prefersReduced = () =>
   typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -39,7 +24,7 @@ export function setMotion(play: boolean) {
   document.documentElement.dataset.motion = play && !prefersReduced() ? "play" : "still";
 }
 
-/** Decides the opening state. Returns whether the beats are running. */
+/** Decides the opening state. Returns whether the beats are actually running. */
 export function initMotion(): boolean {
   const forced = new URLSearchParams(location.search).get("motion");
   if (forced === "0") {
@@ -47,13 +32,13 @@ export function initMotion(): boolean {
     return false;
   }
   if (forced === "1") {
-    setMotion(true);
+    // An explicit request beats the reduced-motion preference, so a recording is
+    // reproducible on any machine.
+    document.documentElement.dataset.motion = "play";
     return true;
   }
-  const already = seen();
-  setMotion(!already);
-  if (!already) markSeen();
-  return !already && !prefersReduced();
+  setMotion(true);
+  return !prefersReduced();
 }
 
 /** Restarts the beats. Re-keying the animated subtree is the caller's job. */

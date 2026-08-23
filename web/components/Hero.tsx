@@ -24,7 +24,7 @@ export function Hero() {
 /** How it works, in three beats, below the trust statement. */
 export function HowItWorks() {
   return (
-    <section aria-label="How it works" style={{ padding: 0 }}>
+    <section id="how" aria-label="How it works" style={{ padding: 0 }}>
       <dl className="beats">
         <div className="beat">
           <dt>Bid</dt>
