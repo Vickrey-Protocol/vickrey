@@ -361,16 +361,57 @@ serialization.
 **The action envelope. RESOLVED** — see Q5 above, including the felt-encoding bug it
 exposed.
 
+## Addendum, second pass — the live pool answers
+
+Sepolia has a deployed STRK20 pool, so the whole flow can be exercised without
+mainnet funds. Addresses came from `@avnu/avnu-sdk`, then were checked on-chain.
+
+| | |
+|---|---|
+| Sepolia pool | `0x254a6b2997ef52e9f830ce1f543f6b29768295e8d17e2267d672c552cfe0d91` |
+| Class hash | `0x56ab118a8a6e38efc93ad758cefe909fee421fa931ce3cf72df624d345623b2` |
+| Mainnet pool | `0x040337b1af3c663e86e333bab5a4b28da8d4652a15a69beee2b677776ffe812a` |
+| `get_fee_amount` | **2 STRK** on Sepolia — not the 4 the docs quote for mainnet (Q8) |
+| `get_proof_validity_blocks` | 450, matching the documented default |
+
+**Also: Blast API is retired.** Every RPC URL in this repo pointed at it and was
+dead. Worth noting because a dead default endpoint is the kind of thing that only
+surfaces during a demo.
+
+### The pool validated our action encoding
+
+`compile_actions` is a **view** on the pool. That makes it possible to put our own
+calldata in front of the real contract read-only — no wallet, no signature, no funds,
+no deployment. `client/scripts/verify-pool-shapes.mjs` does exactly that, building the
+actions with the production client code rather than a copy:
+
+| Case | Live pool says | Reading |
+|---|---|---|
+| bid `[Withdraw, InvokeExternal]` | `NEGATIVE_INTERMEDIATE_BALANCE` | **Shape accepted.** Reached the balance invariant; the throwaway user has no notes |
+| claim `[CreateOpenNote, Invoke]` | `SUBCHANNEL_NOT_FOUND` | **Shape accepted.** Reached state lookup |
+| control: reversed bid | `ACTIONS_OUT_OF_ORDER` | Withdraw is phase 6, invoke is phase 7 |
+| control: invoke alone | `NO_REPLAY_PROTECTION` | An invoke with no note action has no nullifier |
+| control: two invokes | `ACTIONS_OUT_OF_ORDER` | At most one external invoke per transaction, confirmed on-chain |
+
+Both of our shapes fail on **state**, not shape. The controls fail on **shape**. That
+asymmetry is the result: the encoding, the enum variants and the phase ordering are
+right, and the check is still capable of failing.
+
+Two things this does *not* establish, and they are the honest limit: no wallet has
+assembled, proven and submitted one of these, and the helper has never run, because
+nothing is deployed yet.
+
+`NO_REPLAY_PROTECTION` is a design constraint worth carrying forward: **an
+`InvokeExternal` cannot stand alone.** A bid must include a note-spending action, which
+it does — the `UseNote` that funds the withdraw.
+
 ## What is still unverified and must be before launch
 
+- **A wallet assembling, proving and submitting a bid.** The remaining gap, and the
+  only one that needs a human at a browser. `strk20PrepareInvoke(actions, true)` first.
 - Mainnet/Sepolia gas for `settle()` at `N=10, P=256` (Q8, Q3). We have an `snforge`
-  estimate; that is not a mainnet measurement.
-- Current `get_fee_amount` on the target network (Q8). Read live, never hardcoded.
-- **An end-to-end dry-run against a real privacy-enabled wallet.** The action shapes
-  are now type-checked against the wallet's own definitions, which is much stronger
-  than a reading, but no wallet has actually assembled and proven one of our
-  transactions. `strk20PrepareInvoke(actions, true)` before any mainnet bid.
-- The live pool address for the target network, which pins the anonymizer's
-  constructor.
+  estimate; that is not a chain measurement.
+- Whether Ready or Xverse expose STRK20 on **Sepolia** specifically. The pool is
+  there; wallet support for it is a separate question.
 - Whether `privacy_compute` could carry any part of the ranking argument (Q2). Low
   priority; the design does not need it.

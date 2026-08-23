@@ -59,16 +59,34 @@ The two items previously marked UNVERIFIED are now **resolved against source**:
    declaration. The revision is cited in the file; `test_layout.cairo` pins the
    serialization.
 
-What is still genuinely open, and gates a deploy:
+### The live pool has checked our encoding
 
-- **No wallet has ever assembled one of our transactions.** Type-checking against the
-  wallet's own definitions is much stronger than a reading, but it is not a dry-run.
-  `strk20PrepareInvoke(actions, true)` against a real privacy-enabled wallet comes
-  before any mainnet bid.
-- Mainnet gas for `settle`, and the live `get_fee_amount`, both measured rather than
-  estimated.
-- The live pool address for the target network, which pins the anonymizer's
-  constructor.
+`compile_actions` is a `view` on the STRK20 pool, so our calldata can be put in front
+of the real contract read-only. `npm run verify:pool` in `client/` does that, building
+the actions with the production code rather than a copy:
+
+| Case | Live Sepolia pool | Reading |
+|---|---|---|
+| bid `[Withdraw, InvokeExternal]` | `NEGATIVE_INTERMEDIATE_BALANCE` | **shape accepted**, reached the balance invariant |
+| claim `[CreateOpenNote, Invoke]` | `SUBCHANNEL_NOT_FOUND` | **shape accepted**, reached state lookup |
+| control: reversed | `ACTIONS_OUT_OF_ORDER` | |
+| control: invoke alone | `NO_REPLAY_PROTECTION` | |
+| control: two invokes | `ACTIONS_OUT_OF_ORDER` | |
+
+Our shapes fail on *state*; the controls fail on *shape*. That asymmetry is the point,
+and the controls are there so the check can still fail if the encoding drifts.
+
+Sepolia pool `0x254a…0d91`, live `get_fee_amount` **2 STRK** — not the 4 the docs quote
+for mainnet, which is why it is read and never hardcoded.
+
+### Still open, and gating a deploy
+
+- **No wallet has assembled, proven and submitted one of these.** That is the
+  remaining gap and the only one needing a human at a browser.
+- The helper has never run, because nothing is deployed.
+- Mainnet gas for `settle`, measured rather than estimated.
+- Whether Ready or Xverse expose STRK20 on Sepolia specifically. The pool is there;
+  wallet support for it is a separate question.
 
 ## Where this touches STRK20
 
@@ -236,6 +254,7 @@ Node 24.
 ```shell
 scarb build && snforge test            # 58 Cairo tests
 cd client && npm install && npm test   # 32 client tests
+cd client && npm run verify:pool       # our calldata vs the live Sepolia pool
 cd web    && npm install && npm run build
 ```
 
