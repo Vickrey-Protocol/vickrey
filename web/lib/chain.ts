@@ -1,5 +1,8 @@
-"use client";
-
+/**
+ * Isomorphic on purpose. The auction's structure — level count, price scale, rungs —
+ * is configuration, not live state, so the server renders it into the HTML and the
+ * instrument is on screen before any client fetch happens.
+ */
 import { byteArray, RpcProvider, shortString } from "starknet";
 import {
   type AuctionKind,
@@ -162,3 +165,55 @@ export function settleCalldata(
   }
   return flat;
 }
+
+
+/** Everything the page needs, fetched in one pass. Used by the server render. */
+export async function readAll(): Promise<AuctionView[]> {
+  const count = await readAuctionCount();
+  const views = await Promise.all(
+    Array.from({ length: count }, (_, i) => readAuction(BigInt(i))),
+  );
+  return views.filter((v): v is AuctionView => v !== null);
+}
+
+/** `AuctionView` carries bigints, which do not survive the server/client boundary. */
+export type WireAuction = Omit<
+  AuctionView,
+  "terms" | "lotAmount" | "collateral" | "bond" | "bidRoot" | "poolFee"
+> & {
+  terms: Omit<AuctionView["terms"], "auctionId" | "reservePrice" | "tick"> & {
+    auctionId: string; reservePrice: string; tick: string;
+  };
+  lotAmount: string; collateral: string; bond: string; bidRoot: string;
+  poolFee: string | null;
+};
+
+export const toWire = (a: AuctionView): WireAuction => ({
+  ...a,
+  terms: {
+    ...a.terms,
+    auctionId: a.terms.auctionId.toString(),
+    reservePrice: a.terms.reservePrice.toString(),
+    tick: a.terms.tick.toString(),
+  },
+  lotAmount: a.lotAmount.toString(),
+  collateral: a.collateral.toString(),
+  bond: a.bond.toString(),
+  bidRoot: a.bidRoot.toString(),
+  poolFee: a.poolFee === null ? null : a.poolFee.toString(),
+});
+
+export const fromWire = (w: WireAuction): AuctionView => ({
+  ...w,
+  terms: {
+    ...w.terms,
+    auctionId: BigInt(w.terms.auctionId),
+    reservePrice: BigInt(w.terms.reservePrice),
+    tick: BigInt(w.terms.tick),
+  },
+  lotAmount: BigInt(w.lotAmount),
+  collateral: BigInt(w.collateral),
+  bond: BigInt(w.bond),
+  bidRoot: BigInt(w.bidRoot),
+  poolFee: w.poolFee === null ? null : BigInt(w.poolFee),
+});

@@ -19,6 +19,8 @@ export interface LadderProps {
   status: Status;
   /** Thumbnail form for a card: no scale, no annotations. */
   compact?: boolean;
+  /** Draw the frame without a price scale, for when the config is not known yet. */
+  hideScale?: boolean;
 }
 
 /**
@@ -49,6 +51,7 @@ export function Ladder({
   onPick,
   status,
   compact = false,
+  hideScale = false,
 }: LadderProps) {
   const settled = clearingLevel !== null && status >= Status.Settled;
   const rows = Array.from({ length: numLevels }, (_, i) => numLevels - 1 - i);
@@ -98,7 +101,7 @@ export function Ladder({
 
           return (
             <div className="ladder-row" key={level}>
-              {!compact && (
+              {!compact && !hideScale && (
                 <span className={`scale${isClearing ? " at" : ""}`}>
                   {formatUnits(price(level), decimals, 4, 2)}
                 </span>
