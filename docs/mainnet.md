@@ -216,14 +216,47 @@ thin:
 
 ## Sequence
 
-1. Create and deploy a mainnet account; fund it.
-2. `scarb -P release build`, then declare both classes. **Record the class hashes.**
-3. Deploy `SealedBidAuction`, then `AuctionAnonymizer` with the **mainnet** pool
-   address and the auction address.
-4. Read both back — `privacy_contract()` must equal the mainnet pool.
-5. Point the hosted app at the mainnet addresses.
-6. Run one auction without the pool for the three-transaction requirement.
-7. Only then attempt the pool leg, dry-run first.
+Steps 2 through 4 are one command. It builds, runs the 58 tests, checks the chain and
+the balance, declares only what is not already declared, deploys, and reads both
+contracts back before writing anything down.
+
+```
+scripts/deploy.sh mainnet <sncast-account>
+```
+
+1. **Create and deploy a mainnet account, and fund it.** The keystore has only a
+   Sepolia account today. Everything below refuses to run until this exists and holds
+   the bound.
+
+2. **Run the command.** It refuses to spend if the chain is wrong, the pool class has
+   moved, or the balance is under the estimator bound — all before `scarb build`. On
+   success it writes `deployments.mainnet.json` and prints the class hashes.
+
+   The class hashes are already known and are in `strk20.json`:
+
+   ```
+   SealedBidAuction    0x1489a905a59d25614300504355ecd9df25e34bc8b099485512d44cc7b94b341
+   AuctionAnonymizer   0x5197552b8a5d886b024ed281242c001c8b84aabc8d95edd014ff2b673646e0e
+   ```
+
+   **If the declare prints something different, stop.** It means the build is not the
+   one that was rehearsed, and the contracts on mainnet would be untested code.
+
+   Note it builds with the **dev** profile, not `-P release`. That is deliberate — see
+   "The release profile does not help" above.
+
+3. **If it dies partway, just run it again.** It skips whatever is already declared, so
+   a re-run costs the deploys and nothing else.
+
+4. **Point the hosted app at the addresses** — the command prints the three `vercel env`
+   lines.
+
+5. **Run one auction without the pool** to prove the contracts work on mainnet:
+   `AUCTION=<addr> NETWORK=mainnet node scripts/live-auction.mjs`. Ten transactions,
+   about 1.3 STRK. These do **not** satisfy the submission rule — they never touch the
+   pool — but they prove the deployment before any pool money is spent.
+
+6. **Only then attempt the pool leg**, dry-run first. This is the part nobody has run.
 
 ## The declare date
 
