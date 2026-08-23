@@ -4,8 +4,8 @@ import {
   upAnchor,
   witnessAtOrAbove,
   witnessAtOrBelow,
-} from "./ladder";
-import type { AuctionTerms, PrivateBid, PublicBid, Reveal } from "./types";
+} from "./ladder.ts";
+import type { AuctionTerms, PrivateBid, PublicBid, Reveal } from "./types.ts";
 
 /**
  * A uniformly random field element. 31 bytes is always below the STARK prime

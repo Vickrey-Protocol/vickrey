@@ -16,7 +16,7 @@ import {
   upSeed,
   witnessAtOrAbove,
   witnessAtOrBelow,
-} from "../src/ladder";
+} from "../src/ladder.ts";
 import { shortString } from "starknet";
 
 const felt = (s: string) => BigInt(shortString.encodeShortString(s));

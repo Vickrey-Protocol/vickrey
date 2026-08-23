@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { createBid, revealFor } from "../src/bid";
-import { planSettlement, verifyPlan } from "../src/settle";
+import { createBid, revealFor } from "../src/bid.ts";
+import { planSettlement, verifyPlan } from "../src/settle.ts";
 import {
   AuctionKind,
   type AuctionTerms,
@@ -9,7 +9,7 @@ import {
   type PrivateBid,
   type PublicBid,
   type Reveal,
-} from "../src/types";
+} from "../src/types.ts";
 
 const terms = (kind: AuctionKind): AuctionTerms => ({
   auctionId: 1n,

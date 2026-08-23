@@ -8,7 +8,7 @@ import {
   verifyAtOrBelow,
   witnessAtOrAbove,
   witnessAtOrBelow,
-} from "../src/ladder";
+} from "../src/ladder.ts";
 
 const AID = 7n;
 const LEVELS = 16;

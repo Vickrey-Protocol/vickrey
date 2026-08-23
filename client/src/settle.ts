@@ -5,13 +5,13 @@
  * `verifyPlan` re-runs the contract's own acceptance rules locally, so a bad plan is
  * caught before it costs a transaction.
  */
-import { revealMatches } from "./bid";
+import { revealMatches } from "./bid.ts";
 import {
   verifyAtOrAbove,
   verifyAtOrBelow,
   witnessAtOrAbove,
   witnessAtOrBelow,
-} from "./ladder";
+} from "./ladder.ts";
 import {
   AuctionKind,
   type AuctionTerms,
@@ -22,7 +22,7 @@ import {
   type Reveal,
   type SettlementPlan,
   priceOfLevel,
-} from "./types";
+} from "./types.ts";
 
 const forfeit = (): DispositionProof => ({
   kind: ProofKind.Forfeit,

@@ -13,8 +13,8 @@ import {
   felt,
   invokeCalldata,
   placeBidActions,
-} from "../src/strk20";
-import { AuctionOperation } from "../src/types";
+} from "../src/strk20.ts";
+import { AuctionOperation } from "../src/types.ts";
 
 const FELT_RE = /^0x(0|[a-fA-F1-9]{1}[a-fA-F0-9]{0,62})$/;
 

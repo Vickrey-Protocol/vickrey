@@ -22,7 +22,7 @@
  * by the wallet.
  */
 import { num, type STRK20_ACTION } from "starknet";
-import { AuctionOperation } from "./types";
+import { AuctionOperation } from "./types.ts";
 
 /** Prefixed hex, no leading zeros — the shape `FELT` actually requires. */
 export const felt = (x: bigint | number | string): string => num.toHex(x);
@@ -112,10 +112,11 @@ export interface ClaimActionArgs {
   witnessDown?: bigint;
 }
 
+/** The three legs that credit an open note. `PlaceBid` is deliberately excluded. */
 export type ClaimOperation =
-  | AuctionOperation.ClaimRefund
-  | AuctionOperation.RedeemForfeit
-  | AuctionOperation.ClaimLot;
+  | typeof AuctionOperation.ClaimRefund
+  | typeof AuctionOperation.RedeemForfeit
+  | typeof AuctionOperation.ClaimLot;
 
 /**
  * Collect a refund, a winner's surplus, a forfeited escrow, or the lot — always into

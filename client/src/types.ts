@@ -1,41 +1,51 @@
-/** Mirrors `auction::types`. Variant indices are the on-wire encoding — see
- *  `packages/anonymizer/tests/test_layout.cairo`. */
+/**
+ * Mirrors `auction::types`. Variant indices are the on-wire encoding — see
+ * `packages/anonymizer/tests/test_layout.cairo`.
+ *
+ * Written as const objects rather than TS enums so the source is erasable: plain
+ * `node` can run this package's scripts without a compile step or a loader.
+ */
 
-export enum AuctionKind {
-  FirstPrice = 0,
-  Vickrey = 1,
-}
+export const AuctionKind = {
+  FirstPrice: 0,
+  Vickrey: 1,
+} as const;
+export type AuctionKind = (typeof AuctionKind)[keyof typeof AuctionKind];
 
-export enum ProofKind {
-  AtOrAbove = 0,
-  Exactly = 1,
-  AtOrBelow = 2,
-  Forfeit = 3,
-}
+export const ProofKind = {
+  AtOrAbove: 0,
+  Exactly: 1,
+  AtOrBelow: 2,
+  Forfeit: 3,
+} as const;
+export type ProofKind = (typeof ProofKind)[keyof typeof ProofKind];
 
-export enum Disposition {
-  Unset = 0,
-  AtOrAbove = 1,
-  Exactly = 2,
-  AtOrBelow = 3,
-  Forfeit = 4,
-}
+export const Disposition = {
+  Unset: 0,
+  AtOrAbove: 1,
+  Exactly: 2,
+  AtOrBelow: 3,
+  Forfeit: 4,
+} as const;
+export type Disposition = (typeof Disposition)[keyof typeof Disposition];
 
-export enum Status {
-  None = 0,
-  Open = 1,
-  Sealed = 2,
-  Settled = 3,
-  Finalized = 4,
-  Cancelled = 5,
-}
+export const Status = {
+  None: 0,
+  Open: 1,
+  Sealed: 2,
+  Settled: 3,
+  Finalized: 4,
+  Cancelled: 5,
+} as const;
+export type Status = (typeof Status)[keyof typeof Status];
 
-export enum AuctionOperation {
-  PlaceBid = 0,
-  ClaimRefund = 1,
-  RedeemForfeit = 2,
-  ClaimLot = 3,
-}
+export const AuctionOperation = {
+  PlaceBid: 0,
+  ClaimRefund: 1,
+  RedeemForfeit: 2,
+  ClaimLot: 3,
+} as const;
+export type AuctionOperation = (typeof AuctionOperation)[keyof typeof AuctionOperation];
 
 /** Sentinel matching `auction::types::NO_WINNER`. */
 export const NO_WINNER = 0xffffffff;

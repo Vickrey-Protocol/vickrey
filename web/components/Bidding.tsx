@@ -3,6 +3,7 @@
 import { useState } from "react";
 import {
   AuctionOperation,
+  type ClaimOperation,
   claimActions,
   createBid,
   disputeWitness,
@@ -196,13 +197,7 @@ export function ClaimPanel({
   if (auction.status !== Status.Finalized && auction.status !== Status.Cancelled) return null;
   if (bids.length === 0) return null;
 
-  async function run(
-    operation:
-      | AuctionOperation.ClaimRefund
-      | AuctionOperation.RedeemForfeit
-      | AuctionOperation.ClaimLot,
-    stored: StoredBid,
-  ) {
+  async function run(operation: ClaimOperation, stored: StoredBid) {
     if (!connection) return setErr("Connect a wallet first.");
     setErr(null);
     setMsg(null);
