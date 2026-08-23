@@ -11,3 +11,5 @@ out/
 .DS_Store
 deployments.local.json
 deployments.*.json
+.vercel
+.env*

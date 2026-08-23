@@ -1,0 +1,23 @@
+{
+  "name": "vickrey",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "description": "Sealed-bid Vickrey auctions on STRK20 where the losing bids are never published",
+  "workspaces": [
+    "client",
+    "web"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace @vickrey/web",
+    "dev": "npm run dev --workspace @vickrey/web",
+    "test": "npm run test --workspace @vickrey/client",
+    "typecheck": "npm run typecheck --workspace @vickrey/client && npm run typecheck --workspace @vickrey/web",
+    "verify:pool": "npm run verify:pool --workspace @vickrey/client",
+    "contracts:build": "scarb build",
+    "contracts:test": "snforge test"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
