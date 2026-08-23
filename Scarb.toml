@@ -19,3 +19,8 @@ allow-prebuilt-plugins = ["snforge_std"]
 
 [scripts]
 test = "snforge test"
+
+[profile.release.cairo]
+# Declaring is the largest one-off mainnet cost and it scales with Sierra size.
+# Swept 20/50/75/100/150/250/avoid/default: 75 is the minimum, ~10% under default.
+inlining-strategy = 75
