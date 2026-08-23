@@ -3,33 +3,34 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AuctionKind, Status, type PublicBid } from "@vickrey/client";
 import { readAuction, readAuctionCount, readBids, type AuctionView } from "@/lib/chain";
-import { config, explorerContract, formatUnits, isDeployed, kindLabel } from "@/lib/config";
+import {
+  config, countdown, explorerContract, formatUnits, isDeployed, kindLabel, priceAt, shortAddr,
+} from "@/lib/config";
 import { bidsFor, type StoredBid } from "@/lib/vault";
-import { connect, type Connection } from "@/lib/wallet";
-import { ClaimPanel, DisputePanel, PlaceBid, RevealPanel } from "@/components/Bidding";
-import { FinalizePanel, SealPanel, SettlePanel } from "@/components/Auctioneer";
+import { connect, sameAddress, type Connection } from "@/lib/wallet";
+import { Ladder } from "@/components/Ladder";
+import { BidPanel, ClaimPanel, DisputePanel, RevealPanel } from "@/components/Panels";
+import { AuctioneerSection } from "@/components/AuctioneerSection";
 
+/** R2: both sentences, verbatim, above the fold. Never shortened, never a tooltip. */
 const TRUST_ASSURED =
   "the winner and the clearing price are established by hash-preimage proofs verified on-chain over a bid set the contract froze before any bid could be opened, so the auctioneer cannot alter the outcome, exclude a bid, or misreport the price without failing a proof or being slashed in the dispute window.";
 const TRUST_NOT =
   "after sealing, the auctioneer learns every bid amount — it can never publish them, prove a false outcome, or spend anyone's funds, but it knows them; and the number of bids, their timing, and the uniform escrow amount are public on-chain.";
 
-const statusName: Record<Status, string> = {
-  [Status.None]: "unknown",
-  [Status.Open]: "open",
-  [Status.Sealed]: "sealed",
-  [Status.Settled]: "settled",
-  [Status.Finalized]: "final",
-  [Status.Cancelled]: "cancelled",
+const STATUS: Record<Status, { label: string; cls: string }> = {
+  [Status.None]:      { label: "unknown",   cls: "cancelled" },
+  [Status.Open]:      { label: "bidding",   cls: "open" },
+  [Status.Sealed]:    { label: "sealed",    cls: "sealed" },
+  [Status.Settled]:   { label: "settled",   cls: "settled" },
+  [Status.Finalized]: { label: "resolved",  cls: "resolved" },
+  [Status.Cancelled]: { label: "cancelled", cls: "cancelled" },
 };
-
-const statusClass = (s: Status) =>
-  s === Status.Open ? "open" : s === Status.Sealed ? "sealed" : "final";
 
 export default function Home() {
   const [connection, setConnection] = useState<Connection | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
-  const [count, setCount] = useState<number | null>(null);
+  const [count, setCount] = useState(0);
   const [selected, setSelected] = useState<bigint | null>(null);
   const [auction, setAuction] = useState<AuctionView | null>(null);
   const [bids, setBids] = useState<PublicBid[]>([]);
@@ -38,8 +39,18 @@ export default function Home() {
   const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
 
   useEffect(() => {
-    const t = setInterval(() => setNow(Math.floor(Date.now() / 1000)), 5000);
+    const t = setInterval(() => setNow(Math.floor(Date.now() / 1000)), 1000);
     return () => clearInterval(t);
+  }, []);
+
+  useEffect(() => {
+    if (!isDeployed()) return;
+    readAuctionCount()
+      .then((c) => {
+        setCount(c);
+        setSelected((s) => (s === null && c > 0 ? BigInt(c - 1) : s));
+      })
+      .catch((e) => setLoadError(e instanceof Error ? e.message : String(e)));
   }, []);
 
   const refresh = useCallback(async () => {
@@ -56,26 +67,24 @@ export default function Home() {
   }, [selected]);
 
   useEffect(() => {
-    if (!isDeployed()) return;
-    readAuctionCount()
-      .then((n) => {
-        setCount(n);
-        if (n > 0 && selected === null) setSelected(BigInt(n - 1));
-      })
-      .catch((e) => setLoadError(e instanceof Error ? e.message : String(e)));
-  }, [selected]);
-
-  useEffect(() => {
     void refresh();
     const t = setInterval(() => void refresh(), 12000);
     return () => clearInterval(t);
   }, [refresh]);
 
-  const clearingPrice = useMemo(() => {
-    if (!auction) return null;
-    if (auction.status !== Status.Settled && auction.status !== Status.Finalized) return null;
-    return auction.terms.reservePrice + auction.terms.tick * BigInt(auction.clearingLevel);
-  }, [auction]);
+  const isAuctioneer = useMemo(
+    () => !!(connection && auction && sameAddress(connection.address, auction.auctioneer)),
+    [connection, auction],
+  );
+
+  const settled = auction && auction.status >= Status.Settled && auction.status !== Status.Cancelled;
+  const clearingPrice = settled ? priceAt(auction!.terms, auction!.clearingLevel) : null;
+  const resolved = auction?.status === Status.Finalized;
+
+  /** Whether the right-hand column has anything to show for this viewer. */
+  const hasActions = !!(
+    auction && (auction.status === Status.Open || mine.length > 0)
+  );
 
   async function doConnect() {
     setConnectError(null);
@@ -88,175 +97,219 @@ export default function Home() {
 
   return (
     <main>
-      <div className="spread">
-        <div>
-          <h1>Vickrey</h1>
-          <p className="lede">
-            Sealed-bid auctions where the losing bids are never published. The highest
-            bidder wins and pays the second-highest bid — and the chain never learns what
-            anyone bid, including the winner.
-          </p>
+      <header className="masthead">
+        <div className="wordmark">
+          Vickrey<span>.</span>
+          <small>{config.label}</small>
         </div>
         <div className="row">
           {connection ? (
-            <span className="pill final">
-              {connection.address.slice(0, 6)}…{connection.address.slice(-4)}
-              {connection.strk20 ? "" : " · no STRK20"}
+            <span className="pill sealed">
+              {shortAddr(connection.address)}
+              {connection.strk20 ? "" : " · no strk20"}
             </span>
           ) : (
-            <button className="primary" onClick={doConnect}>
-              Connect wallet
-            </button>
+            <button className="primary" onClick={doConnect}>Connect wallet</button>
           )}
         </div>
-      </div>
-      {connectError && <p className="small err">{connectError}</p>}
+      </header>
 
-      <div className="trust">
-        <strong>What is assured:</strong> {TRUST_ASSURED} <strong>What is not:</strong>{" "}
-        {TRUST_NOT}
-      </div>
+      <p className="trust">
+        <b>What is assured:</b> {TRUST_ASSURED} <b>What is not:</b> {TRUST_NOT}
+      </p>
+      {connectError && <p className="err">{connectError}</p>}
 
       {!isDeployed() && (
         <div className="banner">
-          <strong>Not deployed.</strong> No contract address is configured, so there is
-          nothing to read. Set <span className="mono">NEXT_PUBLIC_AUCTION_ADDRESS</span>,{" "}
-          <span className="mono">NEXT_PUBLIC_ANONYMIZER_ADDRESS</span> and{" "}
-          <span className="mono">NEXT_PUBLIC_RPC_URL</span>. See the repo README for the
-          honest status of every piece.
+          <b>No contract configured for {config.label}.</b> Set{" "}
+          <span className="mono">NEXT_PUBLIC_AUCTION_ADDRESS</span> and{" "}
+          <span className="mono">NEXT_PUBLIC_ANONYMIZER_ADDRESS</span>. The repo README
+          carries the honest status of every piece.
         </div>
       )}
 
-      {isDeployed() && (
+      {isDeployed() && count === 0 && !auction && (
+        <div className="banner"><b>No auctions listed yet</b> on {config.label}.</div>
+      )}
+
+      {isDeployed() && count > 0 && (
+        <div className="row" style={{ marginBottom: "1.1rem" }}>
+          <label style={{ margin: 0 }}>Auction</label>
+          <select
+            value={selected?.toString() ?? ""}
+            onChange={(e) => setSelected(BigInt(e.target.value))}
+            style={{ width: "auto" }}
+          >
+            {Array.from({ length: count }, (_, i) => (
+              <option key={i} value={i}>#{i}</option>
+            ))}
+          </select>
+          <button onClick={() => void refresh()}>Refresh</button>
+          <a className="note mono" href={explorerContract(config.auctionAddress)}
+             target="_blank" rel="noreferrer">contract ↗</a>
+        </div>
+      )}
+
+      {loadError && <p className="err">{loadError}</p>}
+
+      {auction && (
         <>
-          <div className="row" style={{ marginBottom: "1rem" }}>
-            <label style={{ margin: 0 }}>Auction</label>
-            <select
-              value={selected?.toString() ?? ""}
-              onChange={(e) => setSelected(BigInt(e.target.value))}
-              style={{ width: "auto" }}
-            >
-              {Array.from({ length: count ?? 0 }, (_, i) => (
-                <option key={i} value={i}>
-                  #{i}
-                </option>
-              ))}
-            </select>
-            <button onClick={() => void refresh()}>Refresh</button>
-            <a className="small mono" href={explorerContract(config.auctionAddress)}>
-              contract
-            </a>
+          <div className="panel">
+            <div className="spread">
+              <h1 className="display" style={{ fontSize: "var(--step-2)" }}>
+                Auction #{auction.terms.auctionId.toString()}
+                <span className="note" style={{ marginLeft: ".6rem" }}>
+                  {kindLabel(auction.terms.kind)}
+                </span>
+              </h1>
+              <span className={`pill ${STATUS[auction.status].cls}`}>
+                {STATUS[auction.status].label}
+              </span>
+            </div>
+
+            <dl className="facts" style={{ marginTop: "1.1rem" }}>
+              <div className="fact">
+                <dt>Lot</dt>
+                <dd>{formatUnits(auction.lotAmount)} {auction.lotSymbol}</dd>
+              </div>
+              <div className="fact">
+                <dt>Reserve</dt>
+                <dd>{formatUnits(auction.terms.reservePrice)} {auction.paymentSymbol}</dd>
+              </div>
+              <div className="fact">
+                <dt>Escrow, everyone</dt>
+                <dd>{formatUnits(auction.collateral)}</dd>
+              </div>
+              <div className="fact">
+                <dt>Bids received</dt>
+                <dd>{auction.bidCount}</dd>
+              </div>
+              <div className="fact">
+                <dt>Clearing price</dt>
+                {clearingPrice === null
+                  ? <dd className="undisclosed">not yet proved</dd>
+                  : <dd style={{ color: "var(--seal)", fontWeight: 600 }}>
+                      {formatUnits(clearingPrice)} {auction.paymentSymbol}
+                    </dd>}
+              </div>
+              <div className="fact">
+                {/* R4: the window is always on screen and always counting. */}
+                <dt>{auction.status === Status.Open ? "Bidding closes" : "Dispute window"}</dt>
+                <dd>
+                  {auction.status === Status.Open
+                    ? (countdown(auction.bidDeadline, now) ?? "closed")
+                    : auction.status === Status.Settled
+                      ? <span className="countdown">{countdown(auction.disputeDeadline, now) ?? "closed"}</span>
+                      : `${auction.disputeWindow}s`}
+                </dd>
+              </div>
+            </dl>
           </div>
 
-          {loadError && <p className="small err">{loadError}</p>}
-
-          {auction && (
-            <>
-              <div className="panel">
-                <div className="spread">
-                  <h3 style={{ margin: 0 }}>
-                    Auction #{auction.terms.auctionId.toString()} ·{" "}
-                    {kindLabel(auction.terms.kind)}
-                  </h3>
-                  <span className={`pill ${statusClass(auction.status)}`}>
-                    {statusName[auction.status]}
-                  </span>
-                </div>
-                <div className="grid2" style={{ marginTop: "1rem" }}>
-                  <div>
-                    <label>Reserve</label>
-                    <div className="mono">{formatUnits(auction.terms.reservePrice)}</div>
-                  </div>
-                  <div>
-                    <label>Tick × levels</label>
-                    <div className="mono">
-                      {formatUnits(auction.terms.tick)} × {auction.terms.numLevels}
-                    </div>
-                  </div>
-                  <div>
-                    <label>Escrow (everyone)</label>
-                    <div className="mono">{formatUnits(auction.collateral)}</div>
-                  </div>
-                  <div>
-                    <label>Bids received</label>
-                    <div className="mono">{auction.bidCount}</div>
-                  </div>
-                  <div>
-                    <label>Bidding closes</label>
-                    <div className="mono">
-                      {new Date(auction.bidDeadline * 1000).toLocaleString()}
-                    </div>
-                  </div>
-                  <div>
-                    <label>Clearing price</label>
-                    <div className="mono">
-                      {clearingPrice === null ? "not yet proved" : formatUnits(clearingPrice)}
-                    </div>
-                  </div>
-                </div>
+          {/* ── the resolved state: what the video ends on ── */}
+          {resolved && (
+            <div className="panel accent" style={{ marginTop: "1rem" }}>
+              <div className="spread">
+                <h2 className="display" style={{ fontSize: "var(--step-2)" }}>Resolved</h2>
+                <span className="pill resolved">final</span>
               </div>
+              <p className="note" style={{ marginTop: ".5rem" }}>
+                The dispute window closed clean and the funds have moved. Bid #{auction.winnerIndex}{" "}
+                won and paid {formatUnits(clearingPrice ?? 0n)} {auction.paymentSymbol}.
+              </p>
+              <dl className="facts" style={{ marginTop: "1rem" }}>
+                <div className="fact">
+                  <dt>Paid</dt>
+                  <dd style={{ color: "var(--seal)", fontWeight: 600 }}>
+                    {formatUnits(clearingPrice ?? 0n)} {auction.paymentSymbol}
+                  </dd>
+                </div>
+                <div className="fact">
+                  <dt>What #{auction.winnerIndex} bid</dt>
+                  <dd className="undisclosed">never disclosed</dd>
+                </div>
+                <div className="fact">
+                  <dt>The other {Math.max(auction.bidCount - 1, 0)}</dt>
+                  <dd className="undisclosed">never disclosed</dd>
+                </div>
+                <div className="fact">
+                  <dt>Lot</dt>
+                  <dd>{auction.lotClaimed ? "collected privately" : "awaiting collection"}</dd>
+                </div>
+              </dl>
+              <p className="note" style={{ marginTop: ".9rem" }}>
+                There is nothing left to open. In a{" "}
+                {auction.terms.kind === AuctionKind.Vickrey ? "second-price" : "first-price"}{" "}
+                auction that is the complete disclosure.
+              </p>
+            </div>
+          )}
 
+          <div className={hasActions ? "cols" : ""} style={{ marginTop: "1rem" }}>
+            <div className="panel">
+              <p className="eyebrow">The ladder</p>
+              <Ladder
+                numLevels={auction.terms.numLevels}
+                reservePrice={auction.terms.reservePrice}
+                tick={auction.terms.tick}
+                status={auction.status}
+                clearingLevel={settled ? auction.clearingLevel : null}
+              />
+            </div>
+
+            {hasActions && <div className="stack">
               {auction.status === Status.Open && (
-                <PlaceBid auction={auction} connection={connection} onPlaced={() => void refresh()} />
+                <div className="panel">
+                  <BidPanel auction={auction} connection={connection} onPlaced={() => void refresh()} />
+                </div>
               )}
               <RevealPanel auction={auction} bids={mine} />
-              <SealPanel auction={auction} connection={connection} now={now} />
-              <SettlePanel auction={auction} bids={bids} connection={connection} />
-              <DisputePanel auction={auction} bids={mine} connection={connection} />
-              <FinalizePanel auction={auction} connection={connection} now={now} />
+              <DisputePanel auction={auction} bids={mine} connection={connection} now={now} />
               <ClaimPanel auction={auction} bids={mine} connection={connection} />
+            </div>}
+          </div>
 
-              <h2>What the chain knows</h2>
-              <div className="panel scroll">
-                <p className="small muted">
-                  This is the whole public record of the bid book. No address, no amount
-                  — two hash anchors and a claim handle per bid.
-                </p>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>#</th>
-                      <th>Claim commitment</th>
-                      <th>Ascending anchor</th>
-                      <th>Descending anchor</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {bids.map((b) => (
-                      <tr key={b.index}>
-                        <td className="mono">{b.index}</td>
-                        <td className="mono">0x{b.claimCommitment.toString(16).slice(0, 14)}…</td>
-                        <td className="mono">0x{b.upAnchor.toString(16).slice(0, 14)}…</td>
-                        <td className="mono">0x{b.downAnchor.toString(16).slice(0, 14)}…</td>
-                      </tr>
-                    ))}
-                    {bids.length === 0 && (
-                      <tr>
-                        <td colSpan={4} className="small muted">
-                          No bids yet.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+          <AuctioneerSection
+            auction={auction}
+            bids={bids}
+            connection={connection}
+            now={now}
+            isAuctioneer={isAuctioneer}
+          />
 
-              {auction.status >= Status.Settled && (
-                <div className="panel">
-                  <h3>After settlement</h3>
-                  <p className="small">
-                    The chain now knows the clearing price and which bid index won. It
-                    still does not know what bid #{auction.winnerIndex} was, and it never
-                    learned any of the others. In a{" "}
-                    {auction.terms.kind === AuctionKind.Vickrey ? "second-price" : "first-price"}{" "}
-                    auction that is the complete disclosure.
-                  </p>
-                </div>
-              )}
-            </>
-          )}
+          <h2 className="section">The whole public record</h2>
+          <div className="panel scroller">
+            <p className="note" style={{ marginBottom: ".8rem" }}>
+              This is everything the chain holds about the bid book. No address, no
+              amount — two hash anchors and a claim handle per bid.
+            </p>
+            <table>
+              <thead>
+                <tr><th>#</th><th>Claim handle</th><th>Ascending</th><th>Descending</th><th>Amount</th></tr>
+              </thead>
+              <tbody>
+                {bids.map((b) => (
+                  <tr key={b.index}>
+                    <td className="mono">{b.index}</td>
+                    <td className="mono">0x{b.claimCommitment.toString(16).slice(0, 12)}…</td>
+                    <td className="mono">0x{b.upAnchor.toString(16).slice(0, 12)}…</td>
+                    <td className="mono">0x{b.downAnchor.toString(16).slice(0, 12)}…</td>
+                    <td className="undisclosed">not disclosed</td>
+                  </tr>
+                ))}
+                {bids.length === 0 && (
+                  <tr><td colSpan={5} className="note">No bids yet.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </>
       )}
+
+      <footer>
+        <span>Vickrey · sealed-bid auctions on STRK20 · MIT</span>
+        <span>{config.label}</span>
+      </footer>
     </main>
   );
 }

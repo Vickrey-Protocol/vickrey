@@ -256,7 +256,7 @@ h2.section { font-size: var(--step-2); margin-block: 2rem .9rem; }
 .ladder-track.picked .tag { color: var(--seal-ink); font-weight: 600; }
 
 .ladder-legend {
-  display: flex; gap: 1.25rem; flex-wrap: wrap;
+  display: flex; gap: .5rem 1.25rem; flex-wrap: wrap; align-items: center;
   margin-block-start: .9rem;
   font-family: var(--font-mono), monospace;
   font-size: var(--step--1);

@@ -1,44 +1,17 @@
 "use client";
 
-import { Contract, RpcProvider, type Abi } from "starknet";
+import { byteArray, RpcProvider, shortString } from "starknet";
 import {
-  AuctionKind,
+  type AuctionKind,
   type AuctionTerms,
   type DispositionProof,
   type PublicBid,
-  Status,
+  poolFee as readPoolFee,
+  type Status,
 } from "@vickrey/client";
 import { config } from "./config";
 
 export const provider = () => new RpcProvider({ nodeUrl: config.rpcUrl });
-
-/** Hand-written ABI fragment: only the entry points the app actually uses. */
-export const AUCTION_ABI = [
-  {
-    type: "function",
-    name: "auction_count",
-    inputs: [],
-    outputs: [{ type: "core::integer::u64" }],
-    state_mutability: "view",
-  },
-  {
-    type: "function",
-    name: "collateral",
-    inputs: [{ name: "auction_id", type: "core::integer::u64" }],
-    outputs: [{ type: "core::integer::u128" }],
-    state_mutability: "view",
-  },
-  {
-    type: "function",
-    name: "price_of_level",
-    inputs: [
-      { name: "auction_id", type: "core::integer::u64" },
-      { name: "level", type: "core::integer::u16" },
-    ],
-    outputs: [{ type: "core::integer::u128" }],
-    state_mutability: "view",
-  },
-] as const satisfies Abi;
 
 export interface AuctionView {
   terms: AuctionTerms;
@@ -46,26 +19,55 @@ export interface AuctionView {
   seller: string;
   auctioneer: string;
   paymentToken: string;
+  paymentSymbol: string;
   lotToken: string;
+  lotSymbol: string;
   lotAmount: bigint;
   bidDeadline: number;
+  disputeWindow: number;
   disputeDeadline: number;
   bidCount: number;
   bidRoot: bigint;
   clearingLevel: number;
   winnerIndex: number;
   collateral: bigint;
+  bond: bigint;
+  lotClaimed: boolean;
+  /** Read live from the pool; never hardcoded. Null while loading or unavailable. */
+  poolFee: bigint | null;
 }
 
-const felt = (x: string | bigint) => BigInt(x);
+const n = (x: string) => BigInt(x);
 
 /**
- * Reads an auction through raw `callContract` rather than a generated typing, so the
- * app stays readable against a hand-written ABI fragment.
+ * Token symbols come back two different ways and getting it wrong is silent.
+ *
+ * Modern SNIP-2 tokens (STRK included) return a **ByteArray**:
+ * `[num_full_words, ...words, pending_word, pending_word_len]`. Older ones return a
+ * single felt252 short string. Reading the last felt of a ByteArray yields its
+ * *length*, which renders as a plausible-looking "4" rather than an obvious error.
  */
+async function symbolOf(p: RpcProvider, token: string): Promise<string> {
+  const printable = (s: string) => (/^[\x20-\x7e]{1,16}$/.test(s) ? s : null);
+  try {
+    const r = await p.callContract({ contractAddress: token, entrypoint: "symbol", calldata: [] });
+    if (r.length === 1) return printable(shortString.decodeShortString(r[0]!)) ?? "tokens";
+    const numFullWords = Number(BigInt(r[0]!));
+    const data = r.slice(1, 1 + numFullWords);
+    const decoded = byteArray.stringFromByteArray({
+      data,
+      pending_word: r[1 + numFullWords] ?? "0x0",
+      pending_word_len: Number(BigInt(r[2 + numFullWords] ?? "0x0")),
+    });
+    return printable(decoded) ?? "tokens";
+  } catch {
+    return "tokens";
+  }
+}
+
 export async function readAuction(id: bigint): Promise<AuctionView | null> {
   const p = provider();
-  const call = (entrypoint: string, calldata: string[]) =>
+  const call = (entrypoint: string, calldata: string[] = []) =>
     p.callContract({ contractAddress: config.auctionAddress, entrypoint, calldata });
 
   let cfg: string[];
@@ -76,43 +78,46 @@ export async function readAuction(id: bigint): Promise<AuctionView | null> {
   }
   const st = await call("get_state", [id.toString()]);
 
-  // AuctionConfig, in declaration order.
-  const [
-    seller,
-    auctioneer,
-    paymentToken,
-    lotToken,
-    lotAmount,
-    kind,
-    reservePrice,
-    tick,
-    numLevels,
-    bidDeadline,
-  ] = cfg as [string, string, string, string, string, string, string, string, string, string];
-
+  const paymentToken = cfg[2]!;
+  const lotToken = cfg[3]!;
   const terms: AuctionTerms = {
     auctionId: id,
-    kind: Number(felt(kind!)) as AuctionKind,
-    reservePrice: felt(reservePrice!),
-    tick: felt(tick!),
-    numLevels: Number(felt(numLevels!)),
+    kind: Number(n(cfg[5]!)) as AuctionKind,
+    reservePrice: n(cfg[6]!),
+    tick: n(cfg[7]!),
+    numLevels: Number(n(cfg[8]!)),
   };
+
+  const [collateral, paymentSymbol, lotSymbol, fee] = await Promise.all([
+    call("collateral", [id.toString()]).then((r) => n(r[0]!)),
+    symbolOf(p, paymentToken),
+    symbolOf(p, lotToken),
+    config.poolAddress
+      ? readPoolFee(p as never, config.poolAddress).catch(() => null)
+      : Promise.resolve(null),
+  ]);
 
   return {
     terms,
-    seller: seller!,
-    auctioneer: auctioneer!,
-    paymentToken: paymentToken!,
-    lotToken: lotToken!,
-    lotAmount: felt(lotAmount!),
-    bidDeadline: Number(felt(bidDeadline!)),
-    status: Number(felt(st[0]!)) as Status,
-    bidCount: Number(felt(st[1]!)),
-    bidRoot: felt(st[2]!),
-    clearingLevel: Number(felt(st[5]!)),
-    winnerIndex: Number(felt(st[6]!)),
-    disputeDeadline: Number(felt(st[8]!)),
-    collateral: felt((await call("collateral", [id.toString()]))[0]!),
+    seller: cfg[0]!,
+    auctioneer: cfg[1]!,
+    paymentToken,
+    paymentSymbol,
+    lotToken,
+    lotSymbol,
+    lotAmount: n(cfg[4]!),
+    bidDeadline: Number(n(cfg[9]!)),
+    disputeWindow: Number(n(cfg[10]!)),
+    bond: n(cfg[11]!),
+    status: Number(n(st[0]!)) as Status,
+    bidCount: Number(n(st[1]!)),
+    bidRoot: n(st[2]!),
+    clearingLevel: Number(n(st[5]!)),
+    winnerIndex: Number(n(st[6]!)),
+    disputeDeadline: Number(n(st[8]!)),
+    lotClaimed: n(st[9]!) === 1n,
+    collateral,
+    poolFee: fee,
   };
 }
 
@@ -123,13 +128,13 @@ export async function readBids(id: bigint, count: number): Promise<PublicBid[]> 
     const r = await p.callContract({
       contractAddress: config.auctionAddress,
       entrypoint: "get_bid",
-      calldata: [id.toString(), index.toString()],
+      calldata: [id.toString(), String(index)],
     });
     out.push({
       index,
-      claimCommitment: felt(r[0]!),
-      upAnchor: felt(r[1]!),
-      downAnchor: felt(r[2]!),
+      claimCommitment: n(r[0]!),
+      upAnchor: n(r[1]!),
+      downAnchor: n(r[2]!),
     });
   }
   return out;
@@ -151,14 +156,9 @@ export function settleCalldata(
   winnerIndex: number,
   proofs: DispositionProof[],
 ): string[] {
-  const flat: string[] = [
-    id.toString(),
-    clearingLevel.toString(),
-    winnerIndex.toString(),
-    proofs.length.toString(),
-  ];
+  const flat = [id.toString(), String(clearingLevel), String(winnerIndex), String(proofs.length)];
   for (const p of proofs) {
-    flat.push(p.kind.toString(), p.witnessUp.toString(), p.witnessDown.toString());
+    flat.push(String(p.kind), p.witnessUp.toString(), p.witnessDown.toString());
   }
   return flat;
 }
