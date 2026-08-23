@@ -10,7 +10,8 @@
   },
   "scripts": {
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "verify:pool": "node scripts/verify-pool-shapes.mjs"
   },
   "dependencies": {
     "starknet": "10.4.0"
