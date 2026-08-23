@@ -47,6 +47,16 @@ pub mod SealedBidAuction {
         Finalized: Finalized,
         RefundClaimed: RefundClaimed,
         LotClaimed: LotClaimed,
+        Abandoned: Abandoned,
+    }
+
+    /// A sealed auction cancelled because the auctioneer never settled it. Distinct
+    /// from `Finalized` with no winner: nothing was ever proved here.
+    #[derive(Drop, starknet::Event)]
+    pub struct Abandoned {
+        #[key]
+        pub auction_id: u64,
+        pub bid_count: u32,
     }
 
     #[derive(Drop, starknet::Event)]
@@ -144,6 +154,8 @@ pub mod SealedBidAuction {
             assert(config.lot_token.is_non_zero(), errors::ZERO_TOKEN);
             assert(config.lot_amount.is_non_zero(), errors::ZERO_LOT);
             assert(config.bid_deadline > get_block_timestamp(), errors::BAD_DEADLINE);
+            // Nobody could ever settle it, and `abandon` would be the only way out.
+            assert(config.auctioneer.is_non_zero(), errors::ZERO_AUCTIONEER);
 
             let seller = get_caller_address();
             let stored = AuctionConfig { seller, ..config };
@@ -493,6 +505,48 @@ pub mod SealedBidAuction {
             }
 
             self.emit(Finalized { auction_id, proceeds });
+        }
+
+        /// Cancels a sealed auction the auctioneer abandoned.
+        ///
+        /// Permissionless on purpose. The people with funds trapped in it are the
+        /// bidders, and requiring the auctioneer's cooperation to escape the
+        /// auctioneer's absence would be no escape at all.
+        ///
+        /// The grace period is the auction's own `dispute_window`, rather than a new
+        /// config field or a fixed constant. It is already the parameter that says how
+        /// long this auction expects things to take, it is public at listing so a
+        /// bidder can read it before committing, and it scales the same way: a demo
+        /// with a 180-second window gives the auctioneer three minutes to settle, a
+        /// real auction with a day gives them a day.
+        ///
+        /// Cancelling refunds every bidder in full — forfeits included, since no
+        /// settlement ever established who forfeited — and returns the lot and the
+        /// bond to the seller. Losing an auction to a slow auctioneer is a bad outcome;
+        /// losing the money is not one this contract will allow.
+        fn abandon(ref self: ContractState, auction_id: u64) {
+            let config = self.load_config(auction_id);
+            let mut state = self.states.entry(auction_id).read();
+            assert(state.status == Status::Sealed, errors::NOT_SEALED);
+            assert(
+                get_block_timestamp() >= state.sealed_at_time + config.dispute_window,
+                errors::SETTLE_GRACE_OPEN,
+            );
+
+            state.status = Status::Cancelled;
+            self.states.entry(auction_id).write(state);
+
+            // The lot goes home. Bidders reclaim their own escrow through
+            // `claim_refund`, which accepts Cancelled and pays out on the claim secret.
+            push(config.lot_token, config.seller, config.lot_amount);
+            if config.auctioneer_bond.is_non_zero() {
+                // Returned, not slashed. The bond answers for a dishonest settlement,
+                // and there was no settlement; the seller posted it, and the seller has
+                // already lost the sale.
+                push(config.payment_token, config.seller, config.auctioneer_bond);
+            }
+
+            self.emit(Abandoned { auction_id, bid_count: state.bid_count });
         }
 
         fn claim_refund(

@@ -31,6 +31,37 @@ pub mod AuctionAnonymizer {
     use crate::interface::{AuctionOperation, IAuctionAnonymizer};
     use crate::privacy_objects::OpenNoteDeposit;
 
+    /// Emitted on every leg that passes through the pool.
+    ///
+    /// It exists for two reasons. The submission rule requires each mainnet transaction
+    /// to carry an event from a listed contract, and — more usefully — without it the
+    /// contract that performs the actual STRK20 integration is invisible in its own
+    /// transactions: the only trace is the auction's event, which looks identical
+    /// whether the bid came through the pool or straight off a public address.
+    ///
+    /// Deliberately thin. `auction_id` and the operation kind are already public, and
+    /// the auction emits its own event in the same transaction. What is **not** here:
+    ///
+    ///   - `note_id`, a pool-side handle. Emitting it would let an observer tie a note
+    ///     to an auction action, which is exactly the link this helper exists to break.
+    ///   - `bid_index` on `PlaceBid`. The auction assigns it and emits it itself; there
+    ///     is no reason for two contracts to publish the same correlator.
+    ///   - any amount. Collateral is uniform and public, so an amount would leak
+    ///     nothing today — but it would start leaking the moment the uniform-cap rule
+    ///     is relaxed, and an event is not something a later change can take back.
+    #[event]
+    #[derive(Drop, starknet::Event)]
+    pub enum Event {
+        Routed: Routed,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    pub struct Routed {
+        #[key]
+        pub auction_id: u64,
+        pub operation: AuctionOperation,
+    }
+
     #[storage]
     struct Storage {
         privacy_contract: ContractAddress,
@@ -65,6 +96,8 @@ pub mod AuctionAnonymizer {
             // permissionless.
             let pool = self.privacy_contract.read();
             assert(get_caller_address() == pool, errors::CALLER_NOT_PRIVACY);
+
+            self.emit(Routed { auction_id, operation });
 
             let auction_addr = self.auction_contract.read();
             let auction = ISealedBidAuctionDispatcher { contract_address: auction_addr };

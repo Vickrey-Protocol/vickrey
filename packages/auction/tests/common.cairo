@@ -83,7 +83,17 @@ pub fn setup(kind: AuctionKind) -> Env {
     setup_with(kind, LEVELS, BOND)
 }
 
+pub fn setup_with_auctioneer(kind: AuctionKind, who: ContractAddress) -> Env {
+    setup_full(kind, LEVELS, BOND, who)
+}
+
 pub fn setup_with(kind: AuctionKind, num_levels: u16, bond: u128) -> Env {
+    setup_full(kind, num_levels, bond, auctioneer())
+}
+
+fn setup_full(
+    kind: AuctionKind, num_levels: u16, bond: u128, who: ContractAddress,
+) -> Env {
     start_cheat_block_timestamp_global(1);
 
     let pay = deploy_token(bank(), 1_000_000_u256);
@@ -100,7 +110,7 @@ pub fn setup_with(kind: AuctionKind, num_levels: u16, bond: u128) -> Env {
 
     let config = AuctionConfig {
         seller: seller(),
-        auctioneer: auctioneer(),
+        auctioneer: who,
         payment_token: pay.contract_address,
         lot_token: lot.contract_address,
         lot_amount: LOT,

@@ -140,21 +140,24 @@
   },
   "pool_txs_for_submission": 4,
   "mainnet_estimates": {
-    "_comment": "Real starknet_estimateFee against the mainnet RPC, block 13756429, simulation_flags ['SKIP_VALIDATE'], sender borrowed from a recent mainnet block so the nonce resolves. Nothing signed, nothing submitted, no balance required. These supersede the Sepolia reprice: mainnet consumes ~1.10x the Sepolia l2 gas for the same class. NOTE starknet.js's EstimateFee.overall_fee is pre-padded by ~2.05x; these are the node's own overall_fee, read from the raw JSON-RPC result.",
-    "block": 13756429,
-    "l2_gas_price_fri": 30383114633,
+    "_comment": "Real starknet_estimateFee against the mainnet RPC, block 13756429, simulation_flags ['SKIP_VALIDATE'], sender borrowed from a recent mainnet block so the nonce resolves. Nothing signed, nothing submitted, no balance required. These supersede the Sepolia reprice: mainnet consumes ~1.10x the Sepolia l2 gas for the same class. NOTE starknet.js's EstimateFee.overall_fee is pre-padded by ~2.05x; these are the node's own overall_fee, read from the raw JSON-RPC result. RE-MEASURED after the freeze audit: `abandon` on the auction (+4.5% l2 gas) and the `Routed` event on the anonymizer (+3.3%).",
+    "block": 13757721,
+    "l2_gas_price_fri": 30677268112,
     "declare_SealedBidAuction": {
-      "l2_gas": 1142449440,
+      "l2_gas": 1194422944,
       "l1_data_gas": 192,
-      "strk": 34.71
+      "strk": 36.64,
+      "class_hash": "0x20d49d80102828aff85ad1c00589c520c90ad2157456b08f9ccc063669ff1d9"
     },
     "declare_AuctionAnonymizer": {
-      "l2_gas": 248928416,
+      "l2_gas": 257127200,
       "l1_data_gas": 192,
-      "strk": 7.56
+      "strk": 7.89,
+      "class_hash": "0x5f0d799a36e9a70d30a3d626c588b06c0b5b8c1b8e0db0bedb6ff4ce7ec6212"
     },
     "deploy_account_oz": {
-      "strk": 0.0668
+      "strk": 0.0668,
+      "note": "Not needed \u2014 a funded mainnet account already exists."
     },
     "pool_fee_read_live_strk": 6,
     "sncast_bound_multiplier": 1.384,

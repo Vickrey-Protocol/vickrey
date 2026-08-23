@@ -39,6 +39,14 @@ pub trait ISealedBidAuction<T> {
     /// Closes a clean dispute window and releases proceeds, bond and refund rights.
     fn finalize(ref self: T, auction_id: u64);
 
+    /// Cancels a sealed auction whose auctioneer never settled it.
+    ///
+    /// Permissionless, and only after `dispute_window` has elapsed since sealing. A
+    /// sealed auction has exactly one other way out — `settle`, which only the
+    /// auctioneer may call — so without this an auctioneer who walks away locks every
+    /// bidder's collateral, the lot and the bond in the contract permanently.
+    fn abandon(ref self: T, auction_id: u64);
+
     // ---- claims ----------------------------------------------------------------
 
     /// Collects whatever a bid is still owed. Authorized by the claim secret alone.

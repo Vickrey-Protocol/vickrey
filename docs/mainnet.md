@@ -15,6 +15,9 @@ after confirming the deployed classes match the local artifacts byte-for-byte:
 ```
 SealedBidAuction    local dev build == Sepolia  0x1489a905…b94b341
 AuctionAnonymizer   local dev build == Sepolia  0x5197552b…3646e0e
+
+(pre-freeze hashes — the audit below moved both. The lifecycle they exercised is
+ unchanged; `abandon` adds a state transition none of those ten transactions used.)
 ```
 
 That check is the point of the rehearsal. "We tested on Sepolia" means nothing if the
@@ -79,19 +82,19 @@ moves underneath you and the failure reads as a nonce bug rather than a race.
 
 | Step | l2 gas | **Node estimate** |
 |---|---|---|
-| declare `SealedBidAuction` | 1,142,449,440 | **34.71 STRK** |
-| declare `AuctionAnonymizer` | 248,928,416 | **7.56 STRK** |
-| deploy an OZ account | — | 0.07 STRK |
+| declare `SealedBidAuction` | 1,194,422,944 | **36.64 STRK** |
+| declare `AuctionAnonymizer` | 257,127,200 | **7.89 STRK** |
+| deploy an OZ account | — | not needed — a funded account exists |
 | deploy both contracts | ~3.6M | ~0.12 STRK |
 | full auction lifecycle, 9 tx | ~55.0M | ~1.84 STRK |
 
 > **A trap worth naming.** `starknet.js`'s `EstimateFee.overall_fee` is **pre-padded by
 > ~2.05×** — it returned 71.00 and 15.47 for the two declares. The node's own
-> `overall_fee` is 34.71 and 7.56. Read the raw JSON-RPC result; a number taken from
+> `overall_fee` was 34.71 and 7.56 on the same build. Read the raw JSON-RPC result; a number taken from
 > the library and treated as the estimate overstates the cost by more than double.
 
 **The Sepolia reprice was low but not wrong.** It projected 31.48 STRK for the auction
-declare against an actual mainnet estimate of 34.71 — mainnet consumes about 1.10× the
+declare against a mainnet estimate of 34.71 on the same build — mainnet consumes about 1.10× the
 l2 gas Sepolia does for the same class. The method was sound; it just had no way to see
 the network difference.
 
@@ -102,25 +105,31 @@ the network difference.
 
 | | Spends | Must hold |
 |---|---|---|
-| declare `SealedBidAuction` | 34.71 | **~48.0** |
-| declare `AuctionAnonymizer` | 7.56 | ~10.5 |
-| deploys + account | 0.19 | ~0.3 |
-| **contracts up** | **~42.5** | **~58.8** |
+| declare `SealedBidAuction` | 36.64 | **~50.7** |
+| declare `AuctionAnonymizer` | 7.89 | ~10.9 |
+| deploys | 0.13 | ~0.2 |
+| **contracts up** | **~44.7** | **~61.6** |
 
 ### The submission total
 
 | | STRK |
 |---|---|
-| Contracts up (spent) | 42.5 |
+| Contracts up (spent) | 44.7 |
 | Shield into the pool, once | 6 |
 | Three qualifying pool transactions | 18 |
 | Auction gas, mainnet | 1.8 |
-| **Total spent** | **≈ 68.3** |
-| **Peak held, at the first declare** | **≈ 58.8** |
+| **Total spent** | **≈ 70.6** |
+| **Peak held, at the first declare** | **≈ 61.6** |
 
-**70 STRK leaves 1.7 STRK of slack.** That is not a margin, it is a rounding error —
-one gas spike, one retried transaction, or one extra pool operation and the run stops
-with the entry unscoreable. **Send 85.**
+These are post-freeze figures. The audit added `abandon` to the auction (+4.5% l2 gas)
+and the `Routed` event to the anonymizer (+3.3%) — **+2.26 STRK between them**, which is
+the cheapest either change will ever be.
+
+**The account holds 45 STRK, which does not reach the 61.6 the declare must have in
+place.** Top up to **90**. That covers the 70.6 total with ~27% headroom, and the
+headroom is the point: the declare bound scales linearly with gas price, and gas moved
+1% in the hour between two of the estimates above. 80 is the floor I would accept; below
+that a single spike strands the run with nothing declared.
 
 ## What the submission rule actually requires
 
@@ -152,11 +161,13 @@ Two consequences:
 - **The shield does not count.** It touches the pool but carries no event of ours. It is
   still required — bids are funded from shielded balance — so budget four pool
   operations, not three.
-- **`AuctionAnonymizer` emits no events at all.** The rule is satisfied by the auction's
-  events, so this is not a blocker. But the contract that performs the actual STRK20
-  integration is currently invisible in its own transactions, and STRK20 integration
-  depth is 30% of the score. Adding an event costs nothing before the declare and is
-  impossible after it without paying 42.5 STRK to redeclare.
+- **`AuctionAnonymizer` now emits `Routed`.** It previously emitted nothing, which left
+  the contract doing the actual STRK20 integration invisible in its own transactions —
+  the only trace was the auction's event, identical whether the bid came through the
+  pool or straight off a public address. The event carries the auction id and the
+  operation and deliberately **not** the `note_id`, which would let an observer tie a
+  private note to an auction action. Added before the declare, where it cost 0.33 STRK
+  instead of a 44.7 STRK redeclare.
 
 Also worth noting, since it settles how sponsorship is treated:
 
@@ -266,14 +277,15 @@ first is a *holding* requirement, the second a *spending* one.
 
 | Item | Must hold | Actually spends |
 |---|---|---|
-| Deploy a mainnet account | ~0.1 | 0.07 |
-| Declare `SealedBidAuction` | 48.0 | 34.71 |
-| Declare `AuctionAnonymizer` | 10.5 | 7.56 |
-| Deploy both | 0.17 | 0.11 |
-| | **≈ 58.8 STRK at the first declare** | **≈ 42.5 STRK gone** |
+| Deploy a mainnet account | — | already exists and is funded |
+| Declare `SealedBidAuction` | 50.7 | 36.64 |
+| Declare `AuctionAnonymizer` | 10.9 | 7.89 |
+| Deploy both | 0.2 | 0.13 |
+| | **≈ 61.6 STRK at the first declare** | **≈ 44.7 STRK gone** |
 
-**Do not change the contracts after declaring** — every code change is another 42.5 STRK
-spent and 58.8 that has to be sitting there.
+**Do not change the contracts after declaring** — every code change is another 44.7 STRK
+spent and 61.6 that has to be sitting there. That is why the freeze audit happened
+before the declare and not after.
 
 ### B. The judged auction, run through the pool
 
@@ -302,18 +314,25 @@ not the second, so it is a fourth pool operation rather than one of the three.
 
 | | Spends | Peak holding | Buys |
 |---|---|---|---|
-| Deploy only | 42.5 | 58.8 | Contracts on mainnet, nothing running |
-| **Submission minimum** | **68.3** | **58.8** | Deploy, shield once, three qualifying pool transactions, gas |
-| Judge-friendly | ~128 | 58.8 | The above plus ten sponsored private bids |
-| Five-bidder pool auction | ~164 | 58.8 | The plan's full target |
+| Deploy only | 44.7 | 61.6 | Contracts on mainnet, nothing running |
+| **Submission minimum** | **70.6** | **61.6** | Deploy, shield once, three qualifying pool transactions, gas |
+| Judge-friendly | ~130 | 61.6 | The above plus ten sponsored private bids |
+| Five-bidder pool auction | ~166 | 61.6 | The plan's full target |
 
 Peak holding is flat because the declare is the first thing that happens and the most
 expensive single moment; everything after it is cheap by comparison.
 
-**Send 85 STRK.** 70 covers the 68.3 minimum by 1.7 STRK, which is not a margin — one
-gas spike, one retried transaction, or one extra pool operation and the run stops with
-the entry unscoreable. The declare bound scales linearly with gas price, so a 15% rise
-between funding and declaring eats the difference on its own.
+**The account holds 45 STRK. Top up to 90.**
+
+45 does not reach the 61.6 the first declare must have sitting there, so the run stops
+before it starts. 90 covers the 70.6 total with ~27% headroom, and the headroom is the
+point: the declare bound scales linearly with gas price, and gas moved 1% in the hour
+between two of the estimates in this file. **80 is the floor I would accept** — below
+that a single spike strands the run with nothing declared and 44 STRK still to find.
+
+These figures are post-freeze. The audit added `abandon` to the auction and the `Routed`
+event to the anonymizer, together **+2.26 STRK** — the cheapest either change will ever
+be, and the reason both happened before the declare.
 
 `deploy.sh` prints the bound, the balance and the headroom before it spends anything,
 and refuses to start when the balance is under the bound.
@@ -339,9 +358,9 @@ contracts back before writing anything down.
 scripts/deploy.sh mainnet <sncast-account>
 ```
 
-1. **Create and deploy a mainnet account, and fund it.** The keystore has only a
-   Sepolia account today. Everything below refuses to run until this exists and holds
-   the bound.
+1. **Import the funded mainnet account into sncast** (see "The deploying account"
+   below). Everything after this refuses to run until the account exists in the keystore
+   and holds the bound.
 
 2. **Run the command.** It refuses to spend if the chain is wrong, the pool class has
    moved, or the balance is under the estimator bound — all before `scarb build`. On
@@ -350,8 +369,8 @@ scripts/deploy.sh mainnet <sncast-account>
    The class hashes are already known and are in `strk20.json`:
 
    ```
-   SealedBidAuction    0x1489a905a59d25614300504355ecd9df25e34bc8b099485512d44cc7b94b341
-   AuctionAnonymizer   0x5197552b8a5d886b024ed281242c001c8b84aabc8d95edd014ff2b673646e0e
+   SealedBidAuction    0x20d49d80102828aff85ad1c00589c520c90ad2157456b08f9ccc063669ff1d9
+   AuctionAnonymizer   0x5f0d799a36e9a70d30a3d626c588b06c0b5b8c1b8e0db0bedb6ff4ce7ec6212
    ```
 
    **If the declare prints something different, stop.** It means the build is not the

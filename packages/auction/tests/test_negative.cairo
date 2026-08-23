@@ -7,9 +7,11 @@ use auction::interface::ISealedBidAuctionDispatcherTrait;
 use auction::ladder;
 use auction::types::{AuctionKind, DispositionProof, NO_WINNER, ProofKind};
 use snforge_std::{start_cheat_block_timestamp_global, start_cheat_caller_address};
+use auction::erc20::IERC20DispatcherTrait;
+use core::num::traits::Zero;
 use super::common::{
-    DEADLINE, LEVELS, WINDOW, finalize, payout, place, pool, proof_above, proof_below,
-    proof_exactly, proof_forfeit, seal, seller, settle, setup,
+    DEADLINE, LOT, LEVELS, WINDOW, finalize, payout, place, pool, proof_above, proof_below,
+    proof_exactly, proof_forfeit, seal, seller, settle, setup, setup_with_auctioneer,
 };
 
 // ---- bidding window ------------------------------------------------------------
@@ -336,4 +338,61 @@ fn a_deadline_in_the_past_is_rejected() {
     config.bid_deadline = DEADLINE;
     start_cheat_caller_address(env.auction.contract_address, seller());
     env.auction.create_auction(config);
+}
+
+// ---- liveness: the auctioneer who never comes back -----------------------------
+
+/// A sealed auction has exactly one way out — `settle`, and only the auctioneer may
+/// call it. If that address never acts, every bidder's collateral, the lot and the
+/// bond are locked in the contract permanently: `claim_refund` needs Finalized or
+/// Cancelled, `dispute` and `finalize` both need Settled, and nothing reaches those
+/// states without the auctioneer.
+///
+/// This is not a theft vector — nobody can take the money. It is worse in one way:
+/// there is no recovery at all, for anyone, ever.
+#[test]
+fn an_auctioneer_who_never_settles_can_be_timed_out() {
+    let env = setup(AuctionKind::Vickrey);
+    let a = place(env, 'A', 'SA', 5);
+    let b = place(env, 'B', 'SB', 3);
+    let escrow = env.auction.collateral(env.id);
+    seal(env);
+
+    // The auctioneer is gone. Long past the point where settling was plausible.
+    start_cheat_block_timestamp_global(DEADLINE + WINDOW + 1);
+    env.auction.abandon(env.id);
+
+    // Everyone gets their collateral back, and the seller gets the lot and bond.
+    let got_a = env.auction.claim_refund(env.id, a.index, 'A', payout());
+    let got_b = env.auction.claim_refund(env.id, b.index, 'B', payout());
+    assert!(got_a == escrow, "A's escrow did not come back");
+    assert!(got_b == escrow, "B's escrow did not come back");
+    assert!(env.lot.balance_of(seller()) == LOT.into(), "the lot did not go home");
+}
+
+#[test]
+#[should_panic(expected: 'SETTLE_GRACE_OPEN')]
+fn abandon_before_the_grace_expires_is_rejected() {
+    let env = setup(AuctionKind::Vickrey);
+    place(env, 'A', 'SA', 5);
+    seal(env);
+    // The auctioneer is still well within the window they were given to settle.
+    env.auction.abandon(env.id);
+}
+
+#[test]
+#[should_panic(expected: 'AUCTION_NOT_SEALED')]
+fn abandon_does_not_apply_to_a_settled_auction() {
+    let env = setup(AuctionKind::Vickrey);
+    let a = place(env, 'A', 'SA', 5);
+    seal(env);
+    settle(env, 0, a.index, array![proof_above(env, a, 0)]);
+    start_cheat_block_timestamp_global(DEADLINE + WINDOW + 1);
+    env.auction.abandon(env.id);
+}
+
+#[test]
+#[should_panic(expected: 'ZERO_AUCTIONEER')]
+fn an_auction_with_no_auctioneer_is_rejected_at_listing() {
+    setup_with_auctioneer(AuctionKind::Vickrey, Zero::zero());
 }

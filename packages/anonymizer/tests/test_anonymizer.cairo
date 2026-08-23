@@ -4,14 +4,15 @@
 use anonymizer::interface::{
     AuctionOperation, IAuctionAnonymizerDispatcher, IAuctionAnonymizerDispatcherTrait,
 };
+use anonymizer::auction_anonymizer::AuctionAnonymizer;
 use anonymizer::mocks::{IMockPrivacyPoolDispatcher, IMockPrivacyPoolDispatcherTrait};
 use auction::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
 use auction::interface::{ISealedBidAuctionDispatcher, ISealedBidAuctionDispatcherTrait};
 use auction::ladder;
 use auction::types::{AuctionConfig, AuctionKind, DispositionProof, ProofKind};
 use snforge_std::{
-    ContractClassTrait, DeclareResultTrait, declare, start_cheat_block_timestamp_global,
-    start_cheat_caller_address, stop_cheat_caller_address,
+    ContractClassTrait, DeclareResultTrait, EventSpyAssertionsTrait, declare, spy_events,
+    start_cheat_block_timestamp_global, start_cheat_caller_address, stop_cheat_caller_address,
 };
 use starknet::ContractAddress;
 
@@ -274,4 +275,88 @@ fn only_the_pool_may_invoke_the_helper() {
     let rig = setup();
     start_cheat_caller_address(rig.helper.contract_address, outsider());
     rig.helper.privacy_invoke(AuctionOperation::ClaimRefund, rig.id, 0, 0, 0, 0, 'A', 0, 'NOTE_A');
+}
+
+/// The event is what makes a pool transaction legible as *ours*.
+///
+/// Without it the only trace is the auction's own event, which looks identical whether
+/// the bid arrived through the pool or straight off a public address — and the sprint
+/// checks each mainnet hash for an event from a contract we listed. Worth a test,
+/// because an event nobody asserts on is an event a refactor silently drops.
+///
+/// Asserting the **exact** event also pins its shape: adding a member — `note_id`
+/// above all, which would let an observer tie a private note to an auction action —
+/// stops this file compiling rather than quietly widening what the contract publishes.
+#[test]
+fn placing_a_bid_through_the_pool_emits_routed() {
+    let rig = setup();
+    let mut spy = spy_events();
+
+    bid(rig, 'A', 'SA', 12);
+
+    spy
+        .assert_emitted(
+            @array![
+                (
+                    rig.helper.contract_address,
+                    AuctionAnonymizer::Event::Routed(
+                        AuctionAnonymizer::Routed {
+                            auction_id: rig.id, operation: AuctionOperation::PlaceBid,
+                        },
+                    ),
+                ),
+            ],
+        );
+}
+
+/// The claim legs emit too, and carry their own operation rather than a generic marker
+/// — a refund and a lot collection are different events on the chain.
+#[test]
+fn the_claim_leg_emits_its_own_operation() {
+    let rig = setup();
+    let a_commit = ladder::claim_commitment_of('A');
+    bid(rig, 'A', 'SA', 12);
+    bid(rig, 'B', 'SB', 9);
+
+    start_cheat_block_timestamp_global(DEADLINE);
+    rig.auction.seal(rig.id);
+    let b_commit = ladder::claim_commitment_of('B');
+    let proofs: Array<DispositionProof> = array![
+        DispositionProof {
+            kind: ProofKind::AtOrAbove,
+            witness_up: ladder::witness_at_or_above(rig.id, a_commit, 'SA', 12, 9),
+            witness_down: 0,
+        },
+        DispositionProof {
+            kind: ProofKind::Exactly,
+            witness_up: ladder::witness_at_or_above(rig.id, b_commit, 'SB', 9, 9),
+            witness_down: ladder::witness_at_or_below(rig.id, b_commit, 'SB', 9, 9),
+        },
+    ];
+    start_cheat_caller_address(rig.auction.contract_address, auctioneer());
+    rig.auction.settle(rig.id, 9, 0, proofs.span());
+    stop_cheat_caller_address(rig.auction.contract_address);
+    start_cheat_block_timestamp_global(DEADLINE + WINDOW + 1);
+    rig.auction.finalize(rig.id);
+
+    let mut spy = spy_events();
+    rig
+        .pool
+        .drive_claim(
+            rig.helper.contract_address, AuctionOperation::ClaimRefund, rig.id, 1, 'B', 0, 'NOTE_A',
+        );
+
+    spy
+        .assert_emitted(
+            @array![
+                (
+                    rig.helper.contract_address,
+                    AuctionAnonymizer::Event::Routed(
+                        AuctionAnonymizer::Routed {
+                            auction_id: rig.id, operation: AuctionOperation::ClaimRefund,
+                        },
+                    ),
+                ),
+            ],
+        );
 }
