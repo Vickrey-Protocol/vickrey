@@ -80,7 +80,7 @@ export function Faq() {
       <h2 className="section" style={{ marginTop: 0 }}>Before you bid</h2>
       <div className="faq">
         {QA.map(({ q, a }) => (
-          <div className="faq-item" key={q}>
+          <div className="faq-item glow" key={q}>
             <h3 className="faq-q">{q}</h3>
             <p className="faq-a">{a}</p>
           </div>

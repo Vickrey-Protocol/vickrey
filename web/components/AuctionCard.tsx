@@ -45,7 +45,7 @@ export function AuctionCard({
   return (
     <button
       type="button"
-      className="card-auction"
+      className="card-auction glow"
       aria-current={selected}
       onClick={onSelect}
     >

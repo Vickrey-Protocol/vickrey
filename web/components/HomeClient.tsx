@@ -15,6 +15,7 @@ import { Ladder } from "@/components/Ladder";
 import { Hero, HowItWorks } from "@/components/Hero";
 import { CountUp } from "@/components/CountUp";
 import { initMotion, onReplayKey, replayMotion } from "@/lib/motion";
+import { watchGlow, watchScroll } from "@/lib/chrome";
 import { AuctionCard } from "@/components/AuctionCard";
 import { Faq } from "@/components/Faq";
 import { Footer } from "@/components/Footer";
@@ -89,7 +90,10 @@ export default function HomeClient({ initial }: { initial: WireAuction[] }) {
 
   useEffect(() => {
     setPlaying(initMotion());
-    return onReplayKey(replay);
+    const offKey = onReplayKey(replay);
+    const offScroll = watchScroll();
+    const offGlow = watchGlow();
+    return () => { offKey(); offScroll(); offGlow(); };
   }, [replay]);
 
   /* The server already rendered the book into the HTML, so this is a refresh rather

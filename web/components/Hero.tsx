@@ -26,15 +26,15 @@ export function HowItWorks() {
   return (
     <section id="how" aria-label="How it works" style={{ padding: 0 }}>
       <dl className="beats">
-        <div className="beat">
+        <div className="beat glow">
           <dt>Bid</dt>
           <dd>Pick a level. Two hash anchors go on chain. No amount, no address.</dd>
         </div>
-        <div className="beat">
+        <div className="beat glow">
           <dt>Seal</dt>
           <dd>The contract stamps the block and freezes the set. Only then do seeds move.</dd>
         </div>
-        <div className="beat">
+        <div className="beat glow">
           <dt>Settle</dt>
           <dd>N+1 witnesses prove the second price. Not one bid is opened.</dd>
         </div>
