@@ -50,11 +50,21 @@
 * { box-sizing: border-box; }
 html {
   -webkit-text-size-adjust: 100%;
-  /* The overscroll rubber-band paints the canvas colour, which comes from here
-     rather than from body's gradient — without this it flashes white. */
-  background: #0A1514;
   /* Dark scrollbars and form controls to match. */
   color-scheme: dark;
+  /* The ground lives here, not on body, for two reasons. The overscroll
+     rubber-band paints the *canvas*, which comes from the root element — on body
+     it flashed white. And a z-index:-1 layer paints behind its stacking root but
+     above the canvas, so with an opaque gradient on body the backdrop grid was
+     buried underneath it and never appeared at all. */
+  background-color: #0A1514;
+  background-image:
+    radial-gradient(34% 24% at 91% -4%, rgba(255, 176, 102, .44), transparent 66%),
+    radial-gradient(52% 34% at 86% 2%, rgba(232, 96, 58, .26), transparent 64%),
+    radial-gradient(64% 42% at -4% 22%, rgba(58, 142, 133, .11), transparent 62%),
+    radial-gradient(80% 34% at 50% 106%, rgba(226, 81, 60, .07), transparent 68%),
+    linear-gradient(172deg, #0D1A18 0%, #0A1514 40%, #071110 74%, #040909 100%);
+  background-repeat: no-repeat;
 }
 
 body {
@@ -64,15 +74,8 @@ body {
   font-size: var(--s-0);
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
-  /* Sized to the document rather than the viewport, so the ground genuinely
-     shifts in value from top to bottom instead of being pinned behind scroll. */
-  background:
-    radial-gradient(34% 24% at 91% -4%, rgba(255, 176, 102, .44), transparent 66%),
-    radial-gradient(52% 34% at 86% 2%, rgba(232, 96, 58, .26), transparent 64%),
-    radial-gradient(64% 42% at -4% 22%, rgba(58, 142, 133, .11), transparent 62%),
-    radial-gradient(80% 34% at 50% 106%, rgba(226, 81, 60, .07), transparent 68%),
-    linear-gradient(172deg, #0D1A18 0%, #0A1514 40%, #071110 74%, #040909 100%);
-  background-repeat: no-repeat;
+  /* Transparent: the ground is on <html>. See the note there. */
+  background: transparent;
   min-height: 100vh;
 }
 
@@ -668,20 +671,43 @@ footer {
    the numbers, which the instrument's boundary forbids outright.
    ───────────────────────────────────────────────────────────────────────── */
 
-/* A faint technical grid on the ground. Borrowed idea, restyled to petrol, and
-   it suits a product whose central object is a measuring instrument. Sits
-   behind everything and touches no text. */
-body::before {
-  content: "";
+/* ── the ground ───────────────────────────────────────────────────────
+   An interactive grid, after Aceternity's grid and ripple backgrounds but
+   rebuilt in our own palette and without their DOM cost: their version
+   renders a cell per square, which is hundreds of nodes. Two fixed layers
+   and a masked gradient give the same read for two elements.
+
+   Layer one is the grid itself. Layer two is the same grid in ember,
+   revealed only in a radius around the pointer, so the ground lights up
+   where you are looking. Both sit at z-index -1 behind everything and
+   neither ever crosses a number. */
+.backdrop {
   position: fixed; inset: 0; z-index: -1; pointer-events: none;
-  background-image:
-    linear-gradient(rgba(255, 255, 255, .028) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, .028) 1px, transparent 1px);
-  background-size: 72px 72px;
-  /* Fades out before it reaches the busiest part of the page. */
-  mask-image: radial-gradient(120% 80% at 50% 0%, #000 20%, transparent 72%);
-  -webkit-mask-image: radial-gradient(120% 80% at 50% 0%, #000 20%, transparent 72%);
+  --gx: 50vw; --gy: 30vh;
 }
+.backdrop::before,
+.backdrop::after {
+  content: ""; position: absolute; inset: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, .055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, .055) 1px, transparent 1px);
+  background-size: 64px 64px;
+}
+/* The resting grid, fading out down the page so it never fights the content. */
+.backdrop::before {
+  mask-image: linear-gradient(180deg, #000 0%, #000 42%, transparent 88%);
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 42%, transparent 88%);
+}
+/* The same grid in ember, revealed around the pointer. */
+.backdrop::after {
+  background-image:
+    linear-gradient(rgba(242, 145, 63, .5) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(242, 145, 63, .5) 1px, transparent 1px);
+  mask-image: radial-gradient(16rem circle at var(--gx) var(--gy), #000 0%, transparent 68%);
+  -webkit-mask-image: radial-gradient(16rem circle at var(--gx) var(--gy), #000 0%, transparent 68%);
+  transition: opacity .4s ease;
+}
+@media (hover: none) { .backdrop::after { display: none; } }
 
 /* Cursor-follow glow on cards. Applied to chrome only — never the instrument,
    never over a number. Driven by two custom properties set from one listener. */
@@ -739,4 +765,30 @@ button.primary:hover::before { opacity: .9; animation: spinEdge 2.4s linear infi
 @media (prefers-reduced-motion: reduce) {
   .masthead { transition: none; }
   button.primary:hover::before { animation: none; }
+}
+
+/* ── reveals ──────────────────────────────────────────────────────────
+   The same easing and rise as the instrument's rungs, so the page moves
+   in one language rather than two.
+
+   The hidden state is scoped to [data-motion="play"] on purpose: if the
+   script does not run, nothing is hidden. Content is never gated behind
+   an animation succeeding. */
+[data-motion="play"] [data-reveal] {
+  opacity: 0;
+  transform: translateY(14px);
+}
+[data-motion="play"] [data-reveal][data-shown="true"] {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity .62s cubic-bezier(.2, .7, .3, 1) var(--d, 0s),
+    transform .62s cubic-bezier(.2, .7, .3, 1) var(--d, 0s);
+}
+
+/* The headline reveals a line at a time, staggered like the rungs. */
+.hero h1 .line { display: block; }
+
+@media (prefers-reduced-motion: reduce) {
+  [data-motion="play"] [data-reveal] { opacity: 1 !important; transform: none !important; }
 }

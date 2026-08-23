@@ -77,10 +77,10 @@ export function Faq() {
   return (
     <section id="faq">
       <p className="eyebrow">Questions</p>
-      <h2 className="section" style={{ marginTop: 0 }}>Before you bid</h2>
+      <h2 className="section" style={{ marginTop: 0 }} data-reveal>Before you bid</h2>
       <div className="faq">
-        {QA.map(({ q, a }) => (
-          <div className="faq-item glow" key={q}>
+        {QA.map(({ q, a }, i) => (
+          <div className="faq-item glow" key={q} data-reveal style={{ ["--d" as string]: `${i * 0.05}s` }}>
             <h3 className="faq-q">{q}</h3>
             <p className="faq-a">{a}</p>
           </div>

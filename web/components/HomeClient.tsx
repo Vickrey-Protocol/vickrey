@@ -15,7 +15,8 @@ import { Ladder } from "@/components/Ladder";
 import { Hero, HowItWorks } from "@/components/Hero";
 import { CountUp } from "@/components/CountUp";
 import { initMotion, onReplayKey, replayMotion } from "@/lib/motion";
-import { watchGlow, watchScroll } from "@/lib/chrome";
+import { watchBackdrop, watchGlow, watchScroll } from "@/lib/chrome";
+import { watchReveals } from "@/lib/reveal";
 import { AuctionCard } from "@/components/AuctionCard";
 import { Faq } from "@/components/Faq";
 import { Footer } from "@/components/Footer";
@@ -93,7 +94,9 @@ export default function HomeClient({ initial }: { initial: WireAuction[] }) {
     const offKey = onReplayKey(replay);
     const offScroll = watchScroll();
     const offGlow = watchGlow();
-    return () => { offKey(); offScroll(); offGlow(); };
+    const offBack = watchBackdrop();
+    const offReveal = watchReveals();
+    return () => { offKey(); offScroll(); offGlow(); offBack(); offReveal(); };
   }, [replay]);
 
   /* The server already rendered the book into the HTML, so this is a refresh rather
@@ -173,6 +176,7 @@ export default function HomeClient({ initial }: { initial: WireAuction[] }) {
 
   return (
     <main>
+      <div className="backdrop" aria-hidden="true" />
       <header className="masthead">
         <div className="row" style={{ gap: ".7rem" }}>
           <div className="wordmark">Vickrey<span aria-hidden="true" /></div>
@@ -202,14 +206,14 @@ export default function HomeClient({ initial }: { initial: WireAuction[] }) {
       <div className="hero-grid">
         <div className="hero-left">
           <Hero />
-          <div className="hero-cta">
+          <div className="hero-cta" data-reveal style={{ ["--d" as string]: ".42s" }}>
             <button className="primary" onClick={goBid}>Place a sealed bid</button>
             <button onClick={goSettled}>See a settled auction</button>
           </div>
 
           {/* Live counts, read from chain. The last one is the point of the product
               and it is a fact, not a slogan. */}
-          <dl className="hero-stats">
+          <dl className="hero-stats" data-reveal style={{ ["--d" as string]: ".54s" }}>
             <div>
               <dt>Auctions</dt>
               <dd>{all.length}</dd>
@@ -225,7 +229,7 @@ export default function HomeClient({ initial }: { initial: WireAuction[] }) {
           </dl>
         </div>
 
-        <div className="hero-right">
+        <div className="hero-right" data-reveal style={{ ["--d" as string]: ".22s" }}>
           {showcase ? (
             <HeroInstrument
               auction={showcase}
@@ -268,7 +272,7 @@ export default function HomeClient({ initial }: { initial: WireAuction[] }) {
         </div>
 
         {/* R2: both sentences, in full, and inside the hero screen. */}
-        <div className="trust">
+        <div className="trust" data-reveal style={{ ["--d" as string]: ".62s" }}>
           <p className="trust-label">What this guarantees</p>
           <p className="trust-body">
             <b>What is assured:</b> {TRUST_ASSURED} <b>What is not:</b> {TRUST_NOT}
@@ -298,14 +302,14 @@ export default function HomeClient({ initial }: { initial: WireAuction[] }) {
       {all.length > 0 && (
         <>
           <div className="spread" style={{ marginBottom: ".9rem" }}>
-            <h2 className="section" id="auctions" style={{ margin: 0 }}>Auctions</h2>
+            <h2 className="section" id="auctions" style={{ margin: 0 }} data-reveal>Auctions</h2>
             <div className="row">
               <button onClick={() => void refresh()}>Refresh</button>
               <a className="note mono" href={explorerContract(config.auctionAddress)}
                  target="_blank" rel="noreferrer">contract ↗</a>
             </div>
           </div>
-          <div className="cards" style={{ marginBottom: "1.5rem" }}>
+          <div className="cards" style={{ marginBottom: "1.5rem" }} data-reveal>
             {all.map((a) => (
               <AuctionCard
                 key={a.terms.auctionId.toString()}
@@ -460,7 +464,7 @@ export default function HomeClient({ initial }: { initial: WireAuction[] }) {
             isAuctioneer={isAuctioneer}
           />
 
-          <h2 className="section">The whole public record</h2>
+          <h2 className="section" data-reveal>The whole public record</h2>
           <div className="panel scroller">
             <p className="note" style={{ marginBottom: ".8rem" }}>
               This is everything the chain holds about the bid book. No address, no

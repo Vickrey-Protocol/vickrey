@@ -17,7 +17,7 @@ function ContractLink({ label, address }: { label: string; address: string }) {
 export function Footer() {
   return (
     <footer>
-      <div className="foot-grid">
+      <div className="foot-grid" data-reveal>
         <div className="foot-brand">
           <div className="wordmark">Vickrey<span aria-hidden="true" /></div>
           <p className="note" style={{ marginTop: ".6rem", maxWidth: "26ch" }}>

@@ -19,6 +19,29 @@ export function watchScroll(): () => void {
 }
 
 /**
+ * Lights the background grid around the pointer. Writes two custom properties on
+ * a single fixed element rather than tracking hundreds of grid cells.
+ */
+export function watchBackdrop(): () => void {
+  const el = document.querySelector<HTMLElement>(".backdrop");
+  if (!el) return () => {};
+  let frame = 0;
+  const onMove = (e: PointerEvent) => {
+    if (frame) return;
+    frame = requestAnimationFrame(() => {
+      frame = 0;
+      el.style.setProperty("--gx", `${e.clientX}px`);
+      el.style.setProperty("--gy", `${e.clientY}px`);
+    });
+  };
+  addEventListener("pointermove", onMove, { passive: true });
+  return () => {
+    removeEventListener("pointermove", onMove);
+    if (frame) cancelAnimationFrame(frame);
+  };
+}
+
+/**
  * Points the glow at the cursor. One delegated listener rather than one per
  * card, and it only writes to elements that opted in with `.glow`.
  */
