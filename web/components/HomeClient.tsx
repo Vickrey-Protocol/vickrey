@@ -197,10 +197,12 @@ export default function HomeClient({ initial }: { initial: WireAuction[] }) {
 
       <div className="hero-grid">
         <div className="hero-left">
-          <Hero />
-          <div className="hero-cta">
-            <button className="primary" onClick={goBid}>Place a sealed bid</button>
-            <button onClick={goSettled}>See a settled auction</button>
+          <div>
+            <Hero />
+            <div className="hero-cta">
+              <button className="primary" onClick={goBid}>Place a sealed bid</button>
+              <button onClick={goSettled}>See a settled auction</button>
+            </div>
           </div>
 
           {/* Live counts, read from chain. The last one is the point of the product
@@ -264,9 +266,12 @@ export default function HomeClient({ initial }: { initial: WireAuction[] }) {
         </div>
 
         {/* R2: both sentences, in full, and inside the hero screen. */}
-        <p className="trust">
-          <b>What is assured:</b> {TRUST_ASSURED} <b>What is not:</b> {TRUST_NOT}
-        </p>
+        <div className="trust">
+          <p className="trust-label">What this guarantees</p>
+          <p className="trust-body">
+            <b>What is assured:</b> {TRUST_ASSURED} <b>What is not:</b> {TRUST_NOT}
+          </p>
+        </div>
       </div>
 
       <HowItWorks />

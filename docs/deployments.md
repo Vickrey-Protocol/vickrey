@@ -10,9 +10,9 @@ in the code assumes a Sepolia run will be possible for the pool leg — see
 
 | | |
 |---|---|
-| `SealedBidAuction` | [`0x07c9fe011b361470c6269807aae021ecbd8c809b8b29443fb0a2d8df6da3955c`](https://sepolia.starkscan.co/contract/0x07c9fe011b361470c6269807aae021ecbd8c809b8b29443fb0a2d8df6da3955c) |
+| `SealedBidAuction` | [`0x07c9fe011b361470c6269807aae021ecbd8c809b8b29443fb0a2d8df6da3955c`](https://sepolia.voyager.online/contract/0x07c9fe011b361470c6269807aae021ecbd8c809b8b29443fb0a2d8df6da3955c) |
 | class hash | `0x1489a905a59d25614300504355ecd9df25e34bc8b099485512d44cc7b94b341` |
-| `AuctionAnonymizer` | [`0x0496bd7ec79591a05289c1dd5faf55bd16476c724756152f3ba2aee9e2e34e8e`](https://sepolia.starkscan.co/contract/0x0496bd7ec79591a05289c1dd5faf55bd16476c724756152f3ba2aee9e2e34e8e) |
+| `AuctionAnonymizer` | [`0x0496bd7ec79591a05289c1dd5faf55bd16476c724756152f3ba2aee9e2e34e8e`](https://sepolia.voyager.online/contract/0x0496bd7ec79591a05289c1dd5faf55bd16476c724756152f3ba2aee9e2e34e8e) |
 | class hash | `0x5197552b8a5d886b024ed281242c001c8b84aabc8d95edd014ff2b673646e0e` |
 | Lot token `CRATE` (a test double) | `0x06faa5f22e11ab496cb4dff52e0c0f93376c1861c51a3f6f8472b0d83580019f` |
 | STRK20 pool (theirs) | `0x254a6b2997ef52e9f830ce1f543f6b29768295e8d17e2267d672c552cfe0d91` |

@@ -23,6 +23,9 @@ interface NetworkDefaults {
 export const NETWORKS: Record<NetworkName, NetworkDefaults> = {
   mainnet: {
     rpcUrl: "https://api.cartridge.gg/x/starknet/mainnet",
+    /* Verified against the live STRK20 pool: /contract/<addr> and /tx/<hash> both
+       return a real page. The explorers do NOT mirror each other across networks —
+       sepolia.starkscan.co does not resolve — so each is checked on its own. */
     explorer: "https://starkscan.co",
     pool: "0x040337b1af3c663e86e333bab5a4b28da8d4652a15a69beee2b677776ffe812a",
     strk: "0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d",
@@ -30,7 +33,8 @@ export const NETWORKS: Record<NetworkName, NetworkDefaults> = {
   },
   sepolia: {
     rpcUrl: "https://api.cartridge.gg/x/starknet/sepolia",
-    explorer: "https://sepolia.starkscan.co",
+    /* sepolia.starkscan.co fails to resolve; Voyager is the working Sepolia explorer. */
+    explorer: "https://sepolia.voyager.online",
     pool: "0x254a6b2997ef52e9f830ce1f543f6b29768295e8d17e2267d672c552cfe0d91",
     strk: "0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d",
     label: "Sepolia (rehearsal)",

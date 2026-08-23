@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push: { branches: [main] }
+  pull_request:
+  schedule:
+    # Links rot on someone else's schedule, not ours. A weekly run catches a host
+    # disappearing before a judge does.
+    - cron: "17 6 * * 1"
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: software-mansion/setup-scarb@v1
+        with: { scarb-version: "2.14.0" }
+      - uses: foundry-rs/setup-snfoundry@v3
+        with: { starknet-foundry-version: "0.53.0" }
+      - run: scarb fmt --check
+      - run: scarb build
+      - run: snforge test
+
+  client:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "24", cache: npm }
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  links:
+    # Every dead URL we have shipped was a well-formed link to a host that had gone
+    # away: a retired Blast RPC, then sepolia.starkscan.co. Only a real request finds
+    # those, so this makes one.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "24" }
+      - run: node scripts/check-links.mjs
+        env:
+          SITE: https://vickrey-ten.vercel.app

@@ -15,7 +15,8 @@
     "typecheck": "npm run typecheck --workspace @vickrey/client && npm run typecheck --workspace @vickrey/web",
     "verify:pool": "npm run verify:pool --workspace @vickrey/client",
     "contracts:build": "scarb build",
-    "contracts:test": "snforge test"
+    "contracts:test": "snforge test",
+    "check:links": "node scripts/check-links.mjs"
   },
   "engines": {
     "node": ">=22"

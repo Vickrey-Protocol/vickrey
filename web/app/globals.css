@@ -131,34 +131,49 @@ section { padding-block: clamp(1.3rem, 3vw, 2.3rem); }
   letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-top: .1rem;
 }
 
-/* R2: both sentences, in full, above the fold. Never a tooltip. */
+/* R2: both sentences, in full, above the fold. Never a tooltip.
+   Styled as a specification rather than an alert — a red rule and a tinted fill
+   made an honest disclosure read as a defect. Same glass as every other surface,
+   with the accent carried only by the two labels. */
 .trust {
   position: relative;
-  margin-block-end: 0;
-  border-radius: 12px;
-  padding: .9rem 1.1rem .9rem 1.25rem;
-  background: linear-gradient(90deg, rgba(226, 81, 60, .10), rgba(226, 81, 60, .02));
-  border: 1px solid var(--accent-edge);
-  font-size: var(--s--1); line-height: 1.5; color: var(--ink-2);
-  margin-block-end: 1.1rem;
+  background: var(--glass);
+  backdrop-filter: blur(18px) saturate(1.2);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 1rem 1.2rem 1.05rem;
+  box-shadow: 0 1px 0 0 rgba(255, 255, 255, .06) inset;
 }
 .trust::before {
-  content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 2px;
-  border-radius: 2px 0 0 2px; background: var(--accent);
+  content: ""; position: absolute; inset: 0 0 auto 0; height: 1px;
+  border-radius: 14px 14px 0 0;
+  background: linear-gradient(90deg, transparent, var(--line-lit) 22%, var(--line-lit) 78%, transparent);
+  pointer-events: none;
 }
-.trust b { color: var(--ink); font-weight: 600; }
+.trust-label {
+  margin: 0 0 .5rem;
+  font-family: var(--font-mono), monospace; font-size: var(--s--1);
+  letter-spacing: .16em; text-transform: uppercase; color: var(--muted);
+}
+.trust-body { margin: 0; font-size: var(--s--1); line-height: 1.55; color: var(--ink-2); }
+.trust-body b {
+  font-weight: 600;
+  background: var(--accent);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
 
 /* ── hero ───────────────────────────────────────────────────────────── */
 .hero-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(22rem, 28rem);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   grid-template-rows: 1fr auto;
   grid-template-areas: "left right" "trust trust";
-  gap: clamp(1.25rem, 3vw, 2.25rem) clamp(1.5rem, 4vw, 3.5rem);
+  gap: clamp(1.1rem, 2.5vw, 1.9rem) clamp(1.5rem, 3vw, 2.75rem);
   /* Exactly one screen, less the masthead. Nothing below this is above the fold. */
   /* One screen, but capped: on a very tall monitor an 1800px hero is not a hero. */
-  min-height: min(calc(100svh - 4.4rem), 54rem);
-  padding-block: .25rem 1rem;
+  min-height: min(calc(100svh - 5.2rem), 54rem);
+  padding-block: clamp(1rem, 3vh, 2.25rem) 1rem;
 }
 @media (max-width: 62rem) {
   .hero-grid {
@@ -171,20 +186,23 @@ section { padding-block: clamp(1.3rem, 3vw, 2.3rem); }
 
 /* The headline block centres in its row rather than being pushed to one end, so
    neither column empties out halfway down. */
-.hero-left { grid-area: left; display: flex; flex-direction: column; justify-content: center; min-height: 0; }
+.hero-left {
+  grid-area: left; display: flex; flex-direction: column;
+  justify-content: space-between; gap: 1.5rem; min-height: 0;
+}
 .hero-right { grid-area: right; display: flex; min-height: 0; }
 .hero-right > * { flex: 1; min-height: 0; }
 .hero-grid > .trust { grid-area: trust; }
 .hero-cta { display: flex; gap: .6rem; flex-wrap: wrap; margin-block-start: 1.5rem; }
 
 .hero { padding: 0; }
-.hero h1 { font-size: var(--s-4); line-height: .98; max-width: 15ch; }
+.hero h1 { font-size: var(--s-4); line-height: .98; max-width: 19ch; }
 .hero h1 em {
   font-style: italic;
   background: var(--accent);
   -webkit-background-clip: text; background-clip: text; color: transparent;
 }
-.hero-body { max-width: 42ch; margin-block-start: 1rem; }
+.hero-body { max-width: 52ch; margin-block-start: 1rem; }
 .hero-body p { margin: 0 0 .5rem; color: var(--ink-2); font-size: var(--s-1); }
 .hero-body p:last-child { margin-bottom: 0; }
 .hero-body strong { color: var(--ink); font-weight: 600; }
@@ -462,9 +480,11 @@ td.undisclosed { color: var(--muted); font-style: italic; }
 .rig-replay {
   font-family: var(--font-mono), monospace; font-size: var(--s--1);
   letter-spacing: .08em; text-transform: uppercase;
-  padding: .1rem .45rem; border-radius: 6px;
-  border: 1px solid var(--line); background: transparent; color: var(--muted);
-  font-weight: 400;
+  padding: .15rem .5rem; border-radius: 6px;
+  border: 1px solid var(--line-lit);
+  background: rgba(0, 0, 0, .28);
+  color: var(--ink-2);
+  font-weight: 500;
 }
 .rig-replay:hover { color: var(--ember); border-color: var(--accent-edge); }
 
@@ -495,11 +515,15 @@ td.undisclosed { color: var(--muted); font-style: italic; }
 
 .rig-open {
   margin-block-start: .85rem; width: 100%;
-  background: transparent; border: 1px solid var(--line); color: var(--ink-2);
+  background: rgba(255, 255, 255, .07);
+  border: 1px solid var(--accent-edge);
+  color: var(--ink);
   font-family: var(--font-mono), monospace; font-size: var(--s--1);
-  letter-spacing: .06em; text-transform: uppercase; font-weight: 400;
+  letter-spacing: .06em; text-transform: uppercase; font-weight: 600;
 }
-.rig-open:hover { color: var(--ember); border-color: var(--accent-edge); }
+.rig-open:hover {
+  background: var(--accent); color: #17100E; border-color: transparent;
+}
 
 /* The network badge: true, and stated as a badge rather than raw text. */
 .badge {
