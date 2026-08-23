@@ -13,6 +13,7 @@ import { Hero, HowItWorks } from "@/components/Hero";
 import { CountUp } from "@/components/CountUp";
 import { initMotion, onReplayKey, replayMotion } from "@/lib/motion";
 import { AuctionCard } from "@/components/AuctionCard";
+import { HeroInstrument } from "@/components/HeroInstrument";
 import { BidPanel, ClaimPanel, DisputePanel, RevealPanel } from "@/components/Panels";
 import { AuctioneerSection } from "@/components/AuctioneerSection";
 
@@ -55,6 +56,27 @@ export default function Home() {
     setMotionKey((k) => k + 1);
     setPlaying(replayMotion());
   }, []);
+
+  /** Selecting an auction and scrolling to it is what both hero CTAs do. */
+  const select = useCallback((id: bigint) => {
+    setSelected(id);
+    requestAnimationFrame(() =>
+      document.getElementById("auction-detail")?.scrollIntoView({ behavior: "smooth", block: "start" }),
+    );
+  }, []);
+
+  const goBid = useCallback(() => {
+    const open = all.find((a) => a.status === Status.Open);
+    if (open) select(open.terms.auctionId);
+    else document.getElementById("auctions")?.scrollIntoView({ behavior: "smooth" });
+  }, [all, select]);
+
+  const goSettled = useCallback(() => {
+    const done =
+      all.find((a) => a.status === Status.Finalized) ?? all.find((a) => a.status === Status.Settled);
+    if (done) select(done.terms.auctionId);
+    else document.getElementById("auctions")?.scrollIntoView({ behavior: "smooth" });
+  }, [all, select]);
 
   useEffect(() => {
     setPlaying(initMotion());
@@ -139,12 +161,9 @@ export default function Home() {
   return (
     <main>
       <header className="masthead">
-        <div>
+        <div className="row" style={{ gap: ".7rem" }}>
           <div className="wordmark">Vickrey<span aria-hidden="true" /></div>
-          <small style={{ display: "block", fontFamily: "var(--font-mono)", fontSize: "var(--s--1)",
-            letterSpacing: ".1em", textTransform: "uppercase", color: "var(--muted)", marginTop: ".15rem" }}>
-            {config.label}
-          </small>
+          <span className="badge">{config.label}</span>
         </div>
         <div className="row">
           {connection ? (
@@ -155,33 +174,77 @@ export default function Home() {
           ) : (
             <button className="primary" onClick={doConnect}>Connect wallet</button>
           )}
-          <button onClick={replay} title="Or press R">Replay · R</button>
         </div>
       </header>
 
       <div className="hero-grid">
-        <Hero />
-        {showcase && (
-          <aside className="showcase" aria-label="A settled auction">
-            <p className="eyebrow" style={{ marginBottom: ".7rem" }}>Settled, and nothing to reveal</p>
-            <AuctionCard
-              key={`showcase-${motionKey}`}
-              auction={showcase}
-              now={now}
-              selected={selected === showcase.terms.auctionId}
-              onSelect={() => setSelected(showcase.terms.auctionId)}
-            />
-            <p className="note" style={{ marginTop: ".7rem" }}>
-              One line is the clearing price. Everything hatched was never disclosed —
-              including the winning bid.
-            </p>
-          </aside>
-        )}
-      </div>
+        <div className="hero-left">
+          <Hero />
+          <div className="hero-cta">
+            <button className="primary" onClick={goBid}>Place a sealed bid</button>
+            <button onClick={goSettled}>See a settled auction</button>
+          </div>
 
-      <p className="trust">
-        <b>What is assured:</b> {TRUST_ASSURED} <b>What is not:</b> {TRUST_NOT}
-      </p>
+          {/* Live counts, read from chain. The last one is the point of the product
+              and it is a fact, not a slogan. */}
+          <dl className="hero-stats">
+            <div>
+              <dt>Auctions</dt>
+              <dd>{all.length}</dd>
+            </div>
+            <div>
+              <dt>Bids sealed</dt>
+              <dd>{all.reduce((n, a) => n + a.bidCount, 0)}</dd>
+            </div>
+            <div>
+              <dt>Amounts disclosed</dt>
+              <dd className="zero">0</dd>
+            </div>
+          </dl>
+        </div>
+
+        <div className="hero-right">
+          {showcase ? (
+            <HeroInstrument
+              auction={showcase}
+              playing={playing}
+              motionKey={motionKey}
+              onReplay={replay}
+              onOpen={() => select(showcase.terms.auctionId)}
+            />
+          ) : (
+            <div className="rig" aria-busy="true" aria-label="Loading the auction book">
+              <div className="rig-head">
+                <span>Reading {config.label}…</span>
+              </div>
+              {/* A skeleton shaped like the instrument. An empty box that says
+                  "loading" is the void this page is not allowed to have. */}
+              <div className="rig-ladder">
+                <div className="rig-skeleton">
+                  {Array.from({ length: 12 }, (_, i) => (
+                    <span key={i} style={{ animationDelay: `${i * 0.06}s` }} />
+                  ))}
+                </div>
+              </div>
+              <div className="rig-readout">
+                <div>
+                  <div className="rig-lab">Clearing price</div>
+                  <div className="price" style={{ opacity: .25 }}>—</div>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div className="rig-lab">Bids</div>
+                  <div className="rig-bids" style={{ opacity: .25 }}>—</div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* R2: both sentences, in full, and inside the hero screen. */}
+        <p className="trust">
+          <b>What is assured:</b> {TRUST_ASSURED} <b>What is not:</b> {TRUST_NOT}
+        </p>
+      </div>
 
       <HowItWorks />
       {connectError && <p className="err">{connectError}</p>}
@@ -205,7 +268,7 @@ export default function Home() {
       {all.length > 0 && (
         <>
           <div className="spread" style={{ marginBottom: ".9rem" }}>
-            <h2 className="section" style={{ margin: 0 }}>Auctions</h2>
+            <h2 className="section" id="auctions" style={{ margin: 0 }}>Auctions</h2>
             <div className="row">
               <button onClick={() => void refresh()}>Refresh</button>
               <a className="note mono" href={explorerContract(config.auctionAddress)}

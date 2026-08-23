@@ -60,11 +60,11 @@ body {
   /* Sized to the document rather than the viewport, so the ground genuinely
      shifts in value from top to bottom instead of being pinned behind scroll. */
   background:
-    radial-gradient(90% 46% at 84% 2%, rgba(242, 145, 63, .30), transparent 62%),
-    radial-gradient(70% 34% at 96% 12%, rgba(226, 81, 60, .26), transparent 60%),
-    radial-gradient(80% 46% at 2% 30%, rgba(66, 150, 141, .14), transparent 62%),
-    radial-gradient(90% 40% at 50% 104%, rgba(226, 81, 60, .10), transparent 66%),
-    linear-gradient(172deg, #12201E 0%, #0C1817 34%, #071110 70%, #040B0A 100%);
+    radial-gradient(34% 24% at 91% -4%, rgba(255, 176, 102, .44), transparent 66%),
+    radial-gradient(52% 34% at 86% 2%, rgba(232, 96, 58, .26), transparent 64%),
+    radial-gradient(64% 42% at -4% 22%, rgba(58, 142, 133, .11), transparent 62%),
+    radial-gradient(80% 34% at 50% 106%, rgba(226, 81, 60, .07), transparent 68%),
+    linear-gradient(172deg, #0D1A18 0%, #0A1514 40%, #071110 74%, #040909 100%);
   background-repeat: no-repeat;
   min-height: 100vh;
 }
@@ -134,6 +134,7 @@ section { padding-block: clamp(1.3rem, 3vw, 2.3rem); }
 /* R2: both sentences, in full, above the fold. Never a tooltip. */
 .trust {
   position: relative;
+  margin-block-end: 0;
   border-radius: 12px;
   padding: .9rem 1.1rem .9rem 1.25rem;
   background: linear-gradient(90deg, rgba(226, 81, 60, .10), rgba(226, 81, 60, .02));
@@ -150,20 +151,39 @@ section { padding-block: clamp(1.3rem, 3vw, 2.3rem); }
 /* ── hero ───────────────────────────────────────────────────────────── */
 .hero-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 23rem);
-  gap: clamp(1.25rem, 3vw, 2.5rem);
-  align-items: center;
-  padding-block: .75rem 1.1rem;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 25rem);
+  grid-template-rows: 1fr auto;
+  grid-template-areas: "left right" "trust trust";
+  gap: clamp(1.25rem, 3vw, 2.25rem) clamp(1.5rem, 4vw, 3.5rem);
+  /* Exactly one screen, less the masthead. Nothing below this is above the fold. */
+  min-height: calc(100svh - 4.4rem);
+  padding-block: .25rem 1rem;
 }
-@media (max-width: 62rem) { .hero-grid { grid-template-columns: 1fr; } }
+@media (max-width: 62rem) {
+  .hero-grid {
+    grid-template-columns: 1fr;
+    grid-template-areas: "left" "right" "trust";
+    grid-template-rows: auto;
+    min-height: 0;
+  }
+}
 
+/* The headline block centres in its row rather than being pushed to one end, so
+   neither column empties out halfway down. */
+.hero-left { grid-area: left; display: flex; flex-direction: column; justify-content: center; min-height: 0; }
+.hero-right { grid-area: right; display: flex; min-height: 0; }
+.hero-right > * { flex: 1; min-height: 0; }
+.hero-grid > .trust { grid-area: trust; }
+.hero-cta { display: flex; gap: .6rem; flex-wrap: wrap; margin-block-start: 1.5rem; }
+
+.hero { padding: 0; }
 .hero h1 { font-size: var(--s-4); line-height: .98; max-width: 15ch; }
 .hero h1 em {
   font-style: italic;
   background: var(--accent);
   -webkit-background-clip: text; background-clip: text; color: transparent;
 }
-.hero-body { max-width: 40ch; margin-block-start: .85rem; }
+.hero-body { max-width: 42ch; margin-block-start: 1rem; }
 .hero-body p { margin: 0 0 .5rem; color: var(--ink-2); font-size: var(--s-1); }
 .hero-body p:last-child { margin-bottom: 0; }
 .hero-body strong { color: var(--ink); font-weight: 600; }
@@ -413,3 +433,115 @@ footer {
   align-items: start;
 }
 @media (max-width: 48rem) { .bid-grid { grid-template-columns: 1fr; } }
+
+/* ── the hero instrument ──────────────────────────────────────────────
+   The object that carries the whole pitch, at full size. Its rungs scale
+   with the viewport so it fills its column instead of ending in a void. */
+.rig {
+  display: flex; flex-direction: column;
+  position: relative;
+  background: var(--glass);
+  backdrop-filter: blur(18px) saturate(1.2);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  border: 1px solid var(--accent-edge);
+  border-radius: 14px;
+  padding: 1rem 1.15rem 1.1rem;
+  box-shadow: 0 1px 0 0 rgba(255, 255, 255, .06) inset, 0 22px 50px -28px rgba(0, 0, 0, .95);
+  --rung: 1.4rem;
+  --strip: 4.4rem;
+}
+.rig::before {
+  content: ""; position: absolute; inset: 0 0 auto 0; height: 1px; border-radius: 14px 14px 0 0;
+  background: linear-gradient(90deg, transparent, rgba(242, 145, 63, .55) 30%, rgba(226, 81, 60, .55) 70%, transparent);
+  pointer-events: none;
+}
+.rig-empty { align-items: center; justify-content: center; }
+
+.rig-head {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 1rem;
+  font-family: var(--font-mono), monospace; font-size: var(--s--1);
+  letter-spacing: .08em; text-transform: uppercase; color: var(--muted);
+  margin-block-end: .8rem;
+}
+/* Motion replay lives here, small and next to the thing it replays — not in the
+   header beside the primary wallet action, where it would read as a demo. */
+.rig-replay {
+  font-family: var(--font-mono), monospace; font-size: var(--s--1);
+  letter-spacing: .08em; text-transform: uppercase;
+  padding: .1rem .45rem; border-radius: 6px;
+  border: 1px solid var(--line); background: transparent; color: var(--muted);
+  font-weight: 400;
+}
+.rig-replay:hover { color: var(--ember); border-color: var(--accent-edge); }
+
+.rig-ladder { flex: 1; display: flex; min-height: 0; }
+.rig-ladder .ladder-wrap { flex: 1; display: flex; width: auto; }
+.rig .ladder { flex: 1; }
+/* Rows share the available height exactly, so the instrument always fills its
+   column whatever the viewport is. */
+.rig .ladder-row { flex: 1; height: auto; min-height: 0; }
+.rig .scale, .rig .ann { display: flex; align-items: center; line-height: 1.2; }
+.rig .ann { display: block; }
+.rig .ann > * { position: absolute; top: 50%; transform: translateY(-50%); }
+.rig .ann .brace { top: 0; transform: none; }
+
+.rig-readout {
+  display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem;
+  margin-block-start: .9rem; padding-block-start: .8rem; border-block-start: 1px solid var(--line);
+}
+.rig-lab {
+  font-family: var(--font-mono), monospace; font-size: var(--s--1);
+  letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-block-end: .1rem;
+}
+.rig-unit {
+  font-family: var(--font-mono), monospace; font-size: .8rem;
+  -webkit-text-fill-color: var(--ink-2); color: var(--ink-2);
+}
+.rig-bids { font-family: var(--font-mono), monospace; font-size: 1.3rem; color: var(--ink); }
+
+.rig-open {
+  margin-block-start: .85rem; width: 100%;
+  background: transparent; border: 1px solid var(--line); color: var(--ink-2);
+  font-family: var(--font-mono), monospace; font-size: var(--s--1);
+  letter-spacing: .06em; text-transform: uppercase; font-weight: 400;
+}
+.rig-open:hover { color: var(--ember); border-color: var(--accent-edge); }
+
+/* The network badge: true, and stated as a badge rather than raw text. */
+.badge {
+  font-family: var(--font-mono), monospace; font-size: var(--s--1);
+  letter-spacing: .1em; text-transform: uppercase;
+  padding: .22rem .6rem; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--glass-2); color: var(--ink-2);
+}
+
+/* Live counts under the hero CTAs. Read from chain, and the last one is the
+   product's whole claim stated as a number. */
+.hero-stats {
+  display: flex; flex-wrap: wrap; gap: 0 clamp(1.5rem, 4vw, 3rem);
+  margin: clamp(1.75rem, 5vh, 3rem) 0 0; padding-block-start: 1.15rem;
+  border-block-start: 1px solid var(--line);
+}
+.hero-stats dt {
+  font-family: var(--font-mono), monospace; font-size: var(--s--1);
+  letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-block-end: .2rem;
+}
+.hero-stats dd {
+  margin: 0; font-family: var(--font-display), Didot, serif; font-size: 1.9rem; line-height: 1;
+}
+.hero-stats dd.zero {
+  background: var(--accent); -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+
+/* Loading skeleton, shaped like the instrument it is standing in for. */
+.rig-skeleton { flex: 1; display: flex; flex-direction: column; width: 100%; }
+.rig-skeleton span {
+  flex: 1;
+  margin-left: 3rem; margin-right: 40%;
+  border-top: 1px solid var(--line);
+  background-color: var(--hatch-bg);
+  background-image: repeating-linear-gradient(-45deg, var(--hatch) 0 1px, transparent 1px 7px);
+  animation: skel 1.6s ease-in-out infinite alternate;
+}
+.rig-skeleton span:last-child { border-bottom: 1px solid var(--line); }
+@keyframes skel { from { opacity: .35; } to { opacity: .8; } }

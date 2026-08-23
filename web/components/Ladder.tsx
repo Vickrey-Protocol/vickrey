@@ -100,7 +100,7 @@ export function Ladder({
             <div className="ladder-row" key={level}>
               {!compact && (
                 <span className={`scale${isClearing ? " at" : ""}`}>
-                  {formatUnits(price(level), decimals)}
+                  {formatUnits(price(level), decimals, 4, 2)}
                 </span>
               )}
 
@@ -130,7 +130,7 @@ export function Ladder({
                   {bandStarts && (
                     <span
                       className={`brace ${band.kind}`}
-                      style={{ height: `calc(var(--rung) * ${band.from - band.to + 1})` }}
+                      style={{ height: `calc(100% * ${band.from - band.to + 1})` }}
                     >
                       <em>{band.label}</em>
                     </span>

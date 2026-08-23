@@ -62,12 +62,17 @@ export const explorerContract = (addr: string) => `${config.explorer}/contract/$
 export const kindLabel = (k: AuctionKind) =>
   k === AuctionKind.Vickrey ? "Vickrey · second price" : "First price";
 
-export function formatUnits(raw: bigint, decimals = 18, maxFrac = 4): string {
+/**
+ * `minFrac` keeps a column of figures aligned. A price scale reading
+ * 4.75 / 4.5 / 4 / 3.75 is harder to read down than 4.75 / 4.50 / 4.00 / 3.75.
+ */
+export function formatUnits(raw: bigint, decimals = 18, maxFrac = 4, minFrac = 0): string {
   const base = 10n ** BigInt(decimals);
   const neg = raw < 0n;
   const v = neg ? -raw : raw;
   const whole = v / base;
-  const frac = (v % base).toString().padStart(decimals, "0").slice(0, maxFrac).replace(/0+$/, "");
+  let frac = (v % base).toString().padStart(decimals, "0").slice(0, maxFrac).replace(/0+$/, "");
+  if (frac.length < minFrac) frac = frac.padEnd(minFrac, "0");
   return `${neg ? "-" : ""}${whole}${frac ? `.${frac}` : ""}`;
 }
 
