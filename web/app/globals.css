@@ -792,3 +792,111 @@ button.primary:hover::before { opacity: .9; animation: spinEdge 2.4s linear infi
 @media (prefers-reduced-motion: reduce) {
   [data-motion="play"] [data-reveal] { opacity: 1 !important; transform: none !important; }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Dashboard
+   The public site is a document and scrolls like one. The dashboard is an
+   instrument panel: a fixed rail, a scrolling body, and the action queue as
+   the one element allowed to shout. Tokens are the site's — this is the same
+   product, not a second design.
+   ───────────────────────────────────────────────────────────────────────── */
+
+.dash {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  min-block-size: 100dvh;
+}
+
+.dash-side {
+  position: sticky; inset-block-start: 0; block-size: 100dvh;
+  display: flex; flex-direction: column; gap: 1.4rem;
+  padding: 1.4rem 1.1rem;
+  border-inline-end: 1px solid var(--line);
+  background: var(--glass);
+  backdrop-filter: blur(14px);
+}
+
+.dash-nav { display: flex; flex-direction: column; gap: .1rem; flex: 1; }
+.dash-nav a {
+  display: flex; align-items: center; justify-content: space-between; gap: .5rem;
+  padding: .5rem .65rem; border-radius: 9px;
+  color: var(--ink-2); text-decoration: none; font-size: var(--s--1);
+  transition: background .15s ease, color .15s ease;
+}
+.dash-nav a:hover { background: var(--glass-2); color: var(--ink); }
+.dash-nav a.here { background: var(--glass-2); color: var(--ink); font-weight: 600; }
+.dash-nav hr { border: 0; border-block-start: 1px solid var(--line); margin: .7rem .65rem; }
+.dash-group {
+  margin: 0 0 .1rem; padding-inline: .65rem;
+  font-size: .72rem; letter-spacing: .09em; text-transform: uppercase; color: var(--muted);
+}
+
+/* The badge that says something will cost you if you ignore it. */
+.due {
+  min-inline-size: 1.35rem; padding: .05rem .4rem; border-radius: 999px;
+  background: var(--seal); color: #fff;
+  font-size: .74rem; font-weight: 700; text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.dash-foot { display: flex; flex-direction: column; gap: .5rem; }
+.chip {
+  align-self: flex-start; padding: .35rem .6rem; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--glass-2);
+  color: var(--ink-2); font-family: var(--font-mono); font-size: .78rem; cursor: pointer;
+}
+.chip:hover { color: var(--ink); border-color: var(--line-lit); }
+
+.dash-main { display: flex; flex-direction: column; min-inline-size: 0; }
+.dash-top {
+  position: sticky; inset-block-start: 0; z-index: 5;
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  padding: 1rem 1.6rem;
+  border-block-end: 1px solid var(--line);
+  /* The ground is a gradient on <html> and cannot be sampled, so the sticky bar
+     carries its own near-opaque tint from the same family. Fully transparent here
+     lets body text scroll through the title. */
+  background: rgba(10, 21, 20, .86);
+  backdrop-filter: blur(14px);
+}
+.dash-title { margin: 0; font-size: var(--s-1); font-weight: 600; letter-spacing: -.01em; }
+.dash-body { padding: 1.6rem; max-inline-size: 78rem; }
+
+/* ── the action queue ── */
+.act {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center; gap: 1.2rem;
+  padding: 1rem 1.15rem;
+  border: 1px solid var(--line); border-radius: 14px; background: var(--glass);
+}
+.act-main { min-inline-size: 0; }
+.act-title { margin: 0 0 .2rem; font-weight: 600; }
+.act-when {
+  display: flex; flex-direction: column; align-items: flex-end; gap: .1rem;
+  text-align: end; font-variant-numeric: tabular-nums;
+}
+.act-urgent { border-color: var(--accent-edge); background: var(--accent-dim); }
+.countdown.urgent { color: var(--seal); font-weight: 700; }
+.act.skel { block-size: 5.2rem; background: var(--hatch-bg); border-style: dashed; }
+
+/* Something this browser knows and the chain does not. It must never be mistaken
+   for on-chain fact, so it is marked rather than merely styled. */
+.local {
+  font-family: var(--font-mono); font-size: .85em;
+  padding: .1rem .4rem; border-radius: 6px;
+  border: 1px dashed var(--line-lit); color: var(--ink-2);
+}
+
+@media (max-width: 900px) {
+  .dash { grid-template-columns: 1fr; }
+  .dash-side {
+    position: static; block-size: auto; flex-direction: row; flex-wrap: wrap;
+    align-items: center; gap: .8rem;
+    border-inline-end: 0; border-block-end: 1px solid var(--line);
+  }
+  .dash-nav { flex-direction: row; flex-wrap: wrap; flex: 1 1 100%; }
+  .dash-nav hr, .dash-group { display: none; }
+  .act { grid-template-columns: 1fr; gap: .7rem; }
+  .act-when { align-items: flex-start; text-align: start; }
+}

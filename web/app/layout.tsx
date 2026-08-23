@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Bodoni_Moda, IBM_Plex_Mono, Instrument_Sans } from "next/font/google";
 import "./globals.css";
+import { WalletProvider } from "@/components/WalletProvider";
 
 /* Self-hosted by Next, so the page makes no third-party font request.
    Bodoni is display-only and never below 30px — see docs/typography.md. */
@@ -33,7 +34,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${display.variable} ${body.variable} ${mono.variable}`}>
-      <body>{children}</body>
+      <body><WalletProvider>{children}</WalletProvider></body>
     </html>
   );
 }
