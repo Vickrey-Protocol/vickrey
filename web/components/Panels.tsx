@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { CallData, num } from "starknet";
 import {
   AuctionOperation,
   type ClaimOperation,
@@ -21,6 +22,19 @@ const errText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 /* ── bidding ─────────────────────────────────────────────────────────── */
 
+/**
+ * The two rails a bid can travel on, and what each one reveals.
+ *
+ * A privacy product that lets someone choose a rail without understanding it has failed
+ * at the only thing it does. Both rails seal the amount — that is the auction, not the
+ * pool. What differs is whether the *bidder's address* is visible, and who pays.
+ *
+ * The sponsored rail is costed and designed (docs/access.md) but no relayer is
+ * deployed, so it is shown and not offered. Drawing a button that cannot run would be
+ * inventing capability.
+ */
+type Rail = "public" | "private";
+
 export function BidPanel({
   auction,
   connection,
@@ -31,36 +45,55 @@ export function BidPanel({
   onPlaced: () => void;
 }) {
   const [level, setLevel] = useState<number | null>(null);
+  const [rail, setRail] = useState<Rail>("public");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [placed, setPlaced] = useState<StoredBid | null>(null);
   const [ack, setAck] = useState(false);
 
+  const canPrivate = !!connection?.strk20 && hasAnonymizer();
+
   async function submit() {
     if (!connection) return setError("Connect a wallet first.");
     if (level === null) return setError("Pick a level on the ladder.");
-    if (!hasAnonymizer()) return setError("No anonymizer address is configured.");
     setError(null);
     try {
       const bid = createBid(auction.terms, level);
       // Stored before submitting. If the transaction lands and the secret does not,
       // the money is unreachable.
       const stored = saveBid(auction.terms.auctionId, bid, auction.bidCount);
+      let transaction_hash: string;
 
-      const actions = placeBidActions({
-        helper: config.anonymizerAddress,
-        paymentToken: auction.paymentToken,
-        collateral: auction.collateral,
-        auctionId: auction.terms.auctionId,
-        claimCommitment: bid.claimCommitment,
-        upAnchor: bid.upAnchor,
-        downAnchor: bid.downAnchor,
-      });
+      if (rail === "public") {
+        /* Straight at the auction contract. The amount is still sealed — it was never
+           in the calldata — but the escrow transfer names the bidder. */
+        setBusy("Waiting for your wallet…");
+        ({ transaction_hash } = await connection.account.execute([
+          { contractAddress: auction.paymentToken, entrypoint: "approve",
+            calldata: CallData.compile([
+              config.auctionAddress, num.toHex(auction.collateral), "0x0"]) },
+          { contractAddress: config.auctionAddress, entrypoint: "place_bid",
+            calldata: CallData.compile([
+              num.toHex(auction.terms.auctionId), num.toHex(bid.claimCommitment),
+              num.toHex(bid.upAnchor), num.toHex(bid.downAnchor)]) },
+        ]));
+      } else {
+        if (!hasAnonymizer()) return setError("No anonymizer address is configured.");
+        const actions = placeBidActions({
+          helper: config.anonymizerAddress,
+          paymentToken: auction.paymentToken,
+          collateral: auction.collateral,
+          auctionId: auction.terms.auctionId,
+          claimCommitment: bid.claimCommitment,
+          upAnchor: bid.upAnchor,
+          downAnchor: bid.downAnchor,
+        });
+        setBusy("Checking the transaction shape…");
+        await connection.account.strk20PrepareInvoke(actions, true);
+        setBusy("Proving. This takes about 30 seconds — the wallet is not stuck.");
+        ({ transaction_hash } = await connection.account.strk20InvokeTransaction(actions));
+      }
 
-      setBusy("Checking the transaction shape…");
-      await connection.account.strk20PrepareInvoke(actions, true);
-      setBusy("Proving. This takes about 30 seconds — the wallet is not stuck.");
-      const { transaction_hash } = await connection.account.strk20InvokeTransaction(actions);
       setPlaced({ ...stored, txHash: transaction_hash });
       onPlaced();
     } catch (e) {
@@ -118,6 +151,48 @@ export function BidPanel({
         </p>
       </div>
 
+      {/* The rail, chosen before the amount, because it is the decision with a
+          disclosure consequence and burying it under the ladder makes it a default
+          rather than a choice. */}
+      <div className="rails">
+        <button className={rail === "public" ? "rail on" : "rail"}
+                onClick={() => setRail("public")} aria-pressed={rail === "public"}>
+          <span className="rail-name">Public rail</span>
+          <span className="note">Your address is visible. Your bid is not.</span>
+          <span className="rail-cost">gas only · ~0.25 STRK</span>
+        </button>
+
+        <button className={rail === "private" ? "rail on" : "rail"}
+                onClick={() => canPrivate && setRail("private")}
+                disabled={!canPrivate} aria-pressed={rail === "private"}>
+          <span className="rail-name">Private rail</span>
+          <span className="note">
+            {canPrivate
+              ? "Funds come from the pool. Neither your address nor your bid is visible."
+              : connection && !connection.strk20
+                ? "This wallet does not speak STRK20."
+                : "No anonymizer configured."}
+          </span>
+          <span className="rail-cost">
+            {auction.poolFee === null ? "pool fee + gas" : `${formatUnits(auction.poolFee)} STRK pool fee + gas`}
+          </span>
+        </button>
+
+        <div className="rail muted" aria-disabled="true">
+          <span className="rail-name">Sponsored private</span>
+          <span className="note">
+            We pay the pool fee for you. Designed and costed, no relayer deployed yet.
+          </span>
+          <span className="rail-cost">free to you · not available</span>
+        </div>
+      </div>
+
+      <p className="note">
+        <b>Both rails seal the amount.</b> That is the auction, not the pool — the bid
+        is never in the calldata on either path. The rail decides whether your{" "}
+        <i>address</i> is linked to having bid at all.
+      </p>
+
       {/* Ladder left, the numbers and the action right, so the panel is not mostly
           empty glass at full width. */}
       <div className="bid-grid">
@@ -160,10 +235,14 @@ export function BidPanel({
 
           <div className="row">
             <button className="primary" onClick={submit} disabled={!!busy || !connection}>
-              {busy ? "Working…" : "Bid privately"}
+              {busy ? "Working…" : rail === "private" ? "Bid privately" : "Place sealed bid"}
             </button>
             {/* R5: name the wait before it starts. */}
-            <span className="note">{busy ?? "Proving takes about 30 seconds."}</span>
+            <span className="note">
+              {busy ?? (rail === "private"
+                ? "Proving takes about 30 seconds."
+                : "One transaction: approve, then place.")}
+            </span>
           </div>
         </div>
       </div>

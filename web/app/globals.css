@@ -900,3 +900,23 @@ button.primary:hover::before { opacity: .9; animation: spinEdge 2.4s linear infi
   .act { grid-template-columns: 1fr; gap: .7rem; }
   .act-when { align-items: flex-start; text-align: start; }
 }
+
+/* ── rail chooser ─────────────────────────────────────────────────────────
+   The disclosure decision, made legible before the amount is picked. Three
+   cards rather than a select, because the differences are what matter and a
+   dropdown hides two of them behind a click. */
+.rails { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: .6rem; }
+.rail {
+  display: flex; flex-direction: column; gap: .25rem; align-items: flex-start;
+  padding: .8rem .9rem; text-align: start;
+  border: 1px solid var(--line); border-radius: 12px;
+  background: var(--glass); color: var(--ink); cursor: pointer;
+}
+.rail:hover:not(:disabled):not(.muted) { border-color: var(--line-lit); }
+.rail.on { border-color: var(--accent-edge); background: var(--accent-dim); }
+.rail:disabled, .rail.muted { opacity: .5; cursor: not-allowed; }
+.rail-name { font-weight: 600; }
+.rail-cost {
+  margin-block-start: .2rem; font-family: var(--font-mono); font-size: .78rem;
+  color: var(--ink-2);
+}
