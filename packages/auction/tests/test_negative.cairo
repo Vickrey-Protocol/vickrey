@@ -1,0 +1,339 @@
+//! Negative tests, written before the happy paths.
+//!
+//! Each one is an attack this design has to refuse. If any of these starts passing,
+//! a security property has been lost.
+
+use auction::interface::ISealedBidAuctionDispatcherTrait;
+use auction::ladder;
+use auction::types::{AuctionKind, DispositionProof, NO_WINNER, ProofKind};
+use snforge_std::{start_cheat_block_timestamp_global, start_cheat_caller_address};
+use super::common::{
+    DEADLINE, LEVELS, WINDOW, finalize, payout, place, pool, proof_above, proof_below,
+    proof_exactly, proof_forfeit, seal, seller, settle, setup,
+};
+
+// ---- bidding window ------------------------------------------------------------
+
+#[test]
+#[should_panic(expected: 'BIDDING_CLOSED')]
+fn bid_after_deadline_is_rejected() {
+    let env = setup(AuctionKind::Vickrey);
+    start_cheat_block_timestamp_global(DEADLINE);
+    place(env, 'A', 'SA', 5);
+}
+
+#[test]
+#[should_panic(expected: 'BIDDING_STILL_OPEN')]
+fn seal_before_deadline_is_rejected() {
+    let env = setup(AuctionKind::Vickrey);
+    place(env, 'A', 'SA', 5);
+    env.auction.seal(env.id);
+}
+
+#[test]
+#[should_panic(expected: 'AUCTION_NOT_SEALED')]
+fn settle_before_seal_is_rejected() {
+    let env = setup(AuctionKind::Vickrey);
+    let a = place(env, 'A', 'SA', 5);
+    settle(env, 0, a.index, array![proof_above(env, a, 0)]);
+}
+
+#[test]
+#[should_panic(expected: 'AUCTION_NOT_OPEN')]
+fn bidding_after_seal_is_rejected() {
+    let env = setup(AuctionKind::Vickrey);
+    place(env, 'A', 'SA', 5);
+    seal(env);
+    place(env, 'B', 'SB', 6);
+}
+
+/// Copying another bid's anchors would create a bid nobody can disposition, stalling
+/// settlement. It is refused at the door.
+#[test]
+#[should_panic(expected: 'DUPLICATE_BID_ANCHORS')]
+fn replaying_another_bids_anchors_is_rejected() {
+    let env = setup(AuctionKind::Vickrey);
+    let a = place(env, 'A', 'SA', 5);
+    let bid = env.auction.get_bid(env.id, a.index);
+
+    let collateral = env.auction.collateral(env.id);
+    super::common::fund(env.pay, pool(), collateral);
+    super::common::approve_as(env.pay, pool(), env.auction.contract_address, collateral);
+    start_cheat_caller_address(env.auction.contract_address, pool());
+    env.auction.place_bid(env.id, ladder::claim_commitment_of('M'), bid.up_anchor, bid.down_anchor);
+}
+
+// ---- who may settle ------------------------------------------------------------
+
+#[test]
+#[should_panic(expected: 'CALLER_NOT_AUCTIONEER')]
+fn only_the_auctioneer_may_settle() {
+    let env = setup(AuctionKind::Vickrey);
+    let a = place(env, 'A', 'SA', 5);
+    seal(env);
+    start_cheat_caller_address(env.auction.contract_address, seller());
+    env.auction.settle(env.id, 0, a.index, array![proof_above(env, a, 0)].span());
+}
+
+/// Property 3, the blunt version: a settlement that simply leaves a bid out.
+#[test]
+#[should_panic(expected: 'PROOF_COUNT_MISMATCH')]
+fn a_settlement_that_omits_a_bid_is_rejected() {
+    let env = setup(AuctionKind::Vickrey);
+    let a = place(env, 'A', 'SA', 12);
+    place(env, 'B', 'SB', 7);
+    seal(env);
+    // Two bids arrived; the auctioneer offers proofs for one.
+    settle(env, 7, a.index, array![proof_above(env, a, 7)]);
+}
+
+// ---- forging the clearing price ------------------------------------------------
+
+/// Overstating the price means claiming the runner-up bid higher than they did.
+/// That is a preimage forgery on the ascending chain.
+#[test]
+#[should_panic(expected: 'PROOF_AT_OR_ABOVE_FAILED')]
+fn the_auctioneer_cannot_overstate_the_clearing_price() {
+    let env = setup(AuctionKind::Vickrey);
+    let a = place(env, 'A', 'SA', 12);
+    let b = place(env, 'B', 'SB', 7);
+    seal(env);
+
+    // True second price is level 7. The auctioneer wants 9.
+    let forged = DispositionProof {
+        kind: ProofKind::Exactly,
+        witness_up: ladder::up_seed('SB'),
+        witness_down: ladder::witness_at_or_below(env.id, b.commitment, 'SB', 7, 9),
+    };
+    settle(env, 9, a.index, array![proof_above(env, a, 9), forged]);
+}
+
+/// Understating it means claiming the runner-up bid lower than they did — a forgery
+/// on the descending chain. This is the "drop a rival's high bid" attack in its
+/// subtlest form.
+#[test]
+#[should_panic(expected: 'PROOF_AT_OR_BELOW_FAILED')]
+fn the_auctioneer_cannot_understate_the_clearing_price() {
+    let env = setup(AuctionKind::Vickrey);
+    let a = place(env, 'A', 'SA', 12);
+    place(env, 'B', 'SB', 7);
+    seal(env);
+
+    // Push the runner-up down to level 3 so the winner pays less.
+    let forged = DispositionProof {
+        kind: ProofKind::AtOrBelow, witness_up: 0, witness_down: ladder::down_seed('SB'),
+    };
+    settle(env, 3, a.index, array![proof_above(env, a, 3), forged]);
+}
+
+/// Only the winner may sit above the clearing level unpinned. Otherwise a second bid
+/// above it would leave the second price undetermined.
+#[test]
+#[should_panic(expected: 'ONLY_WINNER_MAY_BE_ABOVE')]
+fn a_non_winner_cannot_be_left_unpinned_above_the_price() {
+    let env = setup(AuctionKind::Vickrey);
+    let a = place(env, 'A', 'SA', 12);
+    let rival = place(env, 'B', 'SB', 11);
+    seal(env);
+    settle(env, 5, a.index, array![proof_above(env, a, 5), proof_above(env, rival, 5)]);
+}
+
+#[test]
+#[should_panic(expected: 'WINNER_CANNOT_FORFEIT')]
+fn the_winner_cannot_be_forfeited() {
+    let env = setup(AuctionKind::Vickrey);
+    let a = place(env, 'A', 'SA', 12);
+    let b = place(env, 'B', 'SB', 7);
+    seal(env);
+    settle(env, 7, a.index, array![proof_forfeit(), proof_exactly(env, b, 7)]);
+}
+
+/// Vickrey's price is the runner-up's bid, so the runner-up must be pinned exactly.
+/// Leaving them merely "at or below" would let the auctioneer pick any price.
+#[test]
+#[should_panic(expected: 'VICKREY_NEEDS_RUNNER_UP')]
+fn vickrey_settlement_needs_the_runner_up_pinned() {
+    let env = setup(AuctionKind::Vickrey);
+    let a = place(env, 'A', 'SA', 12);
+    let b = place(env, 'B', 'SB', 7);
+    seal(env);
+    settle(env, 7, a.index, array![proof_above(env, a, 7), proof_below(env, b, 7)]);
+}
+
+/// If every rival is forfeited the lone survivor clears at the reserve, not at a
+/// price the auctioneer names.
+#[test]
+#[should_panic(expected: 'LONE_BID_CLEARS_AT_RESERVE')]
+fn a_lone_surviving_bid_cannot_clear_above_the_reserve() {
+    let env = setup(AuctionKind::Vickrey);
+    let a = place(env, 'A', 'SA', 12);
+    place(env, 'B', 'SB', 7);
+    seal(env);
+    settle(env, 6, a.index, array![proof_above(env, a, 6), proof_forfeit()]);
+}
+
+#[test]
+#[should_panic(expected: 'FIRST_PRICE_WINNER_NOT_EXACT')]
+fn first_price_winner_must_pin_their_own_bid() {
+    let env = setup(AuctionKind::FirstPrice);
+    let a = place(env, 'A', 'SA', 12);
+    seal(env);
+    // "At or above 5" would let the winner pay 5 for a bid of 12.
+    settle(env, 5, a.index, array![proof_above(env, a, 5)]);
+}
+
+#[test]
+#[should_panic(expected: 'NO_WINNER_NEEDS_ALL_FORFEIT')]
+fn declaring_no_winner_requires_every_bid_to_have_forfeited() {
+    let env = setup(AuctionKind::Vickrey);
+    let a = place(env, 'A', 'SA', 0);
+    seal(env);
+    // A bid that dispositioned cleanly cannot be waved away as "no winner".
+    settle(env, 0, NO_WINNER, array![proof_below(env, a, 0)]);
+}
+
+#[test]
+#[should_panic(expected: 'LEVEL_OUT_OF_RANGE')]
+fn a_clearing_level_off_the_ladder_is_rejected() {
+    let env = setup(AuctionKind::Vickrey);
+    let a = place(env, 'A', 'SA', 5);
+    seal(env);
+    settle(env, LEVELS, a.index, array![proof_above(env, a, 0)]);
+}
+
+// ---- dispute window ------------------------------------------------------------
+
+#[test]
+#[should_panic(expected: 'DISPUTE_WINDOW_OPEN')]
+fn finalize_before_the_dispute_window_closes_is_rejected() {
+    let env = setup(AuctionKind::Vickrey);
+    let a = place(env, 'A', 'SA', 5);
+    seal(env);
+    settle(env, 0, a.index, array![proof_above(env, a, 0)]);
+    env.auction.finalize(env.id);
+}
+
+#[test]
+#[should_panic(expected: 'DISPUTE_WINDOW_CLOSED')]
+fn disputing_after_the_window_is_rejected() {
+    let env = setup(AuctionKind::Vickrey);
+    let a = place(env, 'A', 'SA', 12);
+    let b = place(env, 'B', 'SB', 7);
+    seal(env);
+    settle(env, 0, a.index, array![proof_above(env, a, 0), proof_forfeit()]);
+    start_cheat_block_timestamp_global(DEADLINE + WINDOW + 1);
+    env
+        .auction
+        .dispute(env.id, b.index, ladder::witness_at_or_above(env.id, b.commitment, 'SB', 7, 1));
+}
+
+#[test]
+#[should_panic(expected: 'PROOF_AT_OR_ABOVE_FAILED')]
+fn a_dispute_needs_a_bid_strictly_above_the_clearing_price() {
+    let env = setup(AuctionKind::Vickrey);
+    let a = place(env, 'A', 'SA', 12);
+    let b = place(env, 'B', 'SB', 7);
+    seal(env);
+    settle(env, 7, a.index, array![proof_above(env, a, 7), proof_exactly(env, b, 7)]);
+    // b sits exactly at the clearing level, so there is nothing to dispute.
+    env.auction.dispute(env.id, b.index, ladder::up_seed('SB'));
+}
+
+// ---- claims --------------------------------------------------------------------
+
+#[test]
+#[should_panic(expected: 'AUCTION_NOT_FINAL')]
+fn refunds_are_not_payable_before_finalize() {
+    let env = setup(AuctionKind::Vickrey);
+    let a = place(env, 'A', 'SA', 5);
+    seal(env);
+    settle(env, 0, a.index, array![proof_above(env, a, 0)]);
+    env.auction.claim_refund(env.id, a.index, 'A', payout());
+}
+
+#[test]
+#[should_panic(expected: 'CLAIM_SECRET_MISMATCH')]
+fn a_refund_needs_the_right_claim_secret() {
+    let env = setup(AuctionKind::Vickrey);
+    let a = place(env, 'A', 'SA', 12);
+    let b = place(env, 'B', 'SB', 7);
+    seal(env);
+    settle(env, 7, a.index, array![proof_above(env, a, 7), proof_exactly(env, b, 7)]);
+    finalize(env);
+    env.auction.claim_refund(env.id, b.index, 'WRONG', payout());
+}
+
+#[test]
+#[should_panic(expected: 'ALREADY_CLAIMED')]
+fn a_refund_cannot_be_taken_twice() {
+    let env = setup(AuctionKind::Vickrey);
+    let a = place(env, 'A', 'SA', 12);
+    let b = place(env, 'B', 'SB', 7);
+    seal(env);
+    settle(env, 7, a.index, array![proof_above(env, a, 7), proof_exactly(env, b, 7)]);
+    finalize(env);
+    env.auction.claim_refund(env.id, b.index, 'B', payout());
+    env.auction.claim_refund(env.id, b.index, 'B', payout());
+}
+
+#[test]
+#[should_panic(expected: 'BID_FORFEITED_USE_REDEEM')]
+fn a_forfeited_bid_cannot_use_the_ordinary_refund_path() {
+    let env = setup(AuctionKind::Vickrey);
+    let a = place(env, 'A', 'SA', 12);
+    let b = place(env, 'B', 'SB', 7);
+    let c = place(env, 'C', 'SC', 3);
+    seal(env);
+    settle(
+        env, 7, a.index, array![proof_above(env, a, 7), proof_exactly(env, b, 7), proof_forfeit()],
+    );
+    finalize(env);
+    env.auction.claim_refund(env.id, c.index, 'C', payout());
+}
+
+#[test]
+#[should_panic(expected: 'PROOF_AT_OR_BELOW_FAILED')]
+fn redeeming_a_forfeit_still_requires_a_real_proof() {
+    let env = setup(AuctionKind::Vickrey);
+    let a = place(env, 'A', 'SA', 12);
+    let b = place(env, 'B', 'SB', 7);
+    let c = place(env, 'C', 'SC', 9);
+    seal(env);
+    // c is above the clearing level, so it has no honest loser-side proof to give.
+    settle(
+        env, 7, a.index, array![proof_above(env, a, 7), proof_exactly(env, b, 7), proof_forfeit()],
+    );
+    finalize(env);
+    env.auction.redeem_forfeit(env.id, c.index, 'C', ladder::down_seed('SC'), payout());
+}
+
+#[test]
+#[should_panic(expected: 'CLAIM_SECRET_MISMATCH')]
+fn the_lot_goes_only_to_the_winning_bids_secret() {
+    let env = setup(AuctionKind::Vickrey);
+    let a = place(env, 'A', 'SA', 12);
+    let b = place(env, 'B', 'SB', 7);
+    seal(env);
+    settle(env, 7, a.index, array![proof_above(env, a, 7), proof_exactly(env, b, 7)]);
+    finalize(env);
+    env.auction.claim_lot(env.id, 'B', payout());
+}
+
+// ---- listing validation --------------------------------------------------------
+
+#[test]
+#[should_panic(expected: 'BAD_NUM_LEVELS')]
+fn a_one_level_ladder_is_rejected() {
+    super::common::setup_with(AuctionKind::Vickrey, 1, 0);
+}
+
+#[test]
+#[should_panic(expected: 'BAD_DEADLINE')]
+fn a_deadline_in_the_past_is_rejected() {
+    let env = setup(AuctionKind::Vickrey);
+    start_cheat_block_timestamp_global(DEADLINE + 1);
+    let mut config = env.auction.get_config(env.id);
+    config.bid_deadline = DEADLINE;
+    start_cheat_caller_address(env.auction.contract_address, seller());
+    env.auction.create_auction(config);
+}
