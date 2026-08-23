@@ -1,0 +1,27 @@
+{
+  "name": "@vickrey/web",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@starknet-io/get-starknet-discovery": "6.0.3",
+    "@starknet-io/get-starknet-wallet-standard": "6.0.3",
+    "@starknet-io/types-js": "0.10.3",
+    "next": "15.5.23",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "starknet": "10.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "@types/react": "19.2.2",
+    "@types/react-dom": "19.2.1",
+    "typescript": "5.9.3"
+  }
+}
