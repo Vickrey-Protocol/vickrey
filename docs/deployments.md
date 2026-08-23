@@ -10,15 +10,19 @@ in the code assumes a Sepolia run will be possible for the pool leg — see
 
 | | |
 |---|---|
-| `SealedBidAuction` | [`0x0335410610f81d3028be938f9476006935c3098de5b88a6647b67efb89db4ff3`](https://sepolia.starkscan.co/contract/0x0335410610f81d3028be938f9476006935c3098de5b88a6647b67efb89db4ff3) |
+|  | [](https://sepolia.starkscan.co/contract/0x07c9fe011b361470c6269807aae021ecbd8c809b8b29443fb0a2d8df6da3955c) |
 | class hash | `0x1489a905a59d25614300504355ecd9df25e34bc8b099485512d44cc7b94b341` |
-| `AuctionAnonymizer` | [`0x0316389f97ce430e56a80dbfff0fab9725889a021a9ea29b14fa3f48ac65fe16`](https://sepolia.starkscan.co/contract/0x0316389f97ce430e56a80dbfff0fab9725889a021a9ea29b14fa3f48ac65fe16) |
+|  | [](https://sepolia.starkscan.co/contract/0x0496bd7ec79591a05289c1dd5faf55bd16476c724756152f3ba2aee9e2e34e8e) |
 | class hash | `0x5197552b8a5d886b024ed281242c001c8b84aabc8d95edd014ff2b673646e0e` |
 | STRK20 pool (theirs) | `0x254a6b2997ef52e9f830ce1f543f6b29768295e8d17e2267d672c552cfe0d91` |
 | pool `get_fee_amount` | 2 STRK |
 
 The anonymizer's constructor pins the pool address, and `privacy_contract()` reads
 back as the pool above.
+
+Two demonstration auctions live on this deployment and stay there, so the site always
+has something to show without a wallet connected: **#0 resolved** (cleared at 3.25
+STRK) and **#1 open** until 31 Aug 2026 12:00 UTC with three sealed bids in it.
 
 ## A complete auction, on chain
 

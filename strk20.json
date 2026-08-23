@@ -22,9 +22,10 @@
   "trust_statement": "What is assured: the winner and the clearing price are established by hash-preimage proofs verified on-chain over a bid set the contract froze before any bid could be opened, so the auctioneer cannot alter the outcome, exclude a bid, or misreport the price without failing a proof or being slashed in the dispute window. What is not: after sealing, the auctioneer learns every bid amount - it can never publish them, prove a false outcome, or spend anyone's funds, but it knows them; and the number of bids, their timing, and the uniform escrow amount are public on-chain.",
   "rehearsal_sepolia": {
     "note": "Rehearsal only. Not the sprint deliverable.",
-    "SealedBidAuction": "0x0335410610f81d3028be938f9476006935c3098de5b88a6647b67efb89db4ff3",
-    "AuctionAnonymizer": "0x0316389f97ce430e56a80dbfff0fab9725889a021a9ea29b14fa3f48ac65fe16",
+    "SealedBidAuction": "0x07c9fe011b361470c6269807aae021ecbd8c809b8b29443fb0a2d8df6da3955c",
+    "AuctionAnonymizer": "0x0496bd7ec79591a05289c1dd5faf55bd16476c724756152f3ba2aee9e2e34e8e",
     "pool": "0x254a6b2997ef52e9f830ce1f543f6b29768295e8d17e2267d672c552cfe0d91",
-    "complete_auction_run": "docs/sepolia-run-1.json"
+    "complete_auction_run": "docs/sepolia-run-1.json",
+    "lot_token_CRATE": "0x06faa5f22e11ab496cb4dff52e0c0f93376c1861c51a3f6f8472b0d83580019f"
   }
 }
