@@ -197,12 +197,10 @@ export default function HomeClient({ initial }: { initial: WireAuction[] }) {
 
       <div className="hero-grid">
         <div className="hero-left">
-          <div>
-            <Hero />
-            <div className="hero-cta">
-              <button className="primary" onClick={goBid}>Place a sealed bid</button>
-              <button onClick={goSettled}>See a settled auction</button>
-            </div>
+          <Hero />
+          <div className="hero-cta">
+            <button className="primary" onClick={goBid}>Place a sealed bid</button>
+            <button onClick={goSettled}>See a settled auction</button>
           </div>
 
           {/* Live counts, read from chain. The last one is the point of the product

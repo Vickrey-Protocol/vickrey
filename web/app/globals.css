@@ -119,7 +119,9 @@ section { padding-block: clamp(1.3rem, 3vw, 2.3rem); }
 /* ── masthead ───────────────────────────────────────────────────────── */
 .masthead {
   display: flex; justify-content: space-between; align-items: center;
-  gap: 1rem; flex-wrap: wrap; padding-block: 1.2rem .4rem;
+  gap: 1rem; flex-wrap: wrap;
+  /* Breathing room under the nav; the hero's min-height accounts for it. */
+  padding-block: 1.2rem 1.15rem;
 }
 .wordmark { font-family: var(--font-display), Didot, serif; font-size: 1.35rem; display: flex; align-items: baseline; gap: .5rem; }
 .wordmark span {
@@ -166,14 +168,14 @@ section { padding-block: clamp(1.3rem, 3vw, 2.3rem); }
 /* ── hero ───────────────────────────────────────────────────────────── */
 .hero-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(22rem, 28rem);
   grid-template-rows: 1fr auto;
   grid-template-areas: "left right" "trust trust";
-  gap: clamp(1.1rem, 2.5vw, 1.9rem) clamp(1.5rem, 3vw, 2.75rem);
+  gap: clamp(1.25rem, 3vw, 2.25rem) clamp(1.25rem, 2.2vw, 2rem);
   /* Exactly one screen, less the masthead. Nothing below this is above the fold. */
   /* One screen, but capped: on a very tall monitor an 1800px hero is not a hero. */
   min-height: min(calc(100svh - 5.2rem), 54rem);
-  padding-block: clamp(1rem, 3vh, 2.25rem) 1rem;
+  padding-block: .25rem 1rem;
 }
 @media (max-width: 62rem) {
   .hero-grid {
@@ -186,23 +188,20 @@ section { padding-block: clamp(1.3rem, 3vw, 2.3rem); }
 
 /* The headline block centres in its row rather than being pushed to one end, so
    neither column empties out halfway down. */
-.hero-left {
-  grid-area: left; display: flex; flex-direction: column;
-  justify-content: space-between; gap: 1.5rem; min-height: 0;
-}
+.hero-left { grid-area: left; display: flex; flex-direction: column; justify-content: center; min-height: 0; }
 .hero-right { grid-area: right; display: flex; min-height: 0; }
 .hero-right > * { flex: 1; min-height: 0; }
 .hero-grid > .trust { grid-area: trust; }
 .hero-cta { display: flex; gap: .6rem; flex-wrap: wrap; margin-block-start: 1.5rem; }
 
 .hero { padding: 0; }
-.hero h1 { font-size: var(--s-4); line-height: .98; max-width: 19ch; }
+.hero h1 { font-size: var(--s-4); line-height: .98; max-width: 15ch; }
 .hero h1 em {
   font-style: italic;
   background: var(--accent);
   -webkit-background-clip: text; background-clip: text; color: transparent;
 }
-.hero-body { max-width: 52ch; margin-block-start: 1rem; }
+.hero-body { max-width: 42ch; margin-block-start: 1rem; }
 .hero-body p { margin: 0 0 .5rem; color: var(--ink-2); font-size: var(--s-1); }
 .hero-body p:last-child { margin-bottom: 0; }
 .hero-body strong { color: var(--ink); font-weight: 600; }
