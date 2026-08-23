@@ -1,0 +1,25 @@
+[package]
+name = "auction"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[tool]
+fmt.workspace = true
+scarb.workspace = true
+
+[dependencies]
+starknet.workspace = true
+
+[dev-dependencies]
+snforge_std.workspace = true
+assert_macros.workspace = true
+
+[lib]
+
+[[target.starknet-contract]]
+sierra = true
+casm = true
+
+[scripts]
+test = "snforge test"
