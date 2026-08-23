@@ -1,0 +1,23 @@
+{
+  "name": "@vickrey/client",
+  "version": "0.1.0",
+  "description": "Client-side cryptography and transaction building for Vickrey sealed-bid auctions on STRK20",
+  "license": "MIT",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "starknet": "10.4.0"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "vitest": "3.2.7",
+    "@types/node": "24.10.1"
+  }
+}
