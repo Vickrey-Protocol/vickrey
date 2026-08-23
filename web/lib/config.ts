@@ -74,10 +74,20 @@ export function formatUnits(raw: bigint, decimals = 18, maxFrac = 4): string {
 export const priceAt = (terms: AuctionTerms, level: number) =>
   terms.reservePrice + terms.tick * BigInt(level);
 
-/** `h m s` remaining, or null once elapsed. */
+/**
+ * Time remaining, or null once elapsed.
+ *
+ * A countdown is only useful while it means something. Past a couple of days
+ * "8747h 5m" is noise, so anything further out reads as a date instead.
+ */
 export function countdown(deadline: number, now: number): string | null {
   const left = deadline - now;
   if (left <= 0) return null;
+  if (left > 2 * 86400) {
+    return new Date(deadline * 1000).toLocaleDateString(undefined, {
+      day: "numeric", month: "short", year: "numeric",
+    });
+  }
   const h = Math.floor(left / 3600);
   const m = Math.floor((left % 3600) / 60);
   const s = left % 60;

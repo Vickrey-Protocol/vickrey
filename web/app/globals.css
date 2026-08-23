@@ -371,3 +371,77 @@ footer {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: .001ms !important; animation-duration: .001ms !important; }
 }
+
+/* ── hero ─────────────────────────────────────────────────────────── */
+.hero { padding-block: .25rem 1.5rem; }
+.hero h1 {
+  font-size: var(--step-3);
+  line-height: 1.02;
+  max-width: 17ch;
+  margin-block-end: 1.1rem;
+}
+.hero h1 em { font-style: italic; color: var(--seal); }
+.hero-body { max-width: var(--measure); }
+.hero-body p { margin: 0 0 .8rem; color: var(--ink-soft); }
+.hero-body p:last-child { margin-bottom: 0; }
+.hero-body strong { color: var(--ink); font-weight: 600; }
+
+.beats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  gap: 1.25rem;
+  margin: 0 0 1.75rem;
+  padding-block-end: 1.5rem;
+  border-block-end: 1px solid var(--rule);
+}
+.beat dt {
+  font-family: var(--font-mono), monospace;
+  font-size: var(--step--1);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--seal);
+  margin-block-end: .35rem;
+}
+.beat dd { margin: 0; font-size: var(--step--1); color: var(--ink-soft); line-height: 1.5; }
+
+/* ── auction cards ────────────────────────────────────────────────── */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
+  gap: 1rem;
+}
+.card-auction {
+  display: flex;
+  flex-direction: column;
+  gap: .8rem;
+  text-align: left;
+  font: inherit;
+  text-transform: none;
+  letter-spacing: normal;
+  padding: 1.1rem;
+  background: var(--raised);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  cursor: pointer;
+}
+.card-auction:hover { border-color: var(--seal); }
+.card-auction[aria-current="true"] {
+  border-color: var(--seal);
+  box-shadow: inset 0 0 0 1px var(--seal-edge);
+}
+.card-auction .title {
+  font-family: var(--font-display), Didot, serif;
+  font-size: var(--step-1);
+  color: var(--ink);
+}
+.card-auction .meta {
+  font-family: var(--font-mono), monospace;
+  font-size: var(--step--1);
+  color: var(--muted);
+  display: flex; justify-content: space-between; gap: .6rem;
+}
+.card-auction .meta b { color: var(--ink); font-weight: 500; }
+.card-auction .meta b.price { color: var(--seal); }
+
+.ladder.compact { grid-template-columns: 1fr; min-width: 0; --rung: .6rem; }
+.ladder.compact .ladder-track { height: .6rem; }

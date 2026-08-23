@@ -9,6 +9,8 @@ import {
 import { bidsFor, type StoredBid } from "@/lib/vault";
 import { connect, sameAddress, type Connection } from "@/lib/wallet";
 import { Ladder } from "@/components/Ladder";
+import { Hero, HowItWorks } from "@/components/Hero";
+import { AuctionCard } from "@/components/AuctionCard";
 import { BidPanel, ClaimPanel, DisputePanel, RevealPanel } from "@/components/Panels";
 import { AuctioneerSection } from "@/components/AuctioneerSection";
 
@@ -32,6 +34,7 @@ export default function Home() {
   const [connectError, setConnectError] = useState<string | null>(null);
   const [count, setCount] = useState(0);
   const [selected, setSelected] = useState<bigint | null>(null);
+  const [all, setAll] = useState<AuctionView[]>([]);
   const [auction, setAuction] = useState<AuctionView | null>(null);
   const [bids, setBids] = useState<PublicBid[]>([]);
   const [mine, setMine] = useState<StoredBid[]>([]);
@@ -43,14 +46,28 @@ export default function Home() {
     return () => clearInterval(t);
   }, []);
 
+  // Read every auction so the index always has something to show, and default to a
+  // live one rather than merely the newest - a visitor should land on a sealed ladder
+  // they can actually bid into.
   useEffect(() => {
     if (!isDeployed()) return;
-    readAuctionCount()
-      .then((c) => {
+    (async () => {
+      try {
+        const c = await readAuctionCount();
         setCount(c);
-        setSelected((s) => (s === null && c > 0 ? BigInt(c - 1) : s));
-      })
-      .catch((e) => setLoadError(e instanceof Error ? e.message : String(e)));
+        const views = (await Promise.all(
+          Array.from({ length: c }, (_, i) => readAuction(BigInt(i))),
+        )).filter((v): v is AuctionView => v !== null);
+        setAll(views);
+        setSelected((s) => {
+          if (s !== null) return s;
+          const open = views.find((v) => v.status === Status.Open);
+          return (open ?? views[views.length - 1])?.terms.auctionId ?? null;
+        });
+      } catch (e) {
+        setLoadError(e instanceof Error ? e.message : String(e));
+      }
+    })();
   }, []);
 
   const refresh = useCallback(async () => {
@@ -58,6 +75,11 @@ export default function Home() {
     try {
       const view = await readAuction(selected);
       setAuction(view);
+      if (view) {
+        setAll((prev) =>
+          prev.map((a) => (a.terms.auctionId === view.terms.auctionId ? view : a)),
+        );
+      }
       setBids(view ? await readBids(selected, view.bidCount) : []);
       setMine(bidsFor(selected));
       setLoadError(null);
@@ -114,9 +136,13 @@ export default function Home() {
         </div>
       </header>
 
+      <Hero />
+
       <p className="trust">
         <b>What is assured:</b> {TRUST_ASSURED} <b>What is not:</b> {TRUST_NOT}
       </p>
+
+      <HowItWorks />
       {connectError && <p className="err">{connectError}</p>}
 
       {!isDeployed() && (
@@ -128,26 +154,35 @@ export default function Home() {
         </div>
       )}
 
-      {isDeployed() && count === 0 && !auction && (
-        <div className="banner"><b>No auctions listed yet</b> on {config.label}.</div>
+      {isDeployed() && count === 0 && all.length === 0 && (
+        <div className="banner">
+          <b>No auctions listed yet</b> on {config.label}. Nothing has been created
+          against this contract.
+        </div>
       )}
 
-      {isDeployed() && count > 0 && (
-        <div className="row" style={{ marginBottom: "1.1rem" }}>
-          <label style={{ margin: 0 }}>Auction</label>
-          <select
-            value={selected?.toString() ?? ""}
-            onChange={(e) => setSelected(BigInt(e.target.value))}
-            style={{ width: "auto" }}
-          >
-            {Array.from({ length: count }, (_, i) => (
-              <option key={i} value={i}>#{i}</option>
+      {all.length > 0 && (
+        <>
+          <div className="spread" style={{ marginBottom: ".9rem" }}>
+            <h2 className="section" style={{ margin: 0 }}>Auctions</h2>
+            <div className="row">
+              <button onClick={() => void refresh()}>Refresh</button>
+              <a className="note mono" href={explorerContract(config.auctionAddress)}
+                 target="_blank" rel="noreferrer">contract ↗</a>
+            </div>
+          </div>
+          <div className="cards" style={{ marginBottom: "1.5rem" }}>
+            {all.map((a) => (
+              <AuctionCard
+                key={a.terms.auctionId.toString()}
+                auction={a}
+                now={now}
+                selected={selected === a.terms.auctionId}
+                onSelect={() => setSelected(a.terms.auctionId)}
+              />
             ))}
-          </select>
-          <button onClick={() => void refresh()}>Refresh</button>
-          <a className="note mono" href={explorerContract(config.auctionAddress)}
-             target="_blank" rel="noreferrer">contract ↗</a>
-        </div>
+          </div>
+        </>
       )}
 
       {loadError && <p className="err">{loadError}</p>}

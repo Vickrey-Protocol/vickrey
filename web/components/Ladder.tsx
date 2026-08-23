@@ -14,6 +14,8 @@ export interface LadderProps {
   pickedLevel?: number | null;
   onPick?: (level: number) => void;
   status: Status;
+  /** Thumbnail form for a card: shorter rungs, no prices, no legend. */
+  compact?: boolean;
 }
 
 /**
@@ -38,6 +40,7 @@ export function Ladder({
   pickedLevel = null,
   onPick,
   status,
+  compact = false,
 }: LadderProps) {
   const settled = clearingLevel !== null && status >= Status.Settled;
   const levels = Array.from({ length: numLevels }, (_, i) => numLevels - 1 - i);
@@ -46,7 +49,7 @@ export function Ladder({
   return (
     <div>
       <div
-        className="ladder"
+        className={compact ? "ladder compact" : "ladder"}
         role="img"
         aria-label={
           settled
@@ -68,7 +71,8 @@ export function Ladder({
 
           // A tag only on the boundaries of a region, so the ladder stays readable.
           let tag = "";
-          if (isClearing) tag = "clearing price";
+          if (compact) tag = "";
+          else if (isClearing) tag = "clearing price";
           else if (settled && level === numLevels - 1) tag = "winner, at or above";
           else if (settled && level === (clearingLevel as number) - 1) tag = "the rest, at or below";
           else if (!settled && level === numLevels - 1) tag = "any bid, anywhere";
@@ -76,9 +80,11 @@ export function Ladder({
 
           return (
             <div className="ladder-row" key={level} style={{ display: "contents" }}>
-              <div className={`ladder-price${isClearing ? " at" : ""}`}>
-                {formatUnits(price(level), decimals)}
-              </div>
+              {!compact && (
+                <div className={`ladder-price${isClearing ? " at" : ""}`}>
+                  {formatUnits(price(level), decimals)}
+                </div>
+              )}
               {onPick ? (
                 <button
                   type="button"
@@ -98,11 +104,13 @@ export function Ladder({
         })}
       </div>
 
-      <div className="ladder-legend">
-        <span><i className="h" />not disclosed</span>
-        {settled && <span><i className="a" />winner is somewhere here</span>}
-        {settled && <span><i className="c" />the one revealed number</span>}
-      </div>
+      {!compact && (
+        <div className="ladder-legend">
+          <span><i className="h" />not disclosed</span>
+          {settled && <span><i className="a" />winner is somewhere here</span>}
+          {settled && <span><i className="c" />the one revealed number</span>}
+        </div>
+      )}
     </div>
   );
 }
