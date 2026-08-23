@@ -158,7 +158,21 @@ export function BidPanel({
 
 export function RevealPanel({ auction, bids }: { auction: AuctionView; bids: StoredBid[] }) {
   const [state, setState] = useState<Record<number, string>>({});
+  const [copied, setCopied] = useState(false);
   if (auction.status !== Status.Sealed || bids.length === 0) return null;
+
+  /**
+   * The same payload the relay would carry, as text.
+   *
+   * The relay is a convenience, not a dependency: it runs on serverless and its
+   * memory does not survive an instance recycling. A demo that can be lost to a cold
+   * start is not a demo, so the reveal can always be handed over by any channel.
+   */
+  const blob = JSON.stringify(
+    bids.map((b) => ({
+      auctionId: b.auctionId, index: b.index, seed: b.seed, level: b.level,
+    })),
+  );
 
   async function reveal(bid: StoredBid) {
     setState((s) => ({ ...s, [bid.index]: "sending" }));
@@ -198,6 +212,20 @@ export function RevealPanel({ auction, bids }: { auction: AuctionView; bids: Sto
             )}
           </div>
         ))}
+      </div>
+
+      <div className="row" style={{ marginTop: ".9rem" }}>
+        <button
+          onClick={() => {
+            navigator.clipboard?.writeText(blob);
+            setCopied(true);
+          }}
+        >
+          {copied ? "Copied" : "Copy as text"}
+        </button>
+        <span className="note">
+          A fallback that needs no server. Hand it over any way you like.
+        </span>
       </div>
     </div>
   );

@@ -13,9 +13,11 @@
  * The worst it can do is withhold a reveal, which forfeits that bid — recoverable by
  * the bidder through `redeem_forfeit`, and disputable if it changed the outcome.
  *
- * In-memory, single-process, and lost on restart. Fine for a demo relay; a real
- * deployment would put reveals somewhere durable, or let bidders hand them to the
- * auctioneer by any channel they like.
+ * **In-memory, and not durable in production.** On serverless each invocation may hit
+ * a different instance, so a reveal posted here can vanish before the auctioneer
+ * collects it. That is why it is a convenience and not a dependency: the bidder UI can
+ * emit the same payload as text, and the auctioneer console accepts pasted reveals.
+ * A demo that a cold start can break is not a demo.
  */
 import { NextResponse } from "next/server";
 

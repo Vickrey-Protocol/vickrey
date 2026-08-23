@@ -38,6 +38,7 @@ export function AuctioneerSection({
   const [problems, setProblems] = useState<string[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [pasted, setPasted] = useState("");
 
   const canSeal = auction.status === Status.Open && now >= auction.bidDeadline;
   const canFinalize = auction.status === Status.Settled && now >= auction.disputeDeadline;
@@ -57,19 +58,43 @@ export function AuctioneerSection({
     }
   }
 
+  /**
+   * Collects reveals from the relay and from anything pasted in by hand, then ranks.
+   *
+   * Both sources are equally untrusted: `planSettlement` reconstructs each bid's
+   * published anchors from the seed and discards anything that does not match. A
+   * forged or corrupted reveal forfeits that bid rather than being believed.
+   */
   async function build() {
     setErr(null); setMsg(null);
     try {
-      const res = await fetch(`/api/reveals?auctionId=${auction.terms.auctionId}`);
-      const { reveals } = (await res.json()) as {
-        reveals: Array<{ index: number; seed: string; level: number }>;
-      };
-      const parsed: Reveal[] = reveals.map((r) => ({
-        index: r.index, seed: BigInt(r.seed), level: r.level,
-      }));
-      const next = planSettlement(auction.terms, bids, parsed);
+      const collected = new Map<number, Reveal>();
+
+      try {
+        const res = await fetch(`/api/reveals?auctionId=${auction.terms.auctionId}`);
+        const { reveals } = (await res.json()) as {
+          reveals: Array<{ index: number; seed: string; level: number }>;
+        };
+        for (const r of reveals) {
+          collected.set(r.index, { index: r.index, seed: BigInt(r.seed), level: r.level });
+        }
+      } catch {
+        // The relay is a convenience. Pasted reveals alone are enough.
+      }
+
+      if (pasted.trim()) {
+        const raw = JSON.parse(pasted) as
+          | Array<{ index: number; seed: string; level: number }>
+          | { index: number; seed: string; level: number };
+        for (const r of Array.isArray(raw) ? raw : [raw]) {
+          collected.set(r.index, { index: r.index, seed: BigInt(r.seed), level: r.level });
+        }
+      }
+
+      const next = planSettlement(auction.terms, bids, [...collected.values()]);
       setPlan(next);
       setProblems(verifyPlan(auction.terms, bids, next));
+      setMsg(`${collected.size} reveal(s) collected, ${next.forfeited.length} forfeited.`);
     } catch (e) {
       setErr(errText(e));
     }
@@ -106,6 +131,22 @@ export function AuctioneerSection({
               clearing price and the winning index reach the chain; every other bid is
               proved at or below the price without being opened.
             </p>
+            <div>
+              <label htmlFor="pasted">Pasted reveals, if the relay missed any</label>
+              <textarea
+                id="pasted"
+                value={pasted}
+                onChange={(e) => setPasted(e.target.value)}
+                placeholder='[{"auctionId":"0","index":0,"seed":"123","level":6}]'
+                rows={3}
+                style={{
+                  width: "100%", fontFamily: "var(--font-mono), monospace",
+                  fontSize: "var(--step--1)", padding: ".5rem .6rem",
+                  border: "1px solid var(--rule)", borderRadius: "2px",
+                  background: "var(--paper)", color: "var(--ink)", resize: "vertical",
+                }}
+              />
+            </div>
             <div className="row">
               <button onClick={build}>Collect reveals and rank</button>
               {plan && (
