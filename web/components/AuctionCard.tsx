@@ -59,6 +59,8 @@ export function AuctionCard({
         numLevels={auction.terms.numLevels}
         reservePrice={auction.terms.reservePrice}
         tick={auction.terms.tick}
+        symbol={auction.paymentSymbol}
+        bidCount={auction.bidCount}
         status={auction.status}
         clearingLevel={settled ? auction.clearingLevel : null}
       />

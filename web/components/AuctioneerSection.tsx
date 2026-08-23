@@ -10,7 +10,7 @@ import {
   verifyPlan,
 } from "@vickrey/client";
 import { settleCalldata, type AuctionView } from "@/lib/chain";
-import { config, countdown, formatUnits } from "@/lib/config";
+import { config, countdown, formatUnits, utcDate } from "@/lib/config";
 import type { Connection } from "@/lib/wallet";
 
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -220,7 +220,8 @@ export function AuctioneerSection({
         {auction.status === Status.Settled && !canFinalize && (
           <p className="note warn">
             Nothing has moved. Funds release in{" "}
-            <span className="countdown">{countdown(auction.disputeDeadline, now) ?? "…"}</span>.
+            <span className="countdown">{countdown(auction.disputeDeadline, now) ?? "…"}</span>
+            {" "}— {utcDate(auction.disputeDeadline)}.
           </p>
         )}
 

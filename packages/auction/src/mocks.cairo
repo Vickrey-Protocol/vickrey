@@ -14,11 +14,36 @@ pub mod MockERC20 {
     struct Storage {
         balances: Map<ContractAddress, u256>,
         allowances: Map<(ContractAddress, ContractAddress), u256>,
+        name: ByteArray,
+        symbol: ByteArray,
     }
 
     #[constructor]
-    fn constructor(ref self: ContractState, recipient: ContractAddress, supply: u256) {
+    fn constructor(
+        ref self: ContractState,
+        recipient: ContractAddress,
+        supply: u256,
+        name: ByteArray,
+        symbol: ByteArray,
+    ) {
         self.balances.entry(recipient).write(supply);
+        self.name.write(name);
+        self.symbol.write(symbol);
+    }
+
+    /// SNIP-2 metadata. Without a symbol every amount in a UI reads "1 tokens", which
+    /// is exactly the sort of placeholder that makes a demo look unfinished.
+    #[abi(embed_v0)]
+    impl MetadataImpl of crate::erc20::IERC20Metadata<ContractState> {
+        fn name(self: @ContractState) -> ByteArray {
+            self.name.read()
+        }
+        fn symbol(self: @ContractState) -> ByteArray {
+            self.symbol.read()
+        }
+        fn decimals(self: @ContractState) -> u8 {
+            18
+        }
     }
 
     #[abi(embed_v0)]

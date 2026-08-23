@@ -57,6 +57,10 @@ fn deploy_token(recipient: ContractAddress, supply: u256) -> IERC20Dispatcher {
     let mut calldata: Array<felt252> = array![];
     Serde::serialize(@recipient, ref calldata);
     Serde::serialize(@supply, ref calldata);
+    let name: ByteArray = "Mock Token";
+    let symbol: ByteArray = "MOCK";
+    Serde::serialize(@name, ref calldata);
+    Serde::serialize(@symbol, ref calldata);
     let (addr, _) = class.deploy(@calldata).unwrap();
     IERC20Dispatcher { contract_address: addr }
 }

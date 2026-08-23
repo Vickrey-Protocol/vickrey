@@ -14,3 +14,11 @@ pub trait IERC20<T> {
     fn balance_of(self: @T, account: ContractAddress) -> u256;
     fn allowance(self: @T, owner: ContractAddress, spender: ContractAddress) -> u256;
 }
+
+/// SNIP-2 metadata, returned as `ByteArray` by modern tokens (STRK included).
+#[starknet::interface]
+pub trait IERC20Metadata<T> {
+    fn name(self: @T) -> ByteArray;
+    fn symbol(self: @T) -> ByteArray;
+    fn decimals(self: @T) -> u8;
+}

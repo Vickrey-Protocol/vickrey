@@ -114,7 +114,7 @@ export function BidPanel({
         <p className="note">
           Pick a level. Everyone escrows the same {formatUnits(auction.collateral)}{" "}
           {auction.paymentSymbol}, which is what stops the escrow saying anything about
-          the bid behind it — the difference comes back privately.
+          the bid behind it — the difference comes back to you privately.
         </p>
       </div>
 
@@ -122,6 +122,8 @@ export function BidPanel({
         numLevels={auction.terms.numLevels}
         reservePrice={auction.terms.reservePrice}
         tick={auction.terms.tick}
+        symbol={auction.paymentSymbol}
+        bidCount={auction.bidCount}
         status={auction.status}
         pickedLevel={level}
         onPick={setLevel}
@@ -130,15 +132,20 @@ export function BidPanel({
       <dl className="facts">
         <div className="fact">
           <dt>Your bid</dt>
-          <dd>{level === null ? "—" : formatUnits(priceAt(auction.terms, level))}</dd>
+          <dd>
+            {level === null
+              ? "—"
+              : `${formatUnits(priceAt(auction.terms, level))} ${auction.paymentSymbol}`}
+          </dd>
         </div>
         <div className="fact">
           <dt>You escrow</dt>
-          <dd>{formatUnits(auction.collateral)}</dd>
+          <dd>{formatUnits(auction.collateral)} {auction.paymentSymbol}</dd>
         </div>
         <div className="fact">
+          {/* The pool always charges its fee in STRK, whatever the auction settles in. */}
           <dt>Pool fee</dt>
-          <dd>{auction.poolFee === null ? "…" : formatUnits(auction.poolFee)}</dd>
+          <dd>{auction.poolFee === null ? "—" : `${formatUnits(auction.poolFee)} STRK`}</dd>
         </div>
       </dl>
 

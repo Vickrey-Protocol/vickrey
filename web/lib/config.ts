@@ -83,15 +83,21 @@ export const priceAt = (terms: AuctionTerms, level: number) =>
 export function countdown(deadline: number, now: number): string | null {
   const left = deadline - now;
   if (left <= 0) return null;
-  if (left > 2 * 86400) {
-    return new Date(deadline * 1000).toLocaleDateString(undefined, {
-      day: "numeric", month: "short", year: "numeric",
-    });
-  }
+  if (left > 2 * 86400) return utcDate(deadline);
   const h = Math.floor(left / 3600);
   const m = Math.floor((left % 3600) / 60);
   const s = left % 60;
   return h > 0 ? `${h}h ${m}m` : m > 0 ? `${m}m ${String(s).padStart(2, "0")}s` : `${s}s`;
+}
+
+/**
+ * Chain deadlines are UTC. Rendering them in the viewer's zone turns a 31 August
+ * deadline into "Sep 1" for anyone east of Greenwich, which reads as a bug.
+ */
+export function utcDate(unix: number): string {
+  const d = new Date(unix * 1000);
+  const month = d.toLocaleString("en-GB", { month: "short", timeZone: "UTC" });
+  return `${d.getUTCDate()} ${month} ${d.getUTCFullYear()}, ${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")} UTC`;
 }
 
 export const shortAddr = (a: string) =>

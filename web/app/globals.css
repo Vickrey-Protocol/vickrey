@@ -189,84 +189,97 @@ h2.section { font-size: var(--step-2); margin-block: 2rem .9rem; }
 .eyebrow::after { content: ""; flex: 1; height: 1px; background: var(--rule); }
 
 /* ── the ladder ───────────────────────────────────────────────────────
-   Rungs are always drawn. A zone tints a rung's own background, so the
-   hatch can never appear as a blank panel with no ladder behind it.     */
-.ladder { position: relative; display: grid; grid-template-columns: 5.5rem 1fr; min-width: 20rem; }
-.ladder-price {
-  font-family: var(--font-mono), monospace;
-  font-size: var(--step--1);
-  color: var(--muted);
+   A narrow measuring instrument: a scale, a thermometer strip, and
+   annotations. Not a canvas. The strip is deliberately ~2.5rem wide so
+   the rungs stay countable instead of reading as a texture.          */
+:root { --rung: 1.05rem; --strip: 2.5rem; }
+
+.ladder-wrap { width: fit-content; max-width: 100%; }
+.ladder { display: flex; flex-direction: column; }
+.ladder-row { display: flex; align-items: stretch; height: var(--rung); }
+
+.scale {
+  width: 4.2rem;
+  flex: none;
   text-align: right;
-  padding-inline-end: .75rem;
-  height: var(--rung);
+  padding-inline-end: .5rem;
+  font-family: var(--font-mono), monospace;
+  font-size: .68rem;
+  line-height: var(--rung);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.scale.at { color: var(--seal); font-weight: 600; }
+
+.rung {
+  width: var(--strip);
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-block-start: 1px solid var(--rule);
+  border-inline: 1px solid var(--rule);
+  border-radius: 0;
+  background-color: var(--hatch-void);
+  background-image: repeating-linear-gradient(-45deg, var(--hatch) 0 1px, transparent 1px 6px);
+}
+.ladder-row:last-child .rung { border-block-end: 1px solid var(--rule); }
+
+.rung.is-above {
+  background-color: var(--seal-wash);
+  background-image: repeating-linear-gradient(-45deg, var(--seal-edge) 0 1px, transparent 1px 6px);
+}
+/* The one revealed fact: solid, never hatched. */
+.rung.is-clearing {
+  background: var(--seal);
+  background-image: none;
+  border-block-start: 2px solid var(--seal);
+  border-color: var(--seal);
+}
+.rung.is-pick { cursor: pointer; }
+.rung.is-pick:hover { outline: 1px solid var(--seal); outline-offset: -1px; }
+.rung.is-picked { background: var(--seal); background-image: none; border-color: var(--seal); }
+
+.ann {
+  position: relative;
+  flex: 1;
+  min-width: 13rem;
+  overflow: visible;
+  padding-inline-start: .55rem;
+  font-family: var(--font-mono), monospace;
+  font-size: .68rem;
   line-height: var(--rung);
   white-space: nowrap;
 }
-.ladder-price.at { color: var(--seal); font-weight: 600; }
+.ann .clearing-note { color: var(--seal); font-weight: 600; }
+.ann .picked-note { color: var(--seal); font-weight: 600; }
 
-.ladder-track {
-  height: var(--rung);
-  border-block-start: 1px solid var(--rule);
-  position: relative;
-  background-color: transparent;
-}
-.ladder-row:last-child .ladder-track { border-block-end: 1px solid var(--rule); }
-
-.ladder-track.unknown {
-  background-color: var(--hatch-void);
-  background-image: repeating-linear-gradient(-45deg, var(--hatch) 0 1px, transparent 1px 8px);
-}
-.ladder-track.above {
-  background-color: var(--seal-wash);
-  background-image: repeating-linear-gradient(-45deg, var(--seal-edge) 0 1px, transparent 1px 8px);
-}
-/* The one revealed fact: a solid line, not a hatch. */
-.ladder-track.clearing {
-  border-block-start: 2px solid var(--seal);
-  background-color: var(--seal-wash);
-  background-image: none;
-}
-.ladder-track .tag {
+/* A brace spanning the rows a set of bids is known to be inside. */
+.brace {
   position: absolute;
-  inset-inline-end: .5rem;
-  inset-block: 0;
-  display: flex; align-items: center;
-  font-family: var(--font-mono), monospace;
-  font-size: var(--step--1);
-  letter-spacing: .06em;
-  text-transform: uppercase;
-  color: var(--muted);
+  inset-block-start: 0;
+  inset-inline-start: .35rem;
+  width: .4rem;
+  border-inline-start: 1px solid var(--rule-strong);
+  border-block: 1px solid var(--rule-strong);
+  border-inline-end: 0;
   pointer-events: none;
 }
-.ladder-track.above .tag { color: var(--seal); }
-.ladder-track.clearing .tag {
-  color: var(--seal-ink);
-  background: var(--seal);
-  padding-inline: .45rem;
-  inset-block: 2px 0;
-  border-radius: 2px;
-  font-weight: 600;
-}
-.ladder-track.pick { cursor: pointer; }
-.ladder-track.pick:hover { outline: 1px solid var(--seal); outline-offset: -1px; }
-.ladder-track.picked {
-  background: var(--seal);
-  background-image: none;
-}
-.ladder-track.picked .tag { color: var(--seal-ink); font-weight: 600; }
-
-.ladder-legend {
-  display: flex; gap: .5rem 1.25rem; flex-wrap: wrap; align-items: center;
-  margin-block-start: .9rem;
-  font-family: var(--font-mono), monospace;
-  font-size: var(--step--1);
+.brace.above { border-color: var(--seal-edge); }
+.brace em {
+  position: absolute;
+  inset-inline-start: .65rem;
+  inset-block-start: 50%;
+  transform: translateY(-50%);
+  font-style: normal;
   color: var(--muted);
+  line-height: 1.3;
+  white-space: nowrap;
 }
-.ladder-legend i { display: inline-block; width: 1.4rem; height: .8rem; border: 1px solid var(--rule-strong); vertical-align: -.1rem; margin-inline-end: .4rem; border-radius: 1px; }
-.ladder-legend i.h { background-color: var(--hatch-void); background-image: repeating-linear-gradient(-45deg, var(--hatch) 0 1px, transparent 1px 6px); }
-.ladder-legend i.a { background-color: var(--seal-wash); background-image: repeating-linear-gradient(-45deg, var(--seal-edge) 0 1px, transparent 1px 6px); border-color: var(--seal-edge); }
-.ladder-legend i.c { background: var(--seal); border-color: var(--seal); }
+.brace.above em { color: var(--seal); }
 
+/* Thumbnail: strip only, and shorter rungs so a whole ladder fits a card. */
+.ladder-wrap.compact { --rung: .5rem; --strip: 100%; width: 100%; }
+.ladder-wrap.compact .rung { width: 100%; }
 /* ── controls ─────────────────────────────────────────────────────── */
 button, .btn {
   font: inherit;
@@ -443,5 +456,13 @@ footer {
 .card-auction .meta b { color: var(--ink); font-weight: 500; }
 .card-auction .meta b.price { color: var(--seal); }
 
-.ladder.compact { grid-template-columns: 1fr; min-width: 0; --rung: .6rem; }
-.ladder.compact .ladder-track { height: .6rem; }
+
+/* ── hero layout ──────────────────────────────────────────────────── */
+.hero-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  gap: clamp(1.5rem, 4vw, 3rem);
+  align-items: start;
+}
+@media (max-width: 60rem) { .hero-grid { grid-template-columns: 1fr; } }
+.showcase { padding-block-start: .5rem; }

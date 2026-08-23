@@ -7,110 +7,138 @@ export interface LadderProps {
   numLevels: number;
   reservePrice: bigint;
   tick: bigint;
+  symbol?: string;
   decimals?: number;
-  /** Set once the auction is settled. Before that, nothing about any bid is known. */
+  /** Set once the auction is settled. Before that nothing about any bid is known. */
   clearingLevel?: number | null;
-  /** Highlights the level the user is about to bid at. */
+  /** How many bids exist. Absence has to read as rigour, and it can't without a count. */
+  bidCount?: number;
   pickedLevel?: number | null;
   onPick?: (level: number) => void;
   status: Status;
-  /** Thumbnail form for a card: shorter rungs, no prices, no legend. */
+  /** Thumbnail form for a card: no scale, no annotations. */
   compact?: boolean;
 }
 
 /**
- * The price ladder.
+ * The price ladder — a measuring instrument, not a canvas.
  *
- * One rule governs this component: **a hatched region is never drawn without the
- * rungs behind it**. Hatching is applied to each rung's own background rather than
- * as a panel laid over the top, so an unknown range always reads as "these levels,
- * unreadable" and never as an empty box that has not loaded.
+ * Two rules govern it.
  *
- * Before settlement every rung is hatched, because that is the literal truth: any
- * bid could be at any level. After settlement there is exactly one solid line — the
- * clearing price — with hatch above it and hatch below. That image is the whole
- * protocol in two seconds.
+ * **Rungs are always drawn.** Hatching tints each rung's own background rather than
+ * being a panel laid over the top, so an unknown range reads as "these levels,
+ * unreadable" and never as a box that failed to load.
+ *
+ * **The bids have to be visible as bids.** A hatched strip with nothing in it reads as
+ * empty, which is the opposite of the point: the bids exist, they are escrowed, and
+ * their positions are the only thing missing. So every band is braced and counted —
+ * "3 bids somewhere in this range" before settlement; after it, one bid at or above
+ * the line, the rest at or below, and the line itself carrying the only number the
+ * chain learned.
  */
 export function Ladder({
   numLevels,
   reservePrice,
   tick,
+  symbol = "",
   decimals = 18,
   clearingLevel = null,
+  bidCount = 0,
   pickedLevel = null,
   onPick,
   status,
   compact = false,
 }: LadderProps) {
   const settled = clearingLevel !== null && status >= Status.Settled;
-  const levels = Array.from({ length: numLevels }, (_, i) => numLevels - 1 - i);
+  const rows = Array.from({ length: numLevels }, (_, i) => numLevels - 1 - i);
   const price = (l: number) => reservePrice + tick * BigInt(l);
 
+  const plural = (n: number) => `${n} bid${n === 1 ? "" : "s"}`;
+
+  // Where each brace starts and how far it runs, in rows.
+  const bands = settled
+    ? [
+        { from: numLevels - 1, to: clearingLevel! + 1, kind: "above" as const,
+          label: numLevels - 1 >= clearingLevel! + 1 ? `1 bid, at or above` : "" },
+        { from: clearingLevel! - 1, to: 0, kind: "below" as const,
+          label: clearingLevel! - 1 >= 0 ? `${plural(Math.max(bidCount - 1, 0))}, at or below` : "" },
+      ].filter((b) => b.from >= b.to && b.label)
+    : bidCount > 0
+      ? [{ from: numLevels - 1, to: 0, kind: "unknown" as const,
+           label: `${plural(bidCount)} somewhere in here` }]
+      : [];
+
+  const bandFor = (level: number) => bands.find((b) => level <= b.from && level >= b.to);
+
   return (
-    <div>
+    <div className={compact ? "ladder-wrap compact" : "ladder-wrap"}>
       <div
-        className={compact ? "ladder compact" : "ladder"}
+        className="ladder"
         role="img"
         aria-label={
           settled
-            ? `Price ladder, settled at level ${clearingLevel}. No bid amount is disclosed.`
-            : "Price ladder. No bid amount is readable."
+            ? `Price ladder. Cleared at ${formatUnits(price(clearingLevel!), decimals)} ${symbol}. No bid amount is disclosed.`
+            : `Price ladder with ${plural(bidCount)}. No bid amount is readable.`
         }
       >
-        {levels.map((level) => {
+        {rows.map((level) => {
           const isClearing = settled && level === clearingLevel;
-          const isAbove = settled && level > (clearingLevel as number);
+          const isAbove = settled && level > clearingLevel!;
           const isPicked = !settled && pickedLevel === level;
+          const band = bandFor(level);
+          const bandStarts = band && level === band.from;
 
           const cls = [
-            "ladder-track",
-            isClearing ? "clearing" : isAbove ? "above" : "unknown",
-            isPicked ? "picked" : "",
-            onPick ? "pick" : "",
+            "rung",
+            isClearing ? "is-clearing" : isAbove ? "is-above" : "is-unknown",
+            isPicked ? "is-picked" : "",
+            onPick ? "is-pick" : "",
           ].filter(Boolean).join(" ");
 
-          // A tag only on the boundaries of a region, so the ladder stays readable.
-          let tag = "";
-          if (compact) tag = "";
-          else if (isClearing) tag = "clearing price";
-          else if (settled && level === numLevels - 1) tag = "winner, at or above";
-          else if (settled && level === (clearingLevel as number) - 1) tag = "the rest, at or below";
-          else if (!settled && level === numLevels - 1) tag = "any bid, anywhere";
-          if (isPicked) tag = "your bid";
-
           return (
-            <div className="ladder-row" key={level} style={{ display: "contents" }}>
+            <div className="ladder-row" key={level}>
               {!compact && (
-                <div className={`ladder-price${isClearing ? " at" : ""}`}>
+                <span className={`scale${isClearing ? " at" : ""}`}>
                   {formatUnits(price(level), decimals)}
-                </div>
+                </span>
               )}
+
               {onPick ? (
                 <button
                   type="button"
                   className={cls}
-                  style={{ padding: 0, textTransform: "none", letterSpacing: 0 }}
                   onClick={() => onPick(level)}
                   aria-pressed={isPicked}
-                  aria-label={`Bid ${formatUnits(price(level), decimals)}`}
-                >
-                  {tag && <span className="tag">{tag}</span>}
-                </button>
+                  aria-label={`Bid ${formatUnits(price(level), decimals)} ${symbol}`}
+                />
               ) : (
-                <div className={cls}>{tag && <span className="tag">{tag}</span>}</div>
+                <span className={cls} />
+              )}
+
+              {!compact && (
+                <span className="ann">
+                  {isClearing && (
+                    <b className="clearing-note">
+                      {formatUnits(price(level), decimals)} {symbol} · clearing price
+                    </b>
+                  )}
+                  {isPicked && <b className="picked-note">your bid</b>}
+                  {/* One brace per band, anchored on its first row. Rendering it on
+                      every row stacks N copies and the line runs off the page. */}
+                  {bandStarts && (
+                    <span
+                      className={`brace ${band.kind}`}
+                      style={{ height: `calc(var(--rung) * ${band.from - band.to + 1})` }}
+                    >
+                      <em>{band.label}</em>
+                    </span>
+                  )}
+                </span>
               )}
             </div>
           );
         })}
       </div>
-
-      {!compact && (
-        <div className="ladder-legend">
-          <span><i className="h" />not disclosed</span>
-          {settled && <span><i className="a" />winner is somewhere here</span>}
-          {settled && <span><i className="c" />the one revealed number</span>}
-        </div>
-      )}
     </div>
   );
 }

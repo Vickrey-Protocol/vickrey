@@ -103,10 +103,14 @@ export default function Home() {
   const clearingPrice = settled ? priceAt(auction!.terms, auction!.clearingLevel) : null;
   const resolved = auction?.status === Status.Finalized;
 
-  /** Whether the right-hand column has anything to show for this viewer. */
-  const hasActions = !!(
-    auction && (auction.status === Status.Open || mine.length > 0)
+  /** The most persuasive auction to lead with: a settled one, if there is any. */
+  const showcase = useMemo(
+    () => all.find((a) => a.status === Status.Finalized) ?? all.find((a) => a.status === Status.Settled) ?? null,
+    [all],
   );
+
+  /** Whether the right-hand column has anything to show for this viewer. */
+  const sidePanels = !!(auction && mine.length > 0 && auction.status !== Status.Open);
 
   async function doConnect() {
     setConnectError(null);
@@ -136,7 +140,24 @@ export default function Home() {
         </div>
       </header>
 
-      <Hero />
+      <div className="hero-grid">
+        <Hero />
+        {showcase && (
+          <aside className="showcase" aria-label="A settled auction">
+            <p className="eyebrow" style={{ marginBottom: ".7rem" }}>Settled, and nothing to reveal</p>
+            <AuctionCard
+              auction={showcase}
+              now={now}
+              selected={selected === showcase.terms.auctionId}
+              onSelect={() => setSelected(showcase.terms.auctionId)}
+            />
+            <p className="note" style={{ marginTop: ".7rem" }}>
+              One line is the clearing price. Everything hatched was never disclosed —
+              including the winning bid.
+            </p>
+          </aside>
+        )}
+      </div>
 
       <p className="trust">
         <b>What is assured:</b> {TRUST_ASSURED} <b>What is not:</b> {TRUST_NOT}
@@ -213,7 +234,7 @@ export default function Home() {
               </div>
               <div className="fact">
                 <dt>Escrow, everyone</dt>
-                <dd>{formatUnits(auction.collateral)}</dd>
+                <dd>{formatUnits(auction.collateral)} {auction.paymentSymbol}</dd>
               </div>
               <div className="fact">
                 <dt>Bids received</dt>
@@ -280,28 +301,33 @@ export default function Home() {
             </div>
           )}
 
-          <div className={hasActions ? "cols" : ""} style={{ marginTop: "1rem" }}>
+          <div className={sidePanels ? "cols" : ""} style={{ marginTop: "1rem" }}>
             <div className="panel">
-              <p className="eyebrow">The ladder</p>
-              <Ladder
-                numLevels={auction.terms.numLevels}
-                reservePrice={auction.terms.reservePrice}
-                tick={auction.terms.tick}
-                status={auction.status}
-                clearingLevel={settled ? auction.clearingLevel : null}
-              />
+              {auction.status === Status.Open ? (
+                <BidPanel auction={auction} connection={connection} onPlaced={() => void refresh()} />
+              ) : (
+                <>
+                  <p className="eyebrow">The ladder</p>
+                  <Ladder
+                    numLevels={auction.terms.numLevels}
+                    reservePrice={auction.terms.reservePrice}
+                    tick={auction.terms.tick}
+                    symbol={auction.paymentSymbol}
+                    bidCount={auction.bidCount}
+                    status={auction.status}
+                    clearingLevel={settled ? auction.clearingLevel : null}
+                  />
+                </>
+              )}
             </div>
 
-            {hasActions && <div className="stack">
-              {auction.status === Status.Open && (
-                <div className="panel">
-                  <BidPanel auction={auction} connection={connection} onPlaced={() => void refresh()} />
-                </div>
-              )}
-              <RevealPanel auction={auction} bids={mine} />
-              <DisputePanel auction={auction} bids={mine} connection={connection} now={now} />
-              <ClaimPanel auction={auction} bids={mine} connection={connection} />
-            </div>}
+            {sidePanels && (
+              <div className="stack">
+                <RevealPanel auction={auction} bids={mine} />
+                <DisputePanel auction={auction} bids={mine} connection={connection} now={now} />
+                <ClaimPanel auction={auction} bids={mine} connection={connection} />
+              </div>
+            )}
           </div>
 
           <AuctioneerSection
