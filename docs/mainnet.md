@@ -97,17 +97,30 @@ Escrow is the ladder cap and is refunded, so set it nominal — 0.001 STRK ladde
 levels, cap 0.008. It is public and identical for everyone, so a small number costs
 nothing in credibility.
 
-### The honest total
+### The honest total — revised upward
 
-| | STRK |
-|---|---|
-| Contracts up, plus a first auction run without the pool | **~42** |
-| The above, plus a five-bidder auction through the pool | **~140** |
+An earlier version of this file put the working minimum at ~42 STRK. **That was wrong**,
+and the sprint's own submission rule is why:
 
-I would fund **50 STRK now** to get the contracts deployed and a real auction on
-mainnet, then decide on the pool demo separately once a wallet has signed one bid.
-Spending 96 STRK on pool fees before knowing a wallet can assemble our transaction is
-the wrong order.
+> at least three mainnet transaction hashes … it must exist, have succeeded, and **have
+> touched the STRK20 pool**.
+
+Bids placed directly on our contract do not touch the pool, so they cannot be the three
+transactions. At least three **pool** transactions are unavoidable, at 6 STRK each.
+
+| | STRK | Buys |
+|---|---|---|
+| Deploy only | ~39 | Contracts on mainnet, nothing running |
+| **Submission minimum** | **~65** | Deploy, shield once, three pool transactions, gas |
+| Judge-friendly | ~125 | The above plus ten sponsored private bids |
+| Five-bidder pool auction | ~160 | The plan's full target |
+
+**50 STRK does not reach the submission minimum.** It covers deployment and one pool
+transaction, leaving us two short of the three the hub checks for. **65 is the number
+that makes the entry scoreable**; I would send 70 for gas movement.
+
+Beyond that, sponsorship is what buys the score rather than more of our own
+transactions — see [access.md](access.md).
 
 ## Open questions this raises
 
@@ -130,3 +143,41 @@ the wrong order.
 5. Point the hosted app at the mainnet addresses.
 6. Run one auction without the pool for the three-transaction requirement.
 7. Only then attempt the pool leg, dry-run first.
+
+## The declare date
+
+Deadline **Mon 31 Aug 2026, 23:59 UTC**. Whatever the repo shows then is the entry.
+
+Working backwards from what has to be true at the end — a five-bidder auction run, a
+video recorded, and `strk20.json` filled with three verified pool transactions:
+
+| Day | | What has to happen |
+|---|---|---|
+| Wed 26 Aug | T-5 | **Recommended declare.** Declare, deploy, read back, point the site at mainnet |
+| Thu 27 Aug | T-4 | First pool transaction end to end. This is where an unknown surfaces |
+| Fri 28 Aug | T-3 | Five-bidder auction. Bidders recruited and rehearsed *before* today |
+| Sat 29 Aug | T-2 | Record the video. Needs the auction already run |
+| Sun 30 Aug | T-1 | `strk20.json`, README, link-check. Everything final |
+| Mon 31 Aug | T-0 | Buffer. Something breaks on the last day; it always does |
+
+**Recommended declare: Wed 26 Aug.** That leaves two clear days for the pool path,
+which is the part nobody has ever run.
+
+**Hard latest: Sat 29 Aug.** Declare and deploy in the morning, three pool
+transactions in the afternoon, video Sunday, submit Monday. No room for a failed
+declare, a wallet surprise, or a re-declare after a contract fix.
+
+**Do not declare later than 29 Aug.** Past that there is no path to three verified pool
+transactions and a video.
+
+### The trade being made
+
+Declaring before the wallet question is answered risks ~38 STRK on a second declare if
+a contract change turns out to be needed. Being unproven on mainnet on 31 Aug costs the
+entry. The second is worse, so the date wins over the certainty.
+
+One mitigation, and it is worth taking: **run the pool leg against the Sepolia
+deployment first if any wallet supports it.** The contracts there are the same class,
+so a wallet failure found on Sepolia is a wallet failure we can fix before spending the
+mainnet declare. If no wallet supports Sepolia, declare on the 26th and find out on
+mainnet.
