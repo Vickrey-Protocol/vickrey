@@ -19,6 +19,12 @@ Two rules while testing:
 Where to run it: the deployed site, not localhost. Localhost hides SSR and caching
 faults.
 
+**Steps 1–17 are valid on Sepolia today.** They exercise the interface, and the
+interface is identical on either network. Sepolia is still running the *pre-freeze*
+contracts — `abandon` and the `Routed` event are not deployed there — which changes
+nothing for these steps, because `web/` never references either. Steps 18–19 and 24b
+need mainnet and the frozen build; leave them.
+
 ---
 
 ## 0. Before you start
@@ -55,7 +61,16 @@ Do not connect yet. This is the judge's view and it has to stand on its own.
 3. Scroll to **The whole public record**.
    **Expect:** one row per bid, each with a claim handle and two hash anchors, amount
    column *not disclosed*.
-   **Bug:** an address column. No bidder address should appear anywhere on this page.
+   **Bug:** an address column. **No bidder address** may appear on this page.
+
+   Be precise about what that means. The **seller and auctioneer** address is public by
+   design — it is in the `AuctionCreated` event and it is who you hold accountable — and
+   it is present in the page's server-rendered data. That is correct. What must never
+   appear is an address tied to *having placed a bid*.
+
+   On the Sepolia demo one account is seller, auctioneer **and** all three bidders,
+   because a script ran it. So you will see that address and it proves nothing either
+   way. Judge this one on mainnet with distinct bidders.
 
 4. Open `/auctions`.
    **Expect:** every auction, filter chips with counts that add up.

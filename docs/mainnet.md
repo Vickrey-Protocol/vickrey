@@ -268,6 +268,43 @@ against the contracts that ran the full Sepolia lifecycle, and switching to an u
 artifact to chase a saving that measurement says is zero is a bad trade on the single most
 expensive transaction in the project.
 
+## The deploying account
+
+A **dedicated deploy account** is the better shape, and it costs **0.07 STRK** — the
+account deployment itself, measured against mainnet. That is the entire price
+difference.
+
+What it buys: a key that only ever declares and deploys, holds exactly the run's cost,
+and can be discarded afterwards. A key that never had anything else in it is one you can
+afford to be relaxed about — and this repo is public.
+
+```
+scripts/new-mainnet-account.sh create     # prints an address to fund
+scripts/new-mainnet-account.sh deploy     # after the funds land
+scripts/deploy.sh mainnet vickrey-deploy
+```
+
+### The one complication, and it is real
+
+**A dedicated sncast account cannot do the pool leg.** Private-rail transactions are
+proved inside the wallet, and sncast has no prover. So the three qualifying pool
+transactions — the ones the submission rule actually counts — must come from a browser
+wallet with STRK20 support, whatever we do here.
+
+That is not a cost of choosing a dedicated account; it is true either way. It does mean
+funding two places:
+
+| | Needs | Send | For |
+|---|---|---|---|
+| `vickrey-deploy` (sncast) | 46.6 spent, **61.6 held** | **90** | Both declares, both deploys, and the script-driven auction on the public rail |
+| Your own wallet (browser) | ~25 | **60** | Shield once, three qualifying pool transactions, gas — plus room for sponsored bids |
+
+The account deployment must be funded *before* it can be deployed: the deployment pays
+its own fee out of the account, so an empty one cannot bootstrap itself.
+
+Everything else is unchanged. `deploy.sh` does not care which account it is handed, and
+the read-only preflight still refuses to spend if the balance is under the bound.
+
 ## Operating `abandon` — read before listing anything judges will see
 
 `abandon` is permissionless by design: the people with funds trapped in a sealed auction
