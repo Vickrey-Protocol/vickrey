@@ -81,22 +81,54 @@ node scripts/pool-status.mjs <your-wallet-address>
 after 0b — those two lines flipping is what proves the shield landed, and it does not
 depend on reading the wallet correctly.
 
-### 0b. The smallest real shield — ~6 STRK plus the amount
-
-Only after 0a passes.
+### 0b. The smallest real shield — Xverse
 
 **This site cannot shield for you.** The Wallet API's three STRK20 methods do not include
-a deposit; shielding happens in the wallet's own interface. So:
+a deposit, so shielding happens in the wallet. Steps below are from Starknet's own
+[strkBTC user guide](https://www.starknet.io/blog/strkbtc-user-guide/).
 
-1. Open your wallet's **private / shielded balance** section.
-2. Shield the **smallest amount it will accept**. The pool charges its fee (printed on
-   `/wallet-check`) on top.
-3. Return to `/wallet-check` and run the probe again. It should still answer, and the
-   wallet should now show a shielded balance.
+**Step 1 is the one-time activation, and it is exactly what `NOT_REGISTERED` meant.**
 
-**What would be a bug:** the wallet has no private-balance section at all despite passing
-0a. Tell me which wallet and version — that is a gap between the API and the product, and
-it changes the plan.
+1. **Tap the shield toggle (🛡️) in the top right of Xverse.** This activates privacy
+   capabilities on the account and costs STRK. Your probe returned `NOT_REGISTERED`
+   because this has not been done yet — the wallet spoke to the pool correctly and the
+   pool said it had never seen you.
+2. Toggle **private mode** on to see shielded assets.
+3. Press the **shield** button, **pick the asset**, enter an amount, **Next**.
+4. Review and confirm.
+
+Then, from the chain rather than the UI:
+
+```
+node scripts/pool-status.mjs <your-wallet-address>
+```
+
+`registered: yes` and `channels: 1` is the proof. Those two lines flipping is the whole
+result of this step.
+
+> **The fee is 6 STRK, not the 4 the announcement quotes.** `get_fee_amount` on the live
+> mainnet pool reads 6, and it is governance-settable. `/wallet-check` prints the live
+> value; trust that over any blog post, this one included.
+
+#### ⚠ Check this at step 3, before you commit to anything
+
+**Is STRK in the asset list?** The strkBTC guide says Xverse's picker offers "currently
+only strkBTC and xstrkBTC". The STRK20 launch describes a framework for "all ERC-20
+assets", and the two statements cannot both be current. **The picker settles it in ten
+seconds and looking is free.**
+
+- **STRK is listed** → shield the smallest amount it accepts. Proceed as planned.
+- **STRK is not listed** → **stop and tell me before funding.** It is not fatal: the
+  auction's payment token is a constructor parameter, not a constant, so we denominate
+  the judged auction in whatever *is* shieldable (strkBTC) and the three qualifying
+  transactions work unchanged. But that decision has to be made **before the declare**,
+  because it changes the auction we create, and I would rather change a parameter than
+  discover this after 90 STRK is committed.
+
+Either way the entry survives. What would hurt is finding out on the 31st.
+
+**What would be a bug:** no shield toggle at all in an Xverse build that passed 0a. Tell
+me the version — that is a gap between the API and the product and it changes the plan.
 
 ---
 
