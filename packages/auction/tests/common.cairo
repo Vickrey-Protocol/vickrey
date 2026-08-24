@@ -53,6 +53,10 @@ pub struct Kit {
 }
 
 fn deploy_token(recipient: ContractAddress, supply: u256) -> IERC20Dispatcher {
+    deploy_token_with(recipient, supply, 18)
+}
+
+fn deploy_token_with(recipient: ContractAddress, supply: u256, dec: u8) -> IERC20Dispatcher {
     let class = declare("MockERC20").unwrap().contract_class();
     let mut calldata: Array<felt252> = array![];
     Serde::serialize(@recipient, ref calldata);
@@ -61,6 +65,7 @@ fn deploy_token(recipient: ContractAddress, supply: u256) -> IERC20Dispatcher {
     let symbol: ByteArray = "MOCK";
     Serde::serialize(@name, ref calldata);
     Serde::serialize(@symbol, ref calldata);
+    Serde::serialize(@dec, ref calldata);
     let (addr, _) = class.deploy(@calldata).unwrap();
     IERC20Dispatcher { contract_address: addr }
 }
@@ -83,6 +88,10 @@ pub fn setup(kind: AuctionKind) -> Env {
     setup_with(kind, LEVELS, BOND)
 }
 
+pub fn setup_with_decimals(kind: AuctionKind, dec: u8) -> Env {
+    setup_full_dec(kind, LEVELS, BOND, auctioneer(), dec)
+}
+
 pub fn setup_with_auctioneer(kind: AuctionKind, who: ContractAddress) -> Env {
     setup_full(kind, LEVELS, BOND, who)
 }
@@ -94,10 +103,16 @@ pub fn setup_with(kind: AuctionKind, num_levels: u16, bond: u128) -> Env {
 fn setup_full(
     kind: AuctionKind, num_levels: u16, bond: u128, who: ContractAddress,
 ) -> Env {
+    setup_full_dec(kind, num_levels, bond, who, 18)
+}
+
+fn setup_full_dec(
+    kind: AuctionKind, num_levels: u16, bond: u128, who: ContractAddress, dec: u8,
+) -> Env {
     start_cheat_block_timestamp_global(1);
 
-    let pay = deploy_token(bank(), 1_000_000_u256);
-    let lot = deploy_token(bank(), 1_000_u256);
+    let pay = deploy_token_with(bank(), 1_000_000_u256, dec);
+    let lot = deploy_token_with(bank(), 1_000_u256, dec);
 
     let class = declare("SealedBidAuction").unwrap().contract_class();
     let (addr, _) = class.deploy(@array![]).unwrap();

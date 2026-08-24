@@ -5,7 +5,7 @@ use auction::ladder;
 use auction::types::{AuctionKind, Disposition, NO_WINNER, Status};
 use super::common::{
     BOND, CAP, DEADLINE, LOT, RESERVE, TICK, balance, finalize, payout, place, proof_above,
-    proof_below, proof_exactly, proof_forfeit, seal, seller, settle, setup,
+    proof_below, proof_exactly, proof_forfeit, seal, seller, settle, setup, setup_with_decimals,
 };
 
 /// The headline. Five bidders, and afterwards the chain knows exactly one number.
@@ -193,4 +193,42 @@ fn sealing_stamps_the_block_and_freezes_the_set() {
     let state = env.auction.get_state(env.id);
     assert!(state.sealed_at_time == DEADLINE);
     assert!(state.bid_root == after, "the root freezes at the seal");
+}
+
+/// The contract is decimals-agnostic, and this proves it rather than assuming it.
+///
+/// The decimals bug was in the interface, not here — the contract only ever moves raw
+/// units. But "the contract does not care" was an assumption until something checked
+/// it, and the whole point of the six-decimal exercise is that a fix verified only
+/// against an 18-decimal token proves nothing about the case that broke.
+///
+/// Six decimals, USDC's shape: a 250-unit lot is 250_000_000, and the ladder rungs are
+/// small enough that an off-by-10^12 would be unmissable in the assertions below.
+#[test]
+fn an_auction_denominated_in_a_six_decimal_token_settles_identically() {
+    let env = setup_with_decimals(AuctionKind::Vickrey, 6);
+
+    let a = place(env, 'A', 'SA', 12);
+    let b = place(env, 'B', 'SB', 9);
+    let c = place(env, 'C', 'SC', 3);
+    seal(env);
+
+    settle(
+        env, 9, a.index,
+        array![proof_above(env, a, 9), proof_exactly(env, b, 9), proof_below(env, c, 9)],
+    );
+    finalize(env);
+
+    // Vickrey: the winner pays the runner-up's level, in the token's own units.
+    let price = RESERVE + 9 * TICK;
+    assert!(env.auction.get_state(env.id).clearing_level == 9, "wrong level");
+    assert!(env.auction.price_of_level(env.id, 9) == price, "wrong price in raw units");
+
+    // Losers get the whole cap back; the winner keeps only the surplus.
+    let cap = env.auction.collateral(env.id);
+    assert!(env.auction.claim_refund(env.id, c.index, 'C', payout()) == cap, "loser short-changed");
+    assert!(
+        env.auction.claim_refund(env.id, a.index, 'A', payout()) == cap - price,
+        "winner's surplus is wrong",
+    );
 }

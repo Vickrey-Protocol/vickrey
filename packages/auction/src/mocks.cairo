@@ -16,6 +16,7 @@ pub mod MockERC20 {
         allowances: Map<(ContractAddress, ContractAddress), u256>,
         name: ByteArray,
         symbol: ByteArray,
+        decimals: u8,
     }
 
     #[constructor]
@@ -25,8 +26,10 @@ pub mod MockERC20 {
         supply: u256,
         name: ByteArray,
         symbol: ByteArray,
+        decimals: u8,
     ) {
         self.balances.entry(recipient).write(supply);
+        self.decimals.write(decimals);
         self.name.write(name);
         self.symbol.write(symbol);
     }
@@ -41,8 +44,12 @@ pub mod MockERC20 {
         fn symbol(self: @ContractState) -> ByteArray {
             self.symbol.read()
         }
+        /// Configurable, because 18 is the case that already worked. The interface
+        /// formatted every amount at a hardcoded 18 and rendered a 250 USDC lot as `0`;
+        /// a fix verified only against an 18-decimal token proves nothing about the bug
+        /// it was written for. This lets a six-decimal auction run end to end.
         fn decimals(self: @ContractState) -> u8 {
-            18
+            self.decimals.read()
         }
     }
 
