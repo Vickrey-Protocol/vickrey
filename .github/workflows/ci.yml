@@ -44,3 +44,20 @@ jobs:
       - run: node scripts/check-links.mjs
         env:
           SITE: https://vickrey-ten.vercel.app
+
+  deployed:
+    # A push to main does not deploy anything: the Vercel project has no git repository
+    # connected, so every deploy is manual. Four commits once sat here while the live
+    # URL served an older build and nothing said so. This is the thing that says so.
+    #
+    # Runs only on main — a PR branch is *expected* not to be live.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }   # the check names the commits that are not live yet
+      - uses: actions/setup-node@v4
+        with: { node-version: "24" }
+      - run: node scripts/check-deployed.mjs
+        env:
+          SITE: https://vickrey-ten.vercel.app
