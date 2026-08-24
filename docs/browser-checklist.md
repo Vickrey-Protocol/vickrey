@@ -184,6 +184,15 @@ Use an auction you created. If you have not created one, do step 20 first.
     *not disclosed*.
 
 24. Wait out the dispute window, then **Finalize**.
+    **Do this before judging opens.** A Finalized auction can never be abandoned; a
+    Sealed one can, by anyone, once its grace period elapses. See "Operating `abandon`"
+    in [mainnet.md](mainnet.md).
+
+24b. With the auction still **Sealed** and inside its grace period, try `abandon` from a
+    second wallet.
+    **Expect:** a refusal — `SETTLE_GRACE_OPEN`.
+    **Bug:** it succeeding. That would mean the grace is being measured from the wrong
+    moment, and the demo auction is cancellable by anyone.
 
 ---
 

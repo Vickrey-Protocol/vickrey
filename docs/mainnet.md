@@ -268,6 +268,54 @@ against the contracts that ran the full Sepolia lifecycle, and switching to an u
 artifact to chase a saving that measurement says is zero is a bad trade on the single most
 expensive transaction in the project.
 
+## Operating `abandon` — read before listing anything judges will see
+
+`abandon` is permissionless by design: the people with funds trapped in a sealed auction
+are the bidders, so requiring the absent auctioneer's cooperation to escape their
+absence would be no escape at all. That openness has an operational cost, and it is not
+a bug — it is a parameter you have to set deliberately.
+
+**The grace period counts from `sealed_at_time`** — the block timestamp `seal` stamped —
+plus the auction's own `dispute_window`. Not from the bid deadline, not from listing,
+not from a settle attempt. Those diverge whenever sealing is late, and sealing is
+permissionless, so it fires whenever somebody gets round to it.
+
+```
+abandonable  ⟺  status == Sealed  ∧  now ≥ sealed_at_time + dispute_window
+```
+
+**The exposed window is `seal` → `settle`, and nothing wider.** An Open auction has no
+outstanding auctioneer obligation, so there is nothing to time out. A Settled one has
+moved past it. Both are refused.
+
+### The consequence for a demo
+
+With the 180-second demo preset, an auction that sits Sealed for three minutes can be
+cancelled by anyone. Nobody is robbed — every bidder is refunded in full and the lot
+goes home — but the auction judges were looking at is gone.
+
+The obvious fix is a long `dispute_window`, and it works. It also has a cost worth
+seeing before you reach for it: **the same parameter sets how long `finalize` must
+wait.** A 24-hour window buys 24 hours of abandon protection and imposes a 24-hour delay
+before the auction can resolve. You cannot have a fast demo and a long grace from one
+number, because it is one number.
+
+### So: finalize it, don't fence it
+
+**A Finalized auction can never be abandoned, whatever its dispute window.** That is the
+escape hatch, and it is strictly better than a long window because it does not trade
+anything away.
+
+| Auction | What to do |
+|---|---|
+| The judged demo | Run it **through to Finalized before judging opens**. Immune from then on. A short window is then a feature — it gets you to Finalized sooner |
+| Anything left live during judging | 24h+ `dispute_window`. It will be slow to resolve; that is the price |
+| A real auction, any value | 24h+ regardless. The window is also the only time a wrong settlement can be challenged |
+
+The failure mode to avoid is the middle one by accident: listing a demo-preset auction,
+letting it seal, and leaving it Sealed over a judging window. Seal and settle in the
+same sitting, or do not seal yet.
+
 ## What to fund, itemised
 
 Two separate questions: getting the contracts up, and running the judged auction. The

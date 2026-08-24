@@ -396,3 +396,69 @@ fn abandon_does_not_apply_to_a_settled_auction() {
 fn an_auction_with_no_auctioneer_is_rejected_at_listing() {
     setup_with_auctioneer(AuctionKind::Vickrey, Zero::zero());
 }
+
+/// The grace boundary, pinned exactly.
+///
+/// It counts from **`sealed_at_time`** — the block timestamp `seal` stamped — and not
+/// from the bid deadline, the settle attempt, or the listing. Those differ whenever
+/// sealing is late, which it often is: `seal` is permissionless and fires whenever
+/// somebody gets round to it.
+#[test]
+#[should_panic(expected: 'SETTLE_GRACE_OPEN')]
+fn abandon_one_second_before_the_grace_expires_is_rejected() {
+    let env = setup(AuctionKind::Vickrey);
+    place(env, 'A', 'SA', 5);
+    seal(env); // stamps sealed_at_time = DEADLINE
+    start_cheat_block_timestamp_global(DEADLINE + WINDOW - 1);
+    env.auction.abandon(env.id);
+}
+
+#[test]
+fn abandon_at_exactly_the_grace_boundary_is_allowed() {
+    let env = setup(AuctionKind::Vickrey);
+    place(env, 'A', 'SA', 5);
+    seal(env);
+    start_cheat_block_timestamp_global(DEADLINE + WINDOW);
+    env.auction.abandon(env.id);
+}
+
+/// A live auction is not abandonable. The vulnerable window is `seal` to `settle` and
+/// nothing wider: while bidding is open there is no auctioneer obligation outstanding,
+/// so there is nothing to time out.
+#[test]
+#[should_panic(expected: 'AUCTION_NOT_SEALED')]
+fn an_open_auction_cannot_be_abandoned() {
+    let env = setup(AuctionKind::Vickrey);
+    place(env, 'A', 'SA', 5);
+    start_cheat_block_timestamp_global(DEADLINE + WINDOW + 1);
+    env.auction.abandon(env.id);
+}
+
+/// **The operator's escape hatch.** A finalized auction is permanently immune, whatever
+/// its dispute window. Running the judged auction through to Finalized before anyone
+/// looks at it is what puts it out of reach of a griefer, and it does not depend on
+/// choosing a long window.
+#[test]
+#[should_panic(expected: 'AUCTION_NOT_SEALED')]
+fn a_finalized_auction_can_never_be_abandoned() {
+    let env = setup(AuctionKind::Vickrey);
+    let a = place(env, 'A', 'SA', 5);
+    seal(env);
+    settle(env, 0, a.index, array![proof_above(env, a, 0)]);
+    finalize(env);
+    // Far past any grace period. Still refused.
+    start_cheat_block_timestamp_global(DEADLINE + WINDOW * 100);
+    env.auction.abandon(env.id);
+}
+
+/// Abandoning twice is not a way to drain the lot a second time.
+#[test]
+#[should_panic(expected: 'AUCTION_NOT_SEALED')]
+fn abandon_is_not_repeatable() {
+    let env = setup(AuctionKind::Vickrey);
+    place(env, 'A', 'SA', 5);
+    seal(env);
+    start_cheat_block_timestamp_global(DEADLINE + WINDOW + 1);
+    env.auction.abandon(env.id);
+    env.auction.abandon(env.id);
+}
