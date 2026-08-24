@@ -130,9 +130,16 @@ because STRK is the case that already worked.
 
 | | Line | Expected |
 |---|---|---|
+Scripted end to end — `AUCTION=0x… node scripts/verify-abandon.mjs` — so it runs
+unattended the moment Sepolia is funded. It checks the refusal *reason*, not merely that
+something failed.
+
+| ☐ | an Open auction cannot be abandoned | refuses, `AUCTION_NOT_SEALED` |
 | ☐ | abandon inside the grace | refuses, `SETTLE_GRACE_OPEN` |
-| ☐ | abandon after the grace | succeeds, everyone refunded, lot home |
-| ☐ | abandon a Finalized auction | refuses — the operator escape hatch |
+| ☐ | abandon after the grace | succeeds, status → Cancelled |
+| ☐ | every bidder refunded the full cap | balances read back |
+| ☐ | lot and bond returned to the seller | balance moved |
+| ☐ | abandon is not repeatable | refuses, `AUCTION_NOT_SEALED` |
 
 ## 6. The pool leg
 
@@ -156,7 +163,8 @@ it unless Xverse offers STRK20 there.
 
 | | Line | How |
 |---|---|---|
-| ☐ | 6a — `Routed` and `BidPlaced` in one transaction, via `MockPrivacyPool` on Sepolia | explorer link |
+| ☐ | 6a — `Routed` and `BidPlaced` in one transaction, via `MockPrivacyPool` on Sepolia | `scripts/deploy-mock-pool.sh` then `scripts/verify-events.mjs` |
+| ☐ | 6a — `Routed` carries no bid-identifying value | asserted in the same script |
 | ☑ | 6b — encoding accepted by the live mainnet pool | `npm run verify:pool` — 2 shapes pass on state, 3 controls fail on shape |
 | ☐ | 6c — real pool, real proof | Sepolia if Xverse allows it, otherwise mainnet-first |
 | ☐ | refund returns as an open note | tx hash |
