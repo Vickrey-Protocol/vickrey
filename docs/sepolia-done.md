@@ -19,6 +19,37 @@ done.
 
 ---
 
+## 0. Blocker: Sepolia is underfunded for this plan
+
+Completing the product on Sepolia means declaring the **frozen** build there — the
+pre-freeze classes currently deployed have neither `abandon` nor `Routed`, so §5 and §6
+cannot be exercised against them.
+
+Measured against Sepolia at block 13980400:
+
+| Step | Spends | Must hold |
+|---|---|---|
+| declare both contracts + both deploys | 39.95 | **55.28** |
+| declare `MockERC20` (decimals is a constructor arg now, so the class moved) | 11.13 | 15.40 |
+| deploy two mock tokens, 18-decimal and 6-decimal | 0.20 | 0.30 |
+| full lifecycle ×2, one per token | 3.40 | 4.70 |
+| `abandon`: create, bid, seal, abandon, refunds | 2.00 | 2.80 |
+| pool leg, if Sepolia allows it (shield + 3 ops at 2 STRK) | 8.00 | 8.50 |
+| browser-driven runs, checklist 1–17 | 3.00 | 4.00 |
+| **total** | **67.68** | **55.28** at the first declare |
+
+**The account holds 57.11 STRK.** That is 10.6 short of the total and leaves **3%**
+headroom on the declare bound — a 3% gas rise strands the run with classes declared and
+nothing deployed.
+
+☐ **Top up Sepolia to 150 STRK.** Test STRK is free; the faucets at
+[starknet-faucet.vercel.app](https://starknet-faucet.vercel.app) and
+[faucet.starknet.io](https://faucet.starknet.io) both answer 200. Account:
+`0xbf54b8d90403f275fbf0e9db0bb7e2a278bcc0e8b53f3fe71a3e2931c668fa`
+
+Until this is done, everything below is blocked at the first declare. It is the cheapest
+blocker in the project and the one gating all the rest.
+
 ## 1. Full lifecycle end to end, via a browser wallet
 
 Not the script. A human clicking, because that is the path that has never run.
