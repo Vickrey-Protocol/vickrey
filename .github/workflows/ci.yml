@@ -3,10 +3,13 @@ name: CI
 on:
   push: { branches: [main] }
   pull_request:
+  workflow_dispatch:
   schedule:
     # Links rot on someone else's schedule, not ours. A weekly run catches a host
     # disappearing before a judge does.
     - cron: "17 6 * * 1"
+    # Deploy drift is faster-moving and more expensive, so it gets its own cadence.
+    - cron: "23 */6 * * *"
 
 jobs:
   contracts:
@@ -33,6 +36,8 @@ jobs:
       - run: npm run build
 
   links:
+    # Weekly is enough for links; skip them on the 6-hourly deploy-drift run.
+    if: github.event.schedule != '23 */6 * * *'
     # Every dead URL we have shipped was a well-formed link to a host that had gone
     # away: a retired Blast RPC, then sepolia.starkscan.co. Only a real request finds
     # those, so this makes one.
@@ -46,12 +51,15 @@ jobs:
           SITE: https://vickrey-ten.vercel.app
 
   deployed:
-    # A push to main does not deploy anything: the Vercel project has no git repository
-    # connected, so every deploy is manual. Four commits once sat here while the live
-    # URL served an older build and nothing said so. This is the thing that says so.
+    # Four commits once sat on main while the live URL served an older build, because
+    # the Vercel project has no git repository connected and every deploy is manual.
     #
-    # Runs only on main — a PR branch is *expected* not to be live.
-    if: github.ref == 'refs/heads/main'
+    # Deliberately NOT on push. With manual deploys, "main is ahead of live" is the
+    # normal state for the minutes between pushing and deploying, so a push-triggered
+    # check would fail almost every time and be trained away within a day. On a schedule
+    # it only fires when the drift has actually persisted, which is the failure that
+    # happened. Also dispatchable, for the last day when you want to be certain.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
