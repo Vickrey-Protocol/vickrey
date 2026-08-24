@@ -343,15 +343,34 @@ number, because it is one number.
 escape hatch, and it is strictly better than a long window because it does not trade
 anything away.
 
-| Auction | What to do |
-|---|---|
-| The judged demo | Run it **through to Finalized before judging opens**. Immune from then on. A short window is then a feature — it gets you to Finalized sooner |
-| Anything left live during judging | 24h+ `dispute_window`. It will be slow to resolve; that is the price |
-| A real auction, any value | 24h+ regardless. The window is also the only time a wrong settlement can be challenged |
+### The operator rule, both halves
 
-The failure mode to avoid is the middle one by accident: listing a demo-preset auction,
-letting it seal, and leaving it Sealed over a judging window. Seal and settle in the
-same sitting, or do not seal yet.
+Only a **Sealed** auction is abandonable. So there are exactly two ways to be safe, and
+an auction left over a judging window has to satisfy one of them:
+
+**1. Past it — the judged auction reaches Finalized before judging opens.**
+Finalized is permanently immune, whatever the dispute window. This is the one that
+matters, because it is the auction judges will actually open. A short window helps here
+rather than hurting: it gets you to Finalized sooner.
+
+**2. Short of it — anything left biddable has a bid deadline beyond 4 Sept.**
+An Open auction cannot be abandoned: there is no outstanding auctioneer obligation to
+time out, so the state is unreachable. Push the deadline past the judging period and the
+auction never reaches Sealed unattended, so the grace period never starts counting.
+
+| Auction | Rule |
+|---|---|
+| The judged demo | Finalized before judging opens |
+| Anything left biddable during judging | `bid_deadline` **after 4 Sept 2026** |
+| A real auction, any value | 24h+ `dispute_window` — it is also the only time a wrong settlement can be challenged |
+
+**The gap between the two is the whole risk**, and it is narrow and specific: an auction
+whose bid deadline passes mid-judging, gets sealed by anyone (`seal` is permissionless),
+and then sits Sealed with no auctioneer watching. It is not a long-window problem and a
+long window is not the fix — the fix is to be on one side of Sealed or the other.
+
+Concretely, before judging opens: every auction is either Finalized, or has a deadline
+past 4 Sept. Nothing in between.
 
 ## What to fund, itemised
 
