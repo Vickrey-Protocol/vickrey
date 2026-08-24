@@ -133,6 +133,27 @@ read about.
 Sponsored is costed and the pool supports it; no relayer is deployed, so the interface
 shows it and does not offer it.
 
+### Why the app leads with one rail and the sprint counts the other
+
+These sound like they disagree and they do not, so it is worth stating both plainly in
+one place.
+
+**The app leads with the public rail** because it is the one a visitor completes. There
+is nothing to install and nothing to fund in advance, and their bid is sealed. Leading
+with a rail that requires leaving the site, activating privacy in your own wallet and
+paying a fee twice would mean most people abandon a bid halfway — a worse outcome than
+a public address on a sealed bid.
+
+**The sprint counts the shielded rail** because its rule is conjunctive: a qualifying
+mainnet transaction must touch the STRK20 pool **and** carry an event from a contract we
+deployed. Only `pool → AuctionAnonymizer → SealedBidAuction` does both. Public-rail bids
+never touch the pool, so no number of them counts.
+
+So the shielded rail is not the ambitious extra on this entry — it is the part that makes
+it scoreable, and the entry runs at least three of those transactions on mainnet. The
+public rail is the front door. Both are real, both seal the bid, and the honest way to
+describe the difference has not changed: **only your address is treated differently.**
+
 ## Where this touches STRK20
 
 The ranking proof is our own Poseidon construction, because it has to be — STRK20

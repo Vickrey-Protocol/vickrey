@@ -16,6 +16,23 @@
 >    pool transactions and a plain one. It is a worse one.
 >
 > If the pool leg fails, stop and read [fallback.md](fallback.md) before improvising.
+>
+> ## RULE 2 — the shielded rail is the scoreable half
+>
+> Not the ambitious half. **The public rail scores zero**, however well it works and
+> however many bids run through it, because public-rail bids never touch the pool and
+> the rule is conjunctive: touch the pool **and** emit an event from a contract we
+> listed. Only `pool → AuctionAnonymizer → SealedBidAuction` does both.
+>
+> This is the fact most likely to be forgotten under pressure, because the public rail
+> is the one that visibly works and the one the interface leads with. Leading with it is
+> correct — it is what a judge completes without setup. Counting on it is not.
+>
+> The corollary is the useful part: `Routed` is emitted at the top of `privacy_invoke`,
+> before the operation dispatches, so **every** operation qualifies. Three pool-routed
+> `place_bid` calls into one auction are three qualifying transactions, and they need
+> nothing from settle, finalize or the claim paths. **A settlement bug does not cost the
+> scoring gate.** Protect those three transactions ahead of everything else.
 
 Sepolia was a rehearsal. The sprint requires mainnet transactions and a demo anyone
 can open, so mainnet is the target and nothing in the code assumes a testnet run will
@@ -558,24 +575,30 @@ scripts/deploy.sh mainnet <sncast-account>
 Deadline **Mon 31 Aug 2026, 23:59 UTC** — submissions close, and whatever the repo
 shows at that moment is the entry. There is no separate submission step.
 
-Working backwards from what has to be true at the end — a five-bidder auction run, a
-video recorded, and `strk20.json` filled with three verified pool transactions:
+**The declare is now gated on the freeze, not on a date.** An earlier version of this
+section recommended declaring Wed 26. That was written before the candidate/frozen
+distinction existed, and declaring before §1, §5 and §6a pass on Sepolia risks paying
+44.7 STRK twice — see [sepolia-done.md](sepolia-done.md).
 
 | Day | | What has to happen |
 |---|---|---|
-| Wed 26 Aug | T-5 | **Recommended declare.** Declare, deploy, read back, point the site at mainnet |
-| Thu 27 Aug | T-4 | First pool transaction end to end. This is where an unknown surfaces |
-| Fri 28 Aug | T-3 | Five-bidder auction. Bidders recruited and rehearsed *before* today |
+| Mon 24 Aug | T-7 | Sepolia funded, candidate declared there, §5 and §6a run |
+| Tue 25 Aug | T-6 | §1 in the browser. Fix whatever the three surfaced |
+| Wed 26 Aug | T-5 | Re-verify. **Freeze here if one Cairo round was enough** |
+| **Thu 27 Aug** | **T-4** | **Committed freeze.** Then mainnet declare + deploy — minutes, the 90 STRK is pre-funded |
+| Thu 27 / Fri 28 | | **Pool leg first** (Rule 1). Then the judged auction |
 | Sat 29 Aug | T-2 | Record the video. Needs the auction already run |
 | Sun 30 Aug | T-1 | `strk20.json`, README, link-check. Everything final |
 | Mon 31 Aug | T-0 | Buffer. Something breaks on the last day; it always does |
 
-**Recommended declare: Wed 26 Aug.** That leaves two clear days for the pool path,
-which is the part nobody has ever run.
+**Room for one Cairo fix round after Thursday, not two.** Each round is a Sepolia
+redeclare, a re-verification, and then the mainnet declare — about a day. Two rounds put
+the pool leg on Saturday, and the pool leg is the step most likely to need the days after
+it.
 
-**Hard latest: Sat 29 Aug.** Declare and deploy in the morning, three pool
-transactions in the afternoon, video Sunday, submit Monday. No room for a failed
-declare, a wallet surprise, or a re-declare after a contract fix.
+**Hard latest for the mainnet declare: Sat 29 Aug.** Declare and deploy in the morning,
+pool transactions in the afternoon, video Sunday, submit Monday. No room for a failed
+declare, a wallet surprise, or a redeclare after a contract fix.
 
 **Do not declare later than 29 Aug.** Past that there is no path to three verified pool
 transactions and a video.
