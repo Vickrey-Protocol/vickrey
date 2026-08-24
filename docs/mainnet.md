@@ -1,5 +1,22 @@
 # Mainnet: the deliverable
 
+> ## RULE 1 — the pool leg goes first
+>
+> **Immediately after `deploy.sh` returns, attempt a pool transaction.** Before the
+> judged auction. Before recruiting bidders. Before the video. Before anything.
+>
+> Two reasons, and the second is the stronger one:
+>
+> 1. It is the only step never rehearsed against the real pool, so it is where an
+>    unknown lives. Hitting it first buys every remaining hour to react.
+> 2. **Three qualifying pool transactions are the gate to being scored at all.** The
+>    sprint README: *"To win, your app must run on Starknet mainnet against the live
+>    STRK20 pool, with at least three mainnet transactions that touched the pool."* A
+>    beautiful judged auction with no pool transactions is not a better entry than three
+>    pool transactions and a plain one. It is a worse one.
+>
+> If the pool leg fails, stop and read [fallback.md](fallback.md) before improvising.
+
 Sepolia was a rehearsal. The sprint requires mainnet transactions and a demo anyone
 can open, so mainnet is the target and nothing in the code assumes a testnet run will
 be available for the pool leg.
