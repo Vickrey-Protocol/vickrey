@@ -69,6 +69,18 @@ Open **`/wallet-check`**. Every check on that page is free; nothing signs, nothi
 are a different wallet, or a documented entry that cannot be scored on the pool
 requirement — and that is a decision for you, not a thing to discover on the 31st.
 
+### 0a-bis. Confirm the reading, from the chain
+
+`NOT_REGISTERED` is a fact you can check independently of any wallet UI:
+
+```
+node scripts/pool-status.mjs <your-wallet-address>
+```
+
+`registered: no` and `channels: 0` are exactly what the probe reported. Run it again
+after 0b — those two lines flipping is what proves the shield landed, and it does not
+depend on reading the wallet correctly.
+
 ### 0b. The smallest real shield — ~6 STRK plus the amount
 
 Only after 0a passes.
