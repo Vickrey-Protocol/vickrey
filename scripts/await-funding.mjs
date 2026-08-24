@@ -30,7 +30,7 @@ const balance = async (rpc, addr) => {
   return Number(BigInt(r[0]) + (BigInt(r[1] ?? 0) << 128n)) / 1e18;
 };
 
-const MAX_MINUTES = 55;
+const MAX_MINUTES = Number(process.env.MINUTES ?? 55);
 for (let i = 0; i < MAX_MINUTES; i++) {
   const seen = [];
   for (const [net, rpc, addr, need] of ACCOUNTS) {
@@ -46,7 +46,7 @@ for (let i = 0; i < MAX_MINUTES; i++) {
       seen.push(`${net} unreachable`);
     }
   }
-  if (i % 5 === 0) console.log(`  [${i}m] ${seen.join("   ")}`);
+  if (i % 10 === 0) console.log(`  [${i}m] ${seen.join("   ")}`);
   await new Promise((r) => setTimeout(r, 60_000));
 }
 console.log("\nStill unfunded after 55 minutes. Not an error — check by hand.");
