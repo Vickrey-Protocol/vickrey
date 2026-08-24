@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { CallData, num, shortString } from "starknet";
+import { CallData, RpcProvider, num, shortString } from "starknet";
 import { AuctionKind, Status } from "@vickrey/client";
 import { config, formatUnits, utcDate } from "@/lib/config";
 import { DashShell } from "@/components/DashShell";
@@ -26,11 +26,19 @@ const DISPUTE_PRESETS = [
   { label: "Suggested", secs: 86400, note: "A day. The shortest window a bidder could reasonably be expected to catch." },
 ];
 
-const toWei = (s: string | undefined): bigint => {
+/**
+ * Human amount to token units, at the token's **own** decimals.
+ *
+ * Hardcoding 18 works for STRK and ETH and is wrong for USDC, which has six — an
+ * auction created that way would escrow a millionth of what the form displayed. The
+ * decimals are read from the token below, not assumed here.
+ */
+const toUnits = (s: string | undefined, decimals: number): bigint => {
   if (!s) throw new Error("required");
   const [w = "", f = ""] = s.trim().split(".");
   if (!/^\d*$/.test(w) || !/^\d*$/.test(f)) throw new Error("not a number");
-  return BigInt(w || "0") * 10n ** 18n + BigInt((f + "0".repeat(18)).slice(0, 18));
+  return BigInt(w || "0") * 10n ** BigInt(decimals)
+    + BigInt((f + "0".repeat(decimals)).slice(0, decimals));
 };
 
 export default function Client() {
@@ -48,20 +56,42 @@ export default function Client() {
   const [closeIn, setCloseIn] = useState(600);
   const [window_, setWindow] = useState(86400);
   const [kind, setKind] = useState<AuctionKind>(AuctionKind.Vickrey);
+  /* Read from the token the moment it is entered. Everything the form computes —
+     spacing, cap, escrow, the preview ladder — is denominated in these. */
+  const [decimals, setDecimals] = useState(18);
+  const [tokenErr, setTokenErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (!/^0x[0-9a-fA-F]{10,}$/.test(lotToken)) { setTokenErr(null); return; }
+    let live = true;
+    (async () => {
+      try {
+        const p = new RpcProvider({ nodeUrl: config.rpcUrl });
+        const r = await p.callContract({ contractAddress: lotToken, entrypoint: "decimals", calldata: [] });
+        if (!live) return;
+        const d = Number(BigInt(r[0]!));
+        setDecimals(Number.isFinite(d) && d >= 0 && d <= 32 ? d : 18);
+        setTokenErr(null);
+      } catch {
+        if (live) setTokenErr("Could not read this token's decimals. Check the address.");
+      }
+    })();
+    return () => { live = false; };
+  }, [lotToken]);
+
   const derived = useMemo(() => {
     try {
-      const r = toWei(reserve), t = toWei(top);
+      const r = toUnits(reserve, decimals), t = toUnits(top, decimals);
       if (levels < 2) return { error: "A ladder needs at least two levels." };
       if (t <= r) return { error: "The top of the ladder must be above the reserve." };
       const tick = (t - r) / BigInt(levels - 1);
       if (tick === 0n) return { error: "Too many levels for that range — the rungs collapse." };
       return { reserve: r, tick, cap: r + tick * BigInt(levels - 1), error: null as string | null };
     } catch { return { error: "Reserve and top must be numbers." }; }
-  }, [reserve, top, levels]);
+  }, [reserve, top, levels, decimals]);
 
   const submit = async () => {
     if (!connection || derived.error || !derived.reserve) return;
@@ -70,16 +100,16 @@ export default function Client() {
       const deadline = Math.floor(Date.now() / 1000) + closeIn;
       const calldata = CallData.compile([
         connection.address, connection.address, lotToken, lotToken,
-        num.toHex(toWei(lotAmount)),
+        num.toHex(toUnits(lotAmount, decimals)),
         num.toHex(kind === AuctionKind.Vickrey ? 1 : 0),
         num.toHex(derived.reserve), num.toHex(derived.tick!),
         num.toHex(levels), num.toHex(deadline), num.toHex(window_),
-        num.toHex(toWei(bond)), shortString.encodeShortString(title.slice(0, 31)),
+        num.toHex(toUnits(bond, decimals)), shortString.encodeShortString(title.slice(0, 31)),
       ]);
       const { transaction_hash } = await connection.account.execute([
         { contractAddress: lotToken, entrypoint: "approve",
           calldata: CallData.compile([config.auctionAddress,
-            num.toHex(toWei(lotAmount) + toWei(bond)), "0x0"]) },
+            num.toHex(toUnits(lotAmount, decimals) + toUnits(bond, decimals)), "0x0"]) },
         { contractAddress: config.auctionAddress, entrypoint: "create_auction", calldata },
       ]);
       setDone(transaction_hash);
@@ -131,7 +161,7 @@ export default function Client() {
             <>
               {field("Lot token", <input value={lotToken}
                 onChange={(e) => setLotToken(e.target.value)} placeholder="0x…" />,
-                "The ERC-20 being auctioned. Escrow and payment use the same token.")}
+                tokenErr ?? `The ERC-20 being auctioned. Escrow and payment use the same token. Decimals read from the token: ${decimals}.`)}
               {field("Lot amount", <input value={lotAmount}
                 onChange={(e) => setLotAmount(e.target.value)} />, "Transferred to the contract on create.")}
               {field("Title", <input value={title} maxLength={31}
@@ -158,8 +188,8 @@ export default function Client() {
               {derived.error
                 ? <p className="err">{derived.error}</p>
                 : <p className="note">
-                    Spacing <b>{formatUnits(derived.tick!)}</b> per rung · top{" "}
-                    <b>{formatUnits(derived.cap!)}</b>
+                    Spacing <b>{formatUnits(derived.tick!, decimals)}</b> per rung · top{" "}
+                    <b>{formatUnits(derived.cap!, decimals)}</b>
                   </p>}
             </>
           )}
@@ -173,7 +203,7 @@ export default function Client() {
                 <p className="eyebrow">Why escrow is the same for everyone</p>
                 <p className="note" style={{ marginTop: ".4rem" }}>
                   Every bidder escrows the top of the ladder — {derived.cap
-                    ? formatUnits(derived.cap) : "…"} — regardless of what they bid.
+                    ? formatUnits(derived.cap, decimals) : "…"} — regardless of what they bid.
                   The withdrawal from the pool is a public ERC-20 transfer, so an escrow
                   that matched the bid would publish the bid. A uniform cap reveals
                   nothing, and the difference is refunded.
@@ -221,7 +251,7 @@ export default function Client() {
                 <div className="fact"><dt>Top</dt><dd>{top}</dd></div>
                 <div className="fact"><dt>Levels</dt><dd>{levels}</dd></div>
                 <div className="fact"><dt>Escrow, everyone</dt>
-                  <dd>{derived.cap ? formatUnits(derived.cap) : "—"}</dd></div>
+                  <dd>{derived.cap ? formatUnits(derived.cap, decimals) : "—"}</dd></div>
                 <div className="fact"><dt>Your bond</dt><dd>{bond}</dd></div>
                 <div className="fact"><dt>Bidding closes</dt>
                   <dd>{utcDate(Math.floor(Date.now() / 1000) + closeIn)}</dd></div>
@@ -255,7 +285,7 @@ export default function Client() {
             <p className="note" style={{ marginTop: ".6rem" }}>{derived.error}</p>
           ) : (
             <Ladder numLevels={levels} reservePrice={derived.reserve!} tick={derived.tick!}
-                    symbol="" bidCount={0} status={Status.Open} />
+                    symbol="" decimals={decimals} bidCount={0} status={Status.Open} />
           )}
         </div>
       </div>

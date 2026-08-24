@@ -175,7 +175,7 @@ export function AuctioneerSection({
                 <dl className="facts">
                   <div className="fact">
                     <dt>Clearing price</dt>
-                    <dd>{formatUnits(plan.clearingPrice)} {auction.paymentSymbol}</dd>
+                    <dd>{formatUnits(plan.clearingPrice, auction.paymentDecimals)} {auction.paymentSymbol}</dd>
                   </div>
                   <div className="fact">
                     <dt>Winning bid</dt><dd>#{plan.winnerIndex}</dd>

@@ -13,7 +13,7 @@ import {
   Status,
 } from "@vickrey/client";
 import type { AuctionView } from "@/lib/chain";
-import { config, countdown, formatUnits, hasAnonymizer, priceAt } from "@/lib/config";
+import { STRK_DECIMALS, config, countdown, formatUnits, hasAnonymizer, priceAt } from "@/lib/config";
 import { markRevealed, saveBid, toPrivateBid, type StoredBid } from "@/lib/vault";
 import type { Connection } from "@/lib/wallet";
 import { Ladder } from "./Ladder";
@@ -145,7 +145,7 @@ export function BidPanel({
       <div>
         <h3 style={{ fontSize: "var(--step-1)" }}>Place a bid</h3>
         <p className="note">
-          Pick a level. Everyone escrows the same {formatUnits(auction.collateral)}{" "}
+          Pick a level. Everyone escrows the same {formatUnits(auction.collateral, auction.paymentDecimals)}{" "}
           {auction.paymentSymbol}, which is what stops the escrow saying anything about
           the bid behind it — the difference comes back to you privately.
         </p>
@@ -183,7 +183,7 @@ export function BidPanel({
                 : "No anonymizer configured."}
           </span>
           <span className="rail-cost">
-            {auction.poolFee === null ? "pool fee + gas" : `${formatUnits(auction.poolFee)} STRK pool fee + gas`}
+            {auction.poolFee === null ? "pool fee + gas" : `${formatUnits(auction.poolFee, STRK_DECIMALS)} STRK pool fee + gas`}
           </span>
         </button>
 
@@ -209,7 +209,7 @@ export function BidPanel({
             <b>shielding does not happen here</b> — the wallet standard has no deposit
             method, so no site can do it for you. Open your wallet&rsquo;s private balance
             section and shield there first. The pool charges{" "}
-            {auction.poolFee === null ? "its fee" : <b>{formatUnits(auction.poolFee)} STRK</b>}{" "}
+            {auction.poolFee === null ? "its fee" : <b>{formatUnits(auction.poolFee, STRK_DECIMALS)} STRK</b>}{" "}
             for the shield and again for the bid.
           </p>
           <p className="note" style={{ marginTop: ".4rem" }}>
@@ -227,6 +227,7 @@ export function BidPanel({
           reservePrice={auction.terms.reservePrice}
           tick={auction.terms.tick}
           symbol={auction.paymentSymbol}
+          decimals={auction.paymentDecimals}
           bidCount={auction.bidCount}
           status={auction.status}
           pickedLevel={level}
@@ -242,7 +243,7 @@ export function BidPanel({
                   "—"
                 ) : (
                   <span className="price" style={{ fontSize: "1.6rem" }}>
-                    {formatUnits(priceAt(auction.terms, level))}
+                    {formatUnits(priceAt(auction.terms, level), auction.paymentDecimals)}
                   </span>
                 )}
                 {level !== null && ` ${auction.paymentSymbol}`}
@@ -250,12 +251,12 @@ export function BidPanel({
             </div>
             <div className="fact">
               <dt>You escrow</dt>
-              <dd>{formatUnits(auction.collateral)} {auction.paymentSymbol}</dd>
+              <dd>{formatUnits(auction.collateral, auction.paymentDecimals)} {auction.paymentSymbol}</dd>
             </div>
             <div className="fact">
               {/* The pool charges its fee in STRK whatever the auction settles in. */}
               <dt>Pool fee</dt>
-              <dd>{auction.poolFee === null ? "—" : `${formatUnits(auction.poolFee)} STRK`}</dd>
+              <dd>{auction.poolFee === null ? "—" : `${formatUnits(auction.poolFee, STRK_DECIMALS)} STRK`}</dd>
             </div>
           </dl>
 

@@ -23,8 +23,11 @@ export interface AuctionView {
   auctioneer: string;
   paymentToken: string;
   paymentSymbol: string;
+  /** Read from the token, never assumed. USDC is 6, not 18. */
+  paymentDecimals: number;
   lotToken: string;
   lotSymbol: string;
+  lotDecimals: number;
   lotAmount: bigint;
   bidDeadline: number;
   disputeWindow: number;
@@ -68,6 +71,28 @@ async function symbolOf(p: RpcProvider, token: string): Promise<string> {
   }
 }
 
+/**
+ * A token's decimals, read rather than assumed.
+ *
+ * Everything here used to default to 18, which is right for STRK and ETH and wrong for
+ * USDC — six decimals, so a balance of 1.0 would have rendered as 0.000000000001. The
+ * default was correct only by luck, and the luck runs out the first time an auction is
+ * denominated in anything else. The payment token is a constructor parameter, so that
+ * is a configuration choice away, not a rewrite away.
+ *
+ * 18 remains the fallback for a token that will not answer, because it is the common
+ * case — but it is a fallback now, not an assumption.
+ */
+async function decimalsOf(p: RpcProvider, token: string): Promise<number> {
+  try {
+    const r = await p.callContract({ contractAddress: token, entrypoint: "decimals", calldata: [] });
+    const d = Number(BigInt(r[0]!));
+    return Number.isFinite(d) && d >= 0 && d <= 32 ? d : 18;
+  } catch {
+    return 18;
+  }
+}
+
 export async function readAuction(id: bigint): Promise<AuctionView | null> {
   const p = provider();
   const call = (entrypoint: string, calldata: string[] = []) =>
@@ -91,10 +116,13 @@ export async function readAuction(id: bigint): Promise<AuctionView | null> {
     numLevels: Number(n(cfg[8]!)),
   };
 
-  const [collateral, paymentSymbol, lotSymbol, fee] = await Promise.all([
+  const [collateral, paymentSymbol, lotSymbol, paymentDecimals, lotDecimals, fee] =
+    await Promise.all([
     call("collateral", [id.toString()]).then((r) => n(r[0]!)),
     symbolOf(p, paymentToken),
     symbolOf(p, lotToken),
+    decimalsOf(p, paymentToken),
+    decimalsOf(p, lotToken),
     config.poolAddress
       ? readPoolFee(p as never, config.poolAddress).catch(() => null)
       : Promise.resolve(null),
@@ -106,8 +134,10 @@ export async function readAuction(id: bigint): Promise<AuctionView | null> {
     auctioneer: cfg[1]!,
     paymentToken,
     paymentSymbol,
+    paymentDecimals,
     lotToken,
     lotSymbol,
+    lotDecimals,
     lotAmount: n(cfg[4]!),
     bidDeadline: Number(n(cfg[9]!)),
     disputeWindow: Number(n(cfg[10]!)),

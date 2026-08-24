@@ -75,7 +75,7 @@ export default function Client({ id }: { id: string }) {
           <div className="panel" style={{ marginBottom: "1rem" }}>
             <p className="eyebrow">Your bond</p>
             <p style={{ marginTop: ".4rem" }}>
-              <b>{formatUnits(auction.bond)} {auction.paymentSymbol}</b> is staked on this
+              <b>{formatUnits(auction.bond, auction.paymentDecimals)} {auction.paymentSymbol}</b> is staked on this
               settlement being correct.
             </p>
             <p className="note" style={{ marginTop: ".4rem" }}>

@@ -18,6 +18,24 @@ These are not style preferences. Each one is here because skipping it cost somet
 5. **The trust statement is two sentences and is never shortened.** It appears
    verbatim in [TRUST.md](TRUST.md), the README, the app and the video description.
    Changing the tier changes the statement.
+6. **Published documentation lags the chain. Read the chain.** Three times now the
+   written source has been out of date and the live contract has been right:
+
+   | Documentation said | The chain said | Cost of believing the doc |
+   |---|---|---|
+   | Blast RPC is the endpoint | retired, no response | every RPC URL in the repo was dead |
+   | Sepolia explorer mirrors mainnet's host | `sepolia.starkscan.co` does not resolve | a judge clicking a contract link gets NXDOMAIN |
+   | Shielded transactions cost 4 STRK | `get_fee_amount` returns **6** | a funding plan 50% short on every pool operation |
+
+   So: no number that a contract can be asked for is ever hardcoded from a blog post,
+   an announcement, or a guide. The pool fee is read live from `get_fee_amount`. Token
+   decimals are read from `decimals()` — assuming 18 rendered a 250 USDC lot as `0`.
+   Endpoints are fetched by `scripts/check-links.mjs` rather than trusted.
+
+   The corollary matters as much: **check a document's date before citing it as a
+   limit.** A May guide saying only strkBTC is shieldable was quoted here as a caution
+   after STRK20 had shipped in June and July's "Push to Private" had stated any ERC-20.
+   Stale sources produce false blockers, which waste as much time as false confidence.
 
 ## Before you push
 

@@ -124,7 +124,7 @@ export default function Client() {
                     ? <span className={`pill ${STATUS[auction.status].cls}`}>{STATUS[auction.status].label}</span>
                     : <span className="note">not found on chain</span>}</td>
                   <td>{auction
-                    ? `${formatUnits(auction.collateral)} ${auction.paymentSymbol}`
+                    ? `${formatUnits(auction.collateral, auction.paymentDecimals)} ${auction.paymentSymbol}`
                     : <span className="undisclosed">—</span>}</td>
                   <td>{bid.revealedAt ? "yes" : <span className="undisclosed">not yet</span>}</td>
                   <td>{bid.claimSecret

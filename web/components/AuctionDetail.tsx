@@ -57,18 +57,18 @@ export function AuctionDetail({
 
         <dl className="facts" style={{ marginTop: "1.1rem" }}>
           <div className="fact"><dt>Lot</dt>
-            <dd>{formatUnits(auction.lotAmount)} {auction.lotSymbol}</dd></div>
+            <dd>{formatUnits(auction.lotAmount, auction.lotDecimals)} {auction.lotSymbol}</dd></div>
           <div className="fact"><dt>Reserve</dt>
-            <dd>{formatUnits(auction.terms.reservePrice)} {auction.paymentSymbol}</dd></div>
+            <dd>{formatUnits(auction.terms.reservePrice, auction.paymentDecimals)} {auction.paymentSymbol}</dd></div>
           <div className="fact"><dt>Escrow, everyone</dt>
-            <dd>{formatUnits(auction.collateral)} {auction.paymentSymbol}</dd></div>
+            <dd>{formatUnits(auction.collateral, auction.paymentDecimals)} {auction.paymentSymbol}</dd></div>
           <div className="fact"><dt>Levels</dt><dd>{auction.terms.numLevels}</dd></div>
           <div className="fact"><dt>Bids received</dt><dd>{auction.bidCount}</dd></div>
           <div className="fact"><dt>Clearing price</dt>
             {clearingPrice === null
               ? <dd className="undisclosed">not yet proved</dd>
               : <dd style={{ color: "var(--seal)", fontWeight: 600 }}>
-                  {formatUnits(clearingPrice)} {auction.paymentSymbol}</dd>}
+                  {formatUnits(clearingPrice, auction.paymentDecimals)} {auction.paymentSymbol}</dd>}
           </div>
           {/* R4: the window is always on screen, always counting, and always carries the
               absolute UTC time beside it — a countdown alone is unciteable. */}
@@ -99,13 +99,13 @@ export function AuctionDetail({
           </div>
           <p className="note" style={{ marginTop: ".5rem" }}>
             The dispute window closed clean and the funds have moved. Bid #{auction.winnerIndex}{" "}
-            won and paid {formatUnits(clearingPrice ?? 0n)} {auction.paymentSymbol}.
+            won and paid {formatUnits(clearingPrice ?? 0n, auction.paymentDecimals)} {auction.paymentSymbol}.
           </p>
           <dl className="facts" style={{ marginTop: "1rem" }}>
             <div className="fact"><dt>Paid</dt>
               <dd><span className="price">
                 <CountUp key={`paid-${motionKey}`} value={clearingPrice ?? 0n} animate={playing}
-                  format={(v) => formatUnits(v)} /></span>{" "}
+                  format={(v) => formatUnits(v, auction.paymentDecimals)} /></span>{" "}
                 <span style={{ color: "var(--ink-2)" }}>{auction.paymentSymbol}</span></dd></div>
             <div className="fact"><dt>What #{auction.winnerIndex} bid</dt>
               <dd className="undisclosed">never disclosed</dd></div>
@@ -131,6 +131,7 @@ export function AuctionDetail({
             reservePrice={auction.terms.reservePrice}
             tick={auction.terms.tick}
             symbol={auction.paymentSymbol}
+            decimals={auction.paymentDecimals}
             bidCount={auction.bidCount}
             status={auction.status}
             clearingLevel={settled ? auction.clearingLevel : null}

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { compareVersions, RpcProvider, walletV6 } from "starknet";
 import { classifyProbeError, probeAnswered, probeMissing } from "@vickrey/client";
 import { availableWallets } from "@/lib/wallet";
-import { config, formatUnits } from "@/lib/config";
+import { STRK_DECIMALS, config, formatUnits } from "@/lib/config";
 import { PublicShell } from "@/components/PublicShell";
 import { useWallet } from "@/components/WalletProvider";
 
@@ -55,7 +55,7 @@ export default function Client() {
       try {
         const fee = await read("get_fee_amount");
         out.push({ label: "Pool fee, read live", state: "pass",
-          detail: `${formatUnits(fee)} STRK per operation — charged on every pool action, the shield included` });
+          detail: `${formatUnits(fee, STRK_DECIMALS)} STRK per operation — charged on every pool action, the shield included` });
       } catch { /* reported by the reachability line above */ }
       try {
         const v = await read("get_version");

@@ -78,7 +78,7 @@ export function AuctionCard({
             ? (countdown(auction.bidDeadline, now) ? "still open" : "closing")
             : "not yet proved"}</b>
         ) : (
-          <b className="price">{formatUnits(price)} {auction.paymentSymbol}</b>
+          <b className="price">{formatUnits(price, auction.paymentDecimals)} {auction.paymentSymbol}</b>
         )}
       </div>
     </button>

@@ -110,20 +110,21 @@ result of this step.
 > mainnet pool reads 6, and it is governance-settable. `/wallet-check` prints the live
 > value; trust that over any blog post, this one included.
 
-#### ⚠ Check this at step 3, before you commit to anything
+#### At step 3: is STRK in the picker?
 
-**Is STRK in the asset list?** The strkBTC guide says Xverse's picker offers "currently
-only strkBTC and xstrkBTC". The STRK20 launch describes a framework for "all ERC-20
-assets", and the two statements cannot both be current. **The picker settles it in ten
-seconds and looking is free.**
+**The protocol supports it.** Starknet's ["Push to Private"](https://www.starknet.io/blog/push-to-private/)
+(15 July 2026) states STRK20 "lets any ERC-20 token exist privately on Starknet through
+shielding", live on mainnet. An earlier caution here cited the strkBTC guide's "currently
+only strkBTC and xstrkBTC" — that guide predates the STRK20 launch and was the wrong
+source to reason from.
 
-- **STRK is listed** → shield the smallest amount it accepts. Proceed as planned.
-- **STRK is not listed** → **stop and tell me before funding.** It is not fatal: the
-  auction's payment token is a constructor parameter, not a constant, so we denominate
-  the judged auction in whatever *is* shieldable (strkBTC) and the three qualifying
-  transactions work unchanged. But that decision has to be made **before the declare**,
-  because it changes the auction we create, and I would rather change a parameter than
-  discover this after 90 STRK is committed.
+**What is genuinely unknown is whether Xverse's picker exposes STRK**, because wallet UI
+trails protocol. That is a ten-second look, and it is free.
+
+- **STRK listed** → shield the smallest amount. Proceed as planned.
+- **STRK not listed** → tell me, and we denominate the judged auction in whatever *is*
+  listed. `payment_token` is a constructor parameter, so the contracts do not change and
+  the declare is unaffected.
 
 Either way the entry survives. What would hurt is finding out on the 31st.
 

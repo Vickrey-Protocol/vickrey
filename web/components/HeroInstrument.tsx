@@ -51,6 +51,7 @@ export function HeroInstrument({
           reservePrice={auction.terms.reservePrice}
           tick={auction.terms.tick}
           symbol={auction.paymentSymbol}
+          decimals={auction.paymentDecimals}
           bidCount={auction.bidCount}
           status={auction.status}
           clearingLevel={settled ? auction.clearingLevel : null}
@@ -65,7 +66,7 @@ export function HeroInstrument({
               key={`hero-price-${motionKey}`}
               value={clearing}
               animate={playing}
-              format={(v) => formatUnits(v)}
+              format={(v) => formatUnits(v, auction.paymentDecimals)}
             />
             <span className="rig-unit"> {auction.paymentSymbol}</span>
           </div>

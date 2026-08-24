@@ -114,7 +114,7 @@ export default function OverviewClient() {
                         ? <span className="local">{bids.map((b) => b.level).join(", ")}</span>
                         : <span className="undisclosed">—</span>}</td>
                       <td>{bids.length
-                        ? `${formatUnits(a.collateral * BigInt(bids.length))} ${a.paymentSymbol}`
+                        ? `${formatUnits(a.collateral * BigInt(bids.length), a.paymentDecimals)} ${a.paymentSymbol}`
                         : <span className="undisclosed">—</span>}</td>
                       <td><Link href={isAuc ? `/app/manage/${a.terms.auctionId}` : `/auction/${a.terms.auctionId}`}>
                         Open →</Link></td>

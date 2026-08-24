@@ -48,7 +48,7 @@ export default function Client() {
                 return (
                   <tr key={a.terms.auctionId.toString()}>
                     <td className="mono">{a.terms.auctionId.toString()}</td>
-                    <td>{formatUnits(a.lotAmount)} {a.lotSymbol}</td>
+                    <td>{formatUnits(a.lotAmount, a.lotDecimals)} {a.lotSymbol}</td>
                     <td><span className={`pill ${STATUS[a.status].cls}`}>{STATUS[a.status].label}</span></td>
                     <td className="mono">{a.bidCount}</td>
                     <td className="note">{waitingOn(a.status)}</td>

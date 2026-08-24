@@ -70,6 +70,9 @@ export const kindLabel = (k: AuctionKind) =>
  * `minFrac` keeps a column of figures aligned. A price scale reading
  * 4.75 / 4.5 / 4 / 3.75 is harder to read down than 4.75 / 4.50 / 4.00 / 3.75.
  */
+/** The pool charges its fee in STRK whatever the auction settles in. */
+export const STRK_DECIMALS = 18;
+
 export function formatUnits(raw: bigint, decimals = 18, maxFrac = 4, minFrac = 0): string {
   const base = 10n ** BigInt(decimals);
   const neg = raw < 0n;

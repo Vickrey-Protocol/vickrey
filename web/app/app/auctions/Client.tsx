@@ -48,10 +48,10 @@ export default function Client() {
                 return (
                   <tr key={a.terms.auctionId.toString()}>
                     <td className="mono">{a.terms.auctionId.toString()}</td>
-                    <td>{formatUnits(a.lotAmount)} {a.lotSymbol}</td>
+                    <td>{formatUnits(a.lotAmount, a.lotDecimals)} {a.lotSymbol}</td>
                     <td><span className={`pill ${STATUS[a.status].cls}`}>{STATUS[a.status].label}</span></td>
                     <td className="mono">{a.bidCount}</td>
-                    <td>{formatUnits(a.collateral)} {a.paymentSymbol}</td>
+                    <td>{formatUnits(a.collateral, a.paymentDecimals)} {a.paymentSymbol}</td>
                     <td>{when
                       ? <>{countdown(when, now) ?? "closed"}
                           <span className="note" style={{ display: "block" }}>{utcDate(when)}</span></>
