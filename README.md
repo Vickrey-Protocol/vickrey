@@ -13,6 +13,11 @@ on-chain by hash-preimage witnesses over a bid set the contract froze before any
 could open it. The losing bids are never published — not on chain, not in the app, not
 anywhere except the bidders' own devices. Neither is the winner's.
 
+**To try it: connect a wallet, pick a level, sign.** That is the public rail and it
+needs no shielded balance and no set-up. Your bid is sealed either way — the private
+rail additionally hides your address, and costs a pool fee and a shield you make inside
+your own wallet. [Both rails, and which one you want](#two-rails-and-which-one-you-will-actually-use).
+
 **Submissions close 31 Aug 2026, 23:59 UTC.** Whatever this repository shows at that
 moment is the entry — there is no separate submission step.
 
@@ -99,6 +104,34 @@ for mainnet, which is why it is read and never hardcoded.
 - Mainnet gas for `settle`, measured rather than estimated.
 - Whether Ready or Xverse expose STRK20 on Sepolia specifically. The pool is there;
   wallet support for it is a separate question.
+
+## Two rails, and which one you will actually use
+
+**Bidding on the public rail is the ordinary path.** Connect a wallet, pick a level,
+sign. Nothing to install, nothing to fund in advance, and **your bid is sealed** — the
+amount is never in the calldata and never reaches the chain.
+
+**The private rail additionally hides your address**, by funding the bid from a shielded
+balance inside the STRK20 pool. It is the deeper integration and it is what the rest of
+this section is about. It also has a real cost of entry: the Wallet API exposes exactly
+three STRK20 methods — `strk20Balances`, `strk20PrepareInvoke`, `strk20InvokeTransaction`
+— and **none of them deposits**. Shielding therefore happens inside your own wallet's
+interface, not on our site or anyone else's, and the pool charges its fee for the shield
+and again for the bid.
+
+So, in one sentence: **both rails seal your bid; the only difference is whether your
+address is publicly linked to having bid.** If you are here to try the auction, take the
+public rail. If you are here to see the pool integration, the private rail is the one to
+read about.
+
+| | Set-up | Cost | Address | Bid |
+|---|---|---|---|---|
+| **Public** | none | gas only | public | **sealed** |
+| **Private** | shield in your wallet first | pool fee ×2 + gas | **private** | **sealed** |
+| Sponsored private | none | free to the bidder | **private** | **sealed** |
+
+Sponsored is costed and the pool supports it; no relayer is deployed, so the interface
+shows it and does not offer it.
 
 ## Where this touches STRK20
 

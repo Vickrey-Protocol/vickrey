@@ -153,12 +153,21 @@ export function BidPanel({
 
       {/* The rail, chosen before the amount, because it is the decision with a
           disclosure consequence and burying it under the ladder makes it a default
-          rather than a choice. */}
+          rather than a choice.
+
+          Public is first and marked as the ordinary path, which is honest rather than
+          modest. The Wallet API has no deposit method, so the private rail requires
+          leaving this page, shielding inside your own wallet, and paying the pool fee
+          before you can even start — almost nobody completes that in one sitting.
+          Presenting it as the expected route would be setting most visitors up to
+          abandon a bid halfway. */}
       <div className="rails">
         <button className={rail === "public" ? "rail on" : "rail"}
                 onClick={() => setRail("public")} aria-pressed={rail === "public"}>
-          <span className="rail-name">Public rail</span>
-          <span className="note">Your address is visible. Your bid is not.</span>
+          <span className="rail-name">Public rail <span className="rail-tag">usual</span></span>
+          <span className="note">
+            Bid straight from this wallet. Nothing to set up.
+          </span>
           <span className="rail-cost">gas only · ~0.25 STRK</span>
         </button>
 
@@ -168,7 +177,7 @@ export function BidPanel({
           <span className="rail-name">Private rail</span>
           <span className="note">
             {canPrivate
-              ? "Funds come from the pool. Neither your address nor your bid is visible."
+              ? "Also hides your address. Needs a shielded balance first."
               : connection && !connection.strk20
                 ? "This wallet does not speak STRK20."
                 : "No anonymizer configured."}
@@ -188,10 +197,27 @@ export function BidPanel({
       </div>
 
       <p className="note">
-        <b>Both rails seal the amount.</b> That is the auction, not the pool — the bid
-        is never in the calldata on either path. The rail decides whether your{" "}
-        <i>address</i> is linked to having bid at all.
+        <b>Both rails seal your bid.</b> The only difference is whether your address is
+        publicly linked to having bid.
       </p>
+
+      {rail === "private" && canPrivate && (
+        <div className="panel" style={{ background: "var(--hatch-bg)" }}>
+          <p className="eyebrow">Before this will work</p>
+          <p className="note" style={{ marginTop: ".4rem" }}>
+            The private rail spends from a <b>shielded balance</b>, and{" "}
+            <b>shielding does not happen here</b> — the wallet standard has no deposit
+            method, so no site can do it for you. Open your wallet&rsquo;s private balance
+            section and shield there first. The pool charges{" "}
+            {auction.poolFee === null ? "its fee" : <b>{formatUnits(auction.poolFee)} STRK</b>}{" "}
+            for the shield and again for the bid.
+          </p>
+          <p className="note" style={{ marginTop: ".4rem" }}>
+            If that is more than you want to do to try this, the public rail seals your
+            bid just as completely.
+          </p>
+        </div>
+      )}
 
       {/* Ladder left, the numbers and the action right, so the panel is not mostly
           empty glass at full width. */}

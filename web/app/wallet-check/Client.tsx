@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { compareVersions, RpcProvider, walletV6 } from "starknet";
+import { classifyProbeError, probeAnswered, probeMissing } from "@vickrey/client";
 import { availableWallets } from "@/lib/wallet";
 import { config, formatUnits } from "@/lib/config";
 import { PublicShell } from "@/components/PublicShell";
@@ -77,12 +78,24 @@ export default function Client() {
   }, [connection]);
 
   /**
-   * The decisive free test. `strk20Balances` is the one STRK20 method that costs
-   * nothing to call, so a wallet that answers it — even by refusing consent — has
-   * implemented the interface. One that throws "not supported" has not.
+   * The decisive free test — and the classification is the whole point of it.
    *
-   * It reads private data, so it is behind an explicit button and the result is never
-   * displayed. This page reports only whether the call was *understood*.
+   * `strk20Balances` is the one STRK20 method that costs nothing, so it tells us
+   * whether the wallet has *implemented the interface*. That is a question about
+   * **shape**, and it must not be confused with **state**.
+   *
+   * An error like `NOT_REGISTERED` or `SUBCHANNEL_NOT_FOUND` is the pool answering. The
+   * wallet understood the call, routed it, and relayed a protocol reply — which is
+   * exactly what we are testing for. Only the account's pool state is missing, and
+   * that is what shielding creates.
+   *
+   * A real failure is narrower: the method is absent, or the wallet reports it
+   * unsupported, or nothing comes back at all.
+   *
+   * This is the same distinction `client/scripts/verify-pool-shapes.mjs` draws one
+   * layer down, where our encoded actions "fail on state, not on shape" against the
+   * live pool. Getting it backwards here would tell someone their wallet cannot do
+   * STRK20 when it can, and that is a conclusion worth 90 STRK.
    */
   const probeBalances = async () => {
     if (!connection) return;
@@ -91,23 +104,19 @@ export default function Client() {
       const acct = connection.account as unknown as Record<string, unknown>;
       const fn = acct["strk20Balances"];
       if (typeof fn !== "function") {
-        setBalProbe({ label: "strk20Balances", state: "fail",
-          detail: "The method does not exist on this account. The wallet does not implement STRK20." });
+        const v = probeMissing();
+        setBalProbe({ label: "strk20Balances", state: "fail", detail: v.reason });
         return;
       }
       await (fn as () => Promise<unknown>).call(acct);
-      setBalProbe({ label: "strk20Balances", state: "pass",
-        detail: "Answered. The wallet implements STRK20. No balance is shown here or sent anywhere." });
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      const refused = /reject|denie|declin|cancel|consent/i.test(msg);
+      const v = probeAnswered();
       setBalProbe({
-        label: "strk20Balances",
-        state: refused ? "pass" : "fail",
-        detail: refused
-          ? "You declined the consent prompt — which means the wallet understood the request. That is a pass."
-          : `The wallet could not handle the call: ${msg}`,
+        label: "strk20Balances", state: "pass",
+        detail: `${v.reason} No balance is shown here or sent anywhere.`,
       });
+    } catch (e) {
+      const v = classifyProbeError(e instanceof Error ? e.message : String(e));
+      setBalProbe({ label: "strk20Balances", state: v.pass ? "pass" : "fail", detail: v.reason });
     } finally { setProbing(false); }
   };
 
@@ -137,9 +146,28 @@ export default function Client() {
 
       <h2 className="section">This wallet</h2>
       <div className="panel">
-        <p className="note">
-          Detected in this browser: {detected.length ? <b>{detected.join(", ")}</b> : "none"}
-        </p>
+        {connection ? (
+          <>
+            {/* Three wallets were detected and one of them answered. Which one matters:
+                it is the wallet that must hold the shielded balance and produce the
+                three qualifying transactions. */}
+            <p className="eyebrow">Answering</p>
+            <p className="display" style={{ fontSize: "var(--step-1)", margin: ".2rem 0 .1rem" }}>
+              {connection.walletName}
+            </p>
+            <p className="note mono" style={{ wordBreak: "break-all" }}>{connection.address}</p>
+            <p className="note" style={{ marginTop: ".5rem" }}>
+              Also detected but not connected:{" "}
+              {detected.filter((d) => d !== connection.walletName).join(", ") || "none"}. Every
+              check below describes <b>{connection.walletName}</b> only — fund this wallet, not
+              another one.
+            </p>
+          </>
+        ) : (
+          <p className="note">
+            Detected in this browser: {detected.length ? <b>{detected.join(", ")}</b> : "none"}
+          </p>
+        )}
         {!connection ? (
           <>
             <button className="primary" style={{ marginTop: ".9rem" }}

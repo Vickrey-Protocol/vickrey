@@ -920,3 +920,12 @@ button.primary:hover::before { opacity: .9; animation: spinEdge 2.4s linear infi
   margin-block-start: .2rem; font-family: var(--font-mono); font-size: .78rem;
   color: var(--ink-2);
 }
+
+/* Marks the ordinary path without shouting. The private rail is the deeper
+   integration; the public one is what a visitor actually completes. */
+.rail-tag {
+  margin-inline-start: .4rem; padding: .05rem .35rem; border-radius: 5px;
+  border: 1px solid var(--line-lit); background: var(--glass-2);
+  font-family: var(--font-mono); font-size: .66rem; font-weight: 500;
+  letter-spacing: .04em; text-transform: uppercase; color: var(--ink-2);
+}

@@ -1,6 +1,6 @@
 # Demo video — script and shot list
 
-**Length:** 2:45 target, 3:00 hard ceiling.
+**Length:** 3:00, which is the sprint ceiling. The cut below fills it exactly; if it runs long, take it out of beats 1 and 6, never beat 5.
 **Export:** 1080p. Not 720p — Bodoni's hairlines break there, measured in
 [typography.md](typography.md).
 **Record after mainnet is live.** Every number on screen must be a real mainnet
@@ -21,9 +21,15 @@ The video makes one argument in three moves: *this auction is optimal and has ne
 been possible → here it is running on mainnet → here is the proof that the losing
 bids were never published.* Beat 5 is the entry. Everything before it is setup.
 
+**Runs to 3:00 exactly**, which is the sprint's limit rather than a target to beat.
+Beat 3 walks the **public** rail because that is the one a viewer can repeat with a
+wallet they already have; beat 3b shows the private rail as the deeper integration.
+Getting that order wrong would demonstrate a path almost nobody completes and call it
+the way in.
+
 ---
 
-## Beat 1 — the problem (0:00–0:25)
+## Beat 1 — the problem (0:00–0:22)
 
 **On screen:** the hero, loaded fresh so the instrument resolves in and the clearing
 price counts up.
@@ -41,7 +47,7 @@ is the first thing a judge sees and it should land on its own.
 
 ---
 
-## Beat 2 — what the chain sees while bidding (0:25–0:55)
+## Beat 2 — what the chain sees while bidding (0:22–0:48)
 
 **On screen:** scroll to the open auction, then to *The whole public record*.
 
@@ -56,26 +62,63 @@ column. Do not scroll past this quickly; it is the claim the rest depends on.
 
 ---
 
-## Beat 3 — place a bid (0:55–1:25)
+## Beat 3 — place a bid, on the rail a viewer can actually walk (0:48–1:16)
 
-**On screen:** pick a level on the ladder, then the wallet prompt, then the claim
-secret wall.
+**Shoot the public rail.** Not the private one. A viewer who wants to copy what they
+just watched can do the public rail in thirty seconds with a wallet they already have;
+the private rail needs them to leave the app, shield inside their own wallet's interface
+and pay the pool fee twice before they can start. Demonstrating a path almost nobody
+completes, and calling it *the* path, is how a demo produces an audience that bounces.
 
-> I'll bid. I pick a level on a public price ladder — and everyone escrows the same
-> amount, the top of the ladder, which is what stops the escrow itself leaking what I
-> bid.
+The bid is sealed on both rails. That is the line to say out loud, because a viewer will
+assume "public rail" means "public bid" and it does not.
+
+**On screen:** the rail cards, public already selected. Pick a level on the ladder. The
+wallet prompt. The claim-secret wall.
+
+> I'll bid. There are two rails and I'm taking the ordinary one — connect, pick, sign.
 >
-> Proving takes about thirty seconds. What goes on chain is two hashes.
+> **Both rails seal the bid. The only difference is whether my address is publicly
+> linked to having bid at all.** The amount is never in the calldata either way.
+>
+> I pick a level on a public price ladder — and everyone escrows the same amount, the
+> top of the ladder, which is what stops the escrow itself leaking what I bid.
+>
+> What goes on chain is two hashes.
 >
 > And this is the only copy of my claim secret. No server has it. If I lose it, the
 > money stays in the contract.
 
-**Direction:** show the real ~30s proving wait, compressed with a speed ramp and an
-on-screen "×8". Do not cut it out — a judge who tries this should not be surprised.
+**Direction:** linger about a second on the three rail cards before clicking, so the
+choice reads as a choice. Do not skip the claim-secret wall — it is a real interruption
+and pretending otherwise oversells the experience.
 
 ---
 
-## Beat 4 — settle (1:25–1:55)
+## Beat 3b — the private rail, as depth not as the route (1:16–1:31)
+
+Fifteen seconds. This is the integration a judge is scoring on the 30% STRK20 weighting,
+and it is worth showing precisely because it is the harder thing — but shown as *what
+the protocol can do*, not as *what you should go and do now*.
+
+**On screen:** the private rail card selected, the setup note it reveals, then the
+Starkscan transaction of a private-rail bid already placed, with the `Routed` event from
+the anonymizer and `BidPlaced` from the auction both visible.
+
+> The other rail also hides the bidder. The collateral is withdrawn from the STRK20 pool
+> straight into escrow inside one transaction, so no address ever holds it in between.
+>
+> It costs more and it needs a shielded balance first — the wallet standard has no
+> deposit call, so shielding happens in your wallet, not on our site. That is why this
+> isn't the default.
+>
+> Here is one on chain. Our anonymizer, then the auction. No bidder anywhere in it.
+
+**Direction:** pre-record this transaction. Do not attempt a live shield on camera.
+
+---
+
+## Beat 4 — settle (1:31–1:56)
 
 **On screen:** the auctioneer console; press settle; the transaction lands; the
 instrument redraws with the clearing line.
@@ -92,7 +135,7 @@ money shot. Hold on it for a full second before speaking again.
 
 ---
 
-## Beat 5 — the moment (1:55–2:25) ▲ THE ENTRY RESTS HERE
+## Beat 5 — the moment (1:56–2:26) ▲ THE ENTRY RESTS HERE
 
 **On screen:** the resolved auction, then the public record table again — **the same
 table as beat 2, visibly unchanged in the amount column**. Then the explorer, showing
@@ -125,7 +168,7 @@ Exact wording:
 
 ---
 
-## Beat 6 — the attack that fails (2:25–2:45)
+## Beat 6 — the attack that fails (2:26–2:46)
 
 **On screen:** split — the settle transaction on the left, the auctioneer console on
 the right attempting to exclude a bid.
@@ -143,7 +186,7 @@ there is room; otherwise say it over the settle transaction.
 
 ---
 
-## Close (2:45–3:00)
+## Close (2:46–3:00)
 
 **On screen:** the trust statement, full, held long enough to read.
 

@@ -51,11 +51,19 @@ Open **`/wallet-check`**. Every check on that page is free; nothing signs, nothi
 2. **Connect.** The table should show Wallet API ≥ 0.10.3 and all three of
    `strk20Balances`, `strk20PrepareInvoke`, `strk20InvokeTransaction` present.
 3. Click **Run the free STRK20 probe**.
-   **Pass:** the wallet prompts for consent. **Approving or declining are both a pass** —
-   what matters is that it understood the call. Nothing is displayed and nothing leaves
-   your browser.
-   **Fail:** "the method does not exist" or "unsupported". That is the answer, and it is
-   worth 90 STRK to have found it here.
+
+   **Pass — anything the wallet answers with.** A consent prompt, approved or declined.
+   `NOT_REGISTERED`. `SUBCHANNEL_NOT_FOUND`. Insufficient balance. All of these are the
+   *pool* replying, which means the wallet understood the call and routed it — and that
+   is the entire thing being tested. Shape, not state: the same rule
+   `verify-pool-shapes.mjs` applies one layer down.
+
+   **Fail — only an absent method.** "is not a function", "not supported", "method not
+   found", or no response at all.
+
+   The page names which one it was, so you can check the reasoning rather than trust a
+   verdict. `NOT_REGISTERED` in particular is expected on a wallet that has never
+   shielded: registration is what your first shield creates.
 
 **If step 3 fails, stop and tell me.** Do not fund the deploy account. The options then
 are a different wallet, or a documented entry that cannot be scored on the pool

@@ -63,8 +63,11 @@ function collect() {
     readFileSync(file, "utf8").split("\n").forEach((line, i) => {
       for (const raw of line.match(/https?:\/\/[^\s"'`)\]<>,;]+/g) ?? []) {
         // Strip trailing punctuation and markdown emphasis, so a bolded or
-        // sentence-final URL does not arrive with junk stuck to the end.
-        const url = raw.replace(/[.,:;*_~]+$/, "");
+        // sentence-final URL does not arrive with junk stuck to the end. The closing
+        // brace comes from shell defaults like ${SITE:-https://example.com} — the URL
+        // is real, the brace is not part of it, and reporting it as dead is the kind
+        // of false positive that teaches people to ignore this check.
+        const url = raw.replace(/[.,:;*_~})\]]+$/, "");
         if (url.includes("\u2026")) continue; // an elided example, not a real URL
         if (IGNORE.some((re) => re.test(url))) continue;
         if (!found.has(url)) found.set(url, new Set());
