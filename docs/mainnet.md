@@ -268,6 +268,46 @@ against the contracts that ran the full Sepolia lifecycle, and switching to an u
 artifact to chase a saving that measurement says is zero is a bad trade on the single most
 expensive transaction in the project.
 
+## If STRK is not in the wallet's shield picker
+
+The protocol is not the constraint — ["Push to Private"](https://www.starknet.io/blog/push-to-private/)
+(15 July 2026) says any ERC-20 can be shielded, live on mainnet. Whether a given wallet
+*exposes* a given token is a separate question, and wallet UI trails protocol.
+
+If the picker lacks STRK, we denominate the judged auction in something it does have.
+
+**What does not change**
+
+- **The contracts.** `payment_token` and `lot_token` are `create_auction` parameters,
+  not constants. No redeclare, no redeploy, no change to the 44.53 STRK declare.
+- **The declare itself.** It can go ahead Wednesday regardless; this is decided at
+  auction-creation time, which is later.
+- **Gas and the pool fee**, both still paid in STRK. The deploy account's 90 STRK is
+  unaffected.
+- **The frontend**, now that it reads `decimals()` rather than assuming 18. Before that
+  fix a 250 USDC lot rendered as `0`, so this contingency is the reason it got fixed.
+
+**What does change**
+
+- The auction is created with `payment_token` set to the shieldable token, and bidders
+  need a shielded balance **of that token** rather than of STRK.
+- **We have to acquire some**, which is the real cost and the reason to check the
+  picker early.
+- Nominal amounts get re-picked for the token's decimals and unit value.
+
+**Preference order if STRK is absent**
+
+| | Why | Friction |
+|---|---|---|
+| **USDC** | named as supported in the July post, 6 decimals, easy to acquire on Starknet | low — a swap |
+| strkBTC | confirmed shieldable in Xverse by name | high — bridging BTC |
+
+So: if STRK is not listed, look for USDC before anything else.
+
+**The 60 STRK to the browser wallet is not wasted either way.** Gas and pool fees are
+denominated in STRK whatever the auction settles in, and 4 pool operations at 6 STRK is
+24 of it.
+
 ## The deploying account
 
 A **dedicated deploy account** is the better shape, and it costs **0.07 STRK** — the
