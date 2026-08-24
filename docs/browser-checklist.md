@@ -38,6 +38,46 @@ need mainnet and the frozen build; leave them.
 The site reads `NEXT_PUBLIC_NETWORK`. If the badge next to the wordmark says Sepolia,
 stop — the deploy did not point it at mainnet, and nothing below will mean anything.
 
+### 0a. Can this wallet do STRK20 at all? — free, and it gates the funding
+
+**Do this before funding anything.** All three qualifying mainnet transactions must
+touch the pool, pool transactions are proved *inside the wallet*, and `sncast` has no
+prover — so if the wallet cannot do it, no amount of scripting substitutes and the
+declare buys nothing.
+
+Open **`/wallet-check`**. Every check on that page is free; nothing signs, nothing moves.
+
+1. Read the **pool** table. `is_paused` must be false, and it prints the live fee.
+2. **Connect.** The table should show Wallet API ≥ 0.10.3 and all three of
+   `strk20Balances`, `strk20PrepareInvoke`, `strk20InvokeTransaction` present.
+3. Click **Run the free STRK20 probe**.
+   **Pass:** the wallet prompts for consent. **Approving or declining are both a pass** —
+   what matters is that it understood the call. Nothing is displayed and nothing leaves
+   your browser.
+   **Fail:** "the method does not exist" or "unsupported". That is the answer, and it is
+   worth 90 STRK to have found it here.
+
+**If step 3 fails, stop and tell me.** Do not fund the deploy account. The options then
+are a different wallet, or a documented entry that cannot be scored on the pool
+requirement — and that is a decision for you, not a thing to discover on the 31st.
+
+### 0b. The smallest real shield — ~6 STRK plus the amount
+
+Only after 0a passes.
+
+**This site cannot shield for you.** The Wallet API's three STRK20 methods do not include
+a deposit; shielding happens in the wallet's own interface. So:
+
+1. Open your wallet's **private / shielded balance** section.
+2. Shield the **smallest amount it will accept**. The pool charges its fee (printed on
+   `/wallet-check`) on top.
+3. Return to `/wallet-check` and run the probe again. It should still answer, and the
+   wallet should now show a shielded balance.
+
+**What would be a bug:** the wallet has no private-balance section at all despite passing
+0a. Tell me which wallet and version — that is a gap between the API and the product, and
+it changes the plan.
+
 ---
 
 ## 1. The public site, wallet still locked
