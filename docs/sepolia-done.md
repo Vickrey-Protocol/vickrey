@@ -1,5 +1,31 @@
 # Sepolia definition of done
 
+## The contracts are CANDIDATE-FROZEN, not frozen
+
+**Frozen** is a claim about testing, not about whether anyone has edited a file. Today
+the only thing verified is that the shipped class hashes did not move when the test mock
+changed — which is not the same statement and should not have been written as one.
+
+> **CANDIDATE-FROZEN** — the build we intend to ship. Class hashes computed and pinned.
+> Unit tests pass. Nothing on chain has exercised them.
+>
+> **FROZEN** — §1, §5 and §6 have passed **on Sepolia, against the declared candidate
+> build**. Only then does 36.64 STRK get spent declaring on mainnet.
+
+Those three sections are the ones capable of forcing a Cairo change, which is why they
+run first and why the mainnet declare waits for them. **Declaring twice pays twice**, and
+a redeclare after a mainnet-discovered bug costs 44.7 STRK plus the freeze restarting.
+
+### Execution order
+
+| | Section | Why here |
+|---|---|---|
+| 1 | **§5 abandon on chain** | can force a Cairo change; fully scriptable, so it runs first and unattended |
+| 2 | **§6 Routed + BidPlaced in one tx** | can force a Cairo change; has a Sepolia path that does not depend on the wallet — see §6 |
+| 3 | **§1 full lifecycle via browser** | can force a Cairo change; needs a human and has time gates, so it runs in parallel with 1 and 2 |
+| 4 | §4 decimals in a 6-decimal token | interface-level; cannot invalidate the freeze |
+| 5 | §2 failure paths, §3 routes, §7 strk20.json | verification, not discovery |
+
 **Nothing goes to mainnet until every line here is true.**
 
 Mainnet is a deployment, not a development phase: declare, deploy, create the judged
@@ -110,9 +136,29 @@ because STRK is the case that already worked.
 
 ## 6. The pool leg
 
+The leg splits into two claims that need different evidence, and conflating them is how
+you end up believing the whole thing is tested when half of it is.
+
+**6a — our contracts emit both events atomically.** Verifiable on Sepolia **without any
+wallet**: `MockPrivacyPool` is a deployable contract that drives `privacy_invoke` exactly
+as the real pool does. Deploy it, deploy an anonymizer pointed at it, drive a bid. That
+is the real `AuctionAnonymizer` and the real `SealedBidAuction`, on chain, in one
+transaction. It is the half that can force a Cairo change, and it does not wait on
+Xverse.
+
+**6b — the real pool accepts our action encoding.** Already covered read-only, against
+the **live mainnet pool**, by `client/scripts/verify-pool-shapes.mjs` through
+`compile_actions`, which is a `view`. Free, and currently passing.
+
+**What neither covers:** the real pool executing our actions with a real proof. That is
+the single genuinely mainnet-first step, and no amount of Sepolia work substitutes for
+it unless Xverse offers STRK20 there.
+
 | | Line | How |
 |---|---|---|
-| ☐ | `Routed` and `BidPlaced` both present in one transaction | explorer link |
+| ☐ | 6a — `Routed` and `BidPlaced` in one transaction, via `MockPrivacyPool` on Sepolia | explorer link |
+| ☑ | 6b — encoding accepted by the live mainnet pool | `npm run verify:pool` — 2 shapes pass on state, 3 controls fail on shape |
+| ☐ | 6c — real pool, real proof | Sepolia if Xverse allows it, otherwise mainnet-first |
 | ☐ | refund returns as an open note | tx hash |
 
 ## 7. `strk20.json`
@@ -150,3 +196,43 @@ not by pretending otherwise. Mitigations then:
   pool built from the real `OpenNoteDeposit` layout.
 - Budget for it going wrong on the day: attempt the pool leg **first** after deploying,
   not last, so there is time to react.
+
+---
+
+## Expected freeze date
+
+**Thursday 27 August.** I expect Wednesday 26; Thursday is the date I will commit to,
+and below is what would move it.
+
+Today is Monday 24 August, 17:15 UTC. Seven days to the deadline.
+
+| Day | What happens |
+|---|---|
+| **Mon 24** | Sepolia funded → declare the candidate build there (~40 STRK). §5 and §6a run unattended tonight — both are scriptable. §1 starts in the browser |
+| **Tue 25** | §1 completes (it has real time gates — a bid deadline and a dispute window). Fix whatever the three surfaced; redeclare if the fix is Cairo |
+| **Wed 26** | Re-verify. **Freeze here if at most one Cairo fix round was needed** |
+| **Thu 27** | Second fix round if needed. **Committed freeze date** |
+| Thu 27 / Fri 28 | Mainnet declare + deploy — minutes, because the 90 STRK is pre-funded. Then the judged auction and the three qualifying transactions |
+| Sat 29 | Video |
+| Sun 30 | Buffer |
+| Mon 31 | Deadline, 23:59 UTC |
+
+### What would move it past Thursday
+
+- **Three or more Cairo fix rounds.** Each is a Sepolia redeclare at ~40 STRK and about a
+  day of re-verification. The 207 STRK Sepolia budget affords four or five redeclares, so
+  money is not the limit here — calendar is.
+- **A §1 failure that is architectural rather than a bug.** A wrong assertion is hours; a
+  wrong state machine is not.
+- **Xverse not offering Sepolia**, which does not move the freeze itself — §6a covers the
+  freeze-relevant half — but moves the risk. See below.
+
+### The risk this schedule carries
+
+If Xverse has no Sepolia STRK20, **6c is first attempted on mainnet on the 27th or 28th**,
+after the declare. A failure there that needs a Cairo change costs 44.7 STRK to redeclare
+*and* restarts the freeze, with three days left.
+
+Mitigation, and it is the reason to keep the ordering strict: **attempt the pool leg
+immediately after the mainnet deploy — before the judged auction, before the video.** If
+it breaks, that is the moment with the most days left to react.
