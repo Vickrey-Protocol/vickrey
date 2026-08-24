@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { compareVersions, RpcProvider, walletV6 } from "starknet";
+import { compareVersions, RpcProvider, shortString, walletV6 } from "starknet";
 import { classifyProbeError, probeAnswered, probeMissing } from "@vickrey/client";
 import { availableWallets } from "@/lib/wallet";
 import { STRK_DECIMALS, config, formatUnits } from "@/lib/config";
@@ -24,6 +24,18 @@ type Check = { label: string; state: "pass" | "fail" | "warn" | "pending"; detai
 
 const STRK20_METHODS = ["strk20Balances", "strk20PrepareInvoke", "strk20InvokeTransaction"] as const;
 
+const CHAIN_ID = {
+  mainnet: "0x534e5f4d41494e",
+  sepolia: "0x534e5f5345504f4c4941",
+} as const;
+
+/** Decodes SN_MAIN / SN_SEPOLIA from the felt a wallet returns. */
+const chainName = (id: string | null) => {
+  if (!id) return "unknown";
+  if (id.startsWith("refused")) return id;
+  try { return shortString.decodeShortString(id); } catch { return id; }
+};
+
 export default function Client() {
   const { connection, connect, connecting, error } = useWallet();
   const [detected, setDetected] = useState<string[]>([]);
@@ -31,6 +43,9 @@ export default function Client() {
   const [pool, setPool] = useState<Check[]>([]);
   const [balProbe, setBalProbe] = useState<Check | null>(null);
   const [probing, setProbing] = useState(false);
+  /** The chain the *wallet* is on, which is not necessarily the one the site reads. */
+  const [walletChain, setWalletChain] = useState<string | null>(null);
+  const [switching, setSwitching] = useState(false);
 
   useEffect(() => { void availableWallets().then((w) => setDetected(w.map((x) => x.name))); }, []);
 
@@ -74,6 +89,11 @@ export default function Client() {
         if (!w) return;
         setVersions(await walletV6.supportedWalletApi(w as never));
       } catch { setVersions([]); }
+      try {
+        const ws2 = await availableWallets();
+        const w2 = ws2.find((x) => x.name === connection.walletName) ?? ws2[0];
+        if (w2) setWalletChain(await walletV6.requestChainId(w2 as never));
+      } catch { setWalletChain(null); }
     })();
   }, [connection]);
 
@@ -120,6 +140,28 @@ export default function Client() {
     } finally { setProbing(false); }
   };
 
+  /**
+   * Ask the wallet to move to the network the site is reading.
+   *
+   * Worth an explicit button because the alternative is a probe whose answer is about a
+   * different chain than the one you are testing — which looks like a result and is not
+   * one. A wallet that refuses the switch has told us something too: that network is
+   * not available in it.
+   */
+  const switchChain = async () => {
+    if (!connection) return;
+    setSwitching(true);
+    try {
+      const ws = await availableWallets();
+      const w = ws.find((x) => x.name === connection.walletName) ?? ws[0];
+      if (!w) return;
+      await walletV6.switchStarknetChain(w as never, CHAIN_ID[config.network]);
+      setWalletChain(await walletV6.requestChainId(w as never));
+    } catch (e) {
+      setWalletChain(`refused: ${e instanceof Error ? e.message : String(e)}`);
+    } finally { setSwitching(false); }
+  };
+
   const capable = versions?.some((v) => compareVersions(v, "0.10.3") >= 0) ?? false;
   const row = (c: Check) => (
     <tr key={c.label}>
@@ -136,6 +178,12 @@ export default function Client() {
       <p style={{ maxWidth: "62ch", marginTop: ".6rem" }}>
         Whether this wallet can drive the STRK20 pool on <b>{config.label}</b>. Every
         check here is free — nothing signs a transaction and nothing moves a token.
+      </p>
+      <p className="note" style={{ maxWidth: "62ch", marginTop: ".5rem" }}>
+        The network matters as much as the wallet. A pool exists on both Sepolia and
+        mainnet, but a wallet that offers STRK20 on one does not necessarily offer it on
+        the other — wallet features ship per-network. This page checks the pair, not the
+        wallet alone.
       </p>
 
       <h2 className="section">The pool</h2>
@@ -180,6 +228,15 @@ export default function Client() {
           <div className="scroller" style={{ marginTop: ".9rem" }}>
             <table><tbody>
               {row({ label: "Connected", state: "pass", detail: `${connection.walletName} · ${connection.address}` })}
+              {row({
+                label: "Wallet is on the same network as this page",
+                state: walletChain === null ? "pending"
+                  : walletChain === CHAIN_ID[config.network] ? "pass" : "fail",
+                detail: walletChain === null ? "reading…"
+                  : walletChain === CHAIN_ID[config.network]
+                    ? `both on ${chainName(walletChain)}`
+                    : `page reads ${config.label} (${chainName(CHAIN_ID[config.network])}), wallet is on ${chainName(walletChain)} — every check below would be about the wrong chain`,
+              })}
               {row({ label: "Wallet API versions offered", state: versions ? "pass" : "pending",
                 detail: versions?.length ? versions.join(", ") : "reading…" })}
               {row({ label: "Wallet API ≥ 0.10.3 (what STRK20 needs)", state: capable ? "pass" : "fail",
@@ -194,6 +251,25 @@ export default function Client() {
           </div>
         )}
       </div>
+
+      {connection && walletChain !== null && walletChain !== CHAIN_ID[config.network] && (
+        <div className="panel accent" style={{ marginTop: "1rem" }}>
+          <p className="eyebrow">Wrong network</p>
+          <p style={{ marginTop: ".5rem" }}>
+            This page reads <b>{config.label}</b>. Your wallet is on{" "}
+            <b>{chainName(walletChain)}</b>. Probing now would answer a question about the
+            other chain, which is worse than not answering — it looks like a result.
+          </p>
+          <button className="primary" style={{ marginTop: ".9rem" }}
+                  onClick={() => void switchChain()} disabled={switching}>
+            {switching ? "Asking the wallet…" : `Switch the wallet to ${config.label}`}
+          </button>
+          <p className="note" style={{ marginTop: ".6rem" }}>
+            If the wallet refuses, that is itself the answer: it does not offer{" "}
+            {config.label}, and this leg cannot be rehearsed there.
+          </p>
+        </div>
+      )}
 
       {connection && (
         <div className="panel accent" style={{ marginTop: "1rem" }}>
