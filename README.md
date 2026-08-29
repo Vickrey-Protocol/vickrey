@@ -2,6 +2,10 @@
 
 **Sealed-bid auctions on STRK20 where the losing bids are never published.**
 
+**[Open the live auctions](https://vickrey-ten.vercel.app)** &nbsp;·&nbsp;
+**[How it works, in full](https://vickrey-ten.vercel.app/docs)** — the six properties,
+the hash-chain construction, and what the STRK20 integration does and does not reveal.
+
 A Vickrey auction is the theoretically optimal auction: the highest bidder wins and
 pays the second-highest bid, so bidding your true valuation is the dominant strategy.
 It has been known since 1961 and has never been deployable on a public chain, because
