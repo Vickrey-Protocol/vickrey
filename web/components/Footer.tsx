@@ -32,16 +32,15 @@ export function Footer() {
         <div>
           <h4>Product</h4>
           <ul>
-            <li><a href="#auctions">Auctions</a></li>
+            <li><a href="/auctions">Auctions</a></li>
             <li><a href="/docs">How it works</a></li>
-            <li><a href="#faq">FAQ</a></li>
+            <li><a href="/#faq">FAQ</a></li>
           </ul>
         </div>
 
         <div>
           <h4>Contracts</h4>
           <ul>
-            <li><a href="/docs">How it works</a></li>
             <ContractLink label="Auction" address={config.auctionAddress} />
             <ContractLink label="Anonymizer" address={config.anonymizerAddress} />
             <ContractLink label="STRK20 pool" address={config.poolAddress} />
