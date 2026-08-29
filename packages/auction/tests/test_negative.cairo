@@ -5,13 +5,14 @@
 
 use auction::interface::ISealedBidAuctionDispatcherTrait;
 use auction::ladder;
-use auction::types::{AuctionKind, DispositionProof, NO_WINNER, ProofKind};
+use auction::types::{AuctionKind, DispositionProof, NO_WINNER, ProofKind, Status};
 use snforge_std::{start_cheat_block_timestamp_global, start_cheat_caller_address};
 use auction::erc20::IERC20DispatcherTrait;
 use core::num::traits::Zero;
 use super::common::{
-    DEADLINE, LOT, LEVELS, WINDOW, finalize, payout, place, pool, proof_above, proof_below,
-    proof_exactly, proof_forfeit, seal, seller, settle, setup, setup_with_auctioneer,
+    BOND, DEADLINE, LOT, LEVELS, WINDOW, finalize, payout, place, pool, proof_above, proof_below,
+    balance, proof_exactly, proof_forfeit, seal, seller, settle, setup, setup_with,
+    setup_with_auctioneer,
 };
 
 // ---- bidding window ------------------------------------------------------------
@@ -461,4 +462,78 @@ fn abandon_is_not_repeatable() {
     start_cheat_block_timestamp_global(DEADLINE + WINDOW + 1);
     env.auction.abandon(env.id);
     env.auction.abandon(env.id);
+}
+
+// ---- the auctioneer's bond: what it does and does not answer for -----------------
+
+/// **The contract enforces no floor on the bond.** A zero bond lists fine.
+///
+/// Documenting it rather than asserting it is wrong: whether there should be a floor is
+/// a design question, and the answer is not obviously yes for a permissionless
+/// contract. What is not acceptable is the property being undocumented, because the
+/// write-up tells bidders the auctioneer has money at risk.
+#[test]
+fn an_auction_with_a_zero_bond_is_accepted() {
+    let env = setup_with(AuctionKind::Vickrey, LEVELS, 0);
+    let a = place(env, 'A', 'SA', 5);
+    seal(env);
+    settle(env, 0, a.index, array![proof_above(env, a, 0)]);
+    finalize(env);
+    // Runs to completion with nothing staked on the outcome being honest.
+    assert!(env.auction.get_state(env.id).status == Status::Finalized, "should finalize");
+}
+
+/// **`abandon` returns the bond; it does not slash it.**
+///
+/// The bond answers for a *dishonest settlement*, and abandonment is the absence of a
+/// settlement. But that means the bond is not a deterrent against walking away, which
+/// is the cheaper attack — see below.
+#[test]
+fn abandon_returns_the_bond_rather_than_slashing_it() {
+    let env = setup(AuctionKind::Vickrey);
+    place(env, 'A', 'SA', 5);
+    seal(env);
+
+    let before = balance(env.pay, seller());
+    start_cheat_block_timestamp_global(DEADLINE + WINDOW + 1);
+    env.auction.abandon(env.id);
+
+    assert!(balance(env.pay, seller()) == before + BOND, "bond did not come back to the seller");
+}
+
+/// **The attack the bond does not price.**
+///
+/// The bond is pulled from the *seller* at listing and returned to the *seller* on
+/// abandon. When one address is both — the ordinary case, and what every script here
+/// does — an auctioneer can seal, collect the seeds, compute the outcome off-chain, and
+/// abandon if the clearing price disappoints. Lot back, bond back, bidders refunded,
+/// and the auction re-runs.
+///
+/// Cost: gas. Not the bond, at any size.
+///
+/// That is strictly cheaper than excluding a bid, which requires submitting a false
+/// settlement that a disputer can slash. Discarding the whole outcome requires no false
+/// proof at all, so nothing is there to dispute.
+#[test]
+fn an_auctioneer_who_is_the_seller_can_discard_an_outcome_for_free() {
+    // One address as both seller and auctioneer.
+    let env = setup_with_auctioneer(AuctionKind::Vickrey, seller());
+    place(env, 'A', 'SA', 7);
+    place(env, 'B', 'SB', 2);
+    seal(env);
+
+    // Seeds are now in the auctioneer's hands and the outcome is computable off-chain.
+    // Suppose the clearing price disappoints.
+    let before = balance(env.pay, seller());
+    let lot_before = balance(env.lot, seller());
+
+    start_cheat_block_timestamp_global(DEADLINE + WINDOW + 1);
+    env.auction.abandon(env.id);
+
+    assert!(balance(env.pay, seller()) == before + BOND, "bond returned in full");
+    assert!(balance(env.lot, seller()) == lot_before + LOT, "lot returned in full");
+    assert!(
+        env.auction.get_state(env.id).status == Status::Cancelled,
+        "auction discarded, free to re-run",
+    );
 }
