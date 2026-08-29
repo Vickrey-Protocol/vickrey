@@ -202,6 +202,53 @@ half-wired alongside a second.)*
 | Notes mature ~10 blocks; proving takes ~30s | The bid flow is built around the wait rather than appearing hung |
 | Bidder identity never crosses the helper boundary | Bids are keyed by a **claim commitment**, never an address |
 
+## Two things on the sprint's list we did not use
+
+The integration-depth criterion names "the SDK" and "stealth accounts". We use neither,
+deliberately, and a judge working down that list should find the reasoning rather than a
+silence.
+
+### The TypeScript SDK is not installable
+
+`@starkware-libs/starknet-privacy-sdk` is not published to the public npm registry.
+Re-checked on 29 Aug 2026: that name and two plausible variants all return **404**.
+
+```
+@starkware-libs/starknet-privacy-sdk   404
+@starkware-libs/starknet-privacy       404
+starknet-privacy                       404
+```
+
+So the Wallet API is the only route a clean `npm install` reaches, which settles the
+choice rather than leaving it a preference. What it means in practice is that "use the
+SDK properly" becomes "use the Wallet API surface properly", and that is what
+[`client/src/strk20.ts`](client/src/strk20.ts) does: actions typed against the wallet's
+own `STRK20_ACTION` union rather than a local look-alike, capability detected with
+`walletV6.supportedWalletApi` and a version compare, and every bid dry-run through
+`strk20PrepareInvoke(actions, true)` before it is submitted.
+
+The encoding is checked against the **live mainnet pool** rather than against our reading
+of it — `npm run verify:pool` runs our two real action shapes plus three deliberately
+malformed controls through the pool's `compile_actions` view. The real ones fail on
+state, the controls fail on shape. A check that cannot fail proves nothing, which is why
+the controls are there.
+
+### Stealth accounts would make this design less private, not more
+
+A stealth account gives a recipient a fresh, unlinkable **address** to be paid at. That
+is the right tool when value has to land somewhere public.
+
+Here it never does. Every way value comes back — a loser's refund, the winner's surplus,
+a forfeited escrow redeemed late, the lot itself — is returned as an `OpenNoteDeposit`
+**credited inside the pool**, by
+[`AuctionAnonymizer::credit`](packages/anonymizer/src/auction_anonymizer.cairo). There is
+no recipient address in any of those paths, stealth or otherwise, because there is no
+public leg to receive on.
+
+Adding stealth accounts would mean introducing an address where the design currently has
+none. That is a step backwards from the property we are claiming, and the claim is the
+product.
+
 ## How it works
 
 ### The problem with the obvious design
