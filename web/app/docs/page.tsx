@@ -123,6 +123,48 @@ export default function Page() {
               of disclosure. The losing bids are not withheld — they are never on the chain
               at all.
             </p>
+
+            <h3>The difference from commit–reveal, concretely</h3>
+            <p>
+              Almost every sealed-bid auction on a public chain is commit–reveal: you post
+              a hash of your bid, and after bidding closes you post the bid itself so the
+              contract can check it against the hash. It is a sound and well-understood
+              construction, and it is not what this is.
+            </p>
+            <p>
+              The distinction is what the chain holds when the auction is over.
+            </p>
+            <div className="cols" style={{ marginBlock: "1rem" }}>
+              <div className="panel">
+                <p className="eyebrow">Commit–reveal, at the end</p>
+                <ul className="tight">
+                  <li>Every bid is public, winners and losers alike</li>
+                  <li>Your valuation is readable by anyone, permanently, and it is still
+                    true at the next auction</li>
+                  <li>A bidder who dislikes the outcome can withhold their reveal, and in
+                    a second-price auction that moves what the winner pays</li>
+                </ul>
+              </div>
+              <div className="panel">
+                <p className="eyebrow">Here, at the end</p>
+                <ul className="tight">
+                  <li>One number is published: the clearing price, because it is the price</li>
+                  <li>Every other bid is still two hashes — including the winner&rsquo;s
+                    own</li>
+                  <li>Silence forfeits escrowed collateral and settlement proceeds
+                    regardless</li>
+                </ul>
+              </div>
+            </div>
+            <p>
+              There is a corollary worth being explicit about. In commit–reveal the
+              question &ldquo;can the auctioneer exclude a rival&rsquo;s bid?&rdquo;
+              largely dissolves, because by settlement every bid is public and anyone can
+              compute the result. That is a real answer — but it is bought by publishing
+              the bids, which is the thing being avoided here. Keeping them sealed means
+              the exclusion problem has to be solved rather than dissolved, which is what
+              sealing before reveal and the auctioneer&rsquo;s slashable bond are for.
+            </p>
           </section>
 
           {/* ── 2 ─────────────────────────────────────────────────────────── */}

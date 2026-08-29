@@ -109,6 +109,25 @@ for mainnet, which is why it is read and never hardcoded.
 - Whether Ready or Xverse expose STRK20 on Sepolia specifically. The pool is there;
   wallet support for it is a separate question.
 
+## What this is not: commit–reveal
+
+Almost every sealed-bid auction on a public chain is commit–reveal — post a hash, then
+post the bid so the contract can check it. It is sound and well understood, and it ends
+with **every bid public**. Your valuation becomes permanently readable, and it is still
+true at the next auction. A bidder who dislikes the result can also simply withhold their
+reveal, which in a second-price auction changes what the winner pays.
+
+Here the auction ends and one number is published: the clearing price, because it *is*
+the price. Every other bid is still two hashes, the winner's included. Silence forfeits
+collateral and settlement proceeds without it.
+
+One corollary, stated because it cuts against us if left unsaid. In commit–reveal the
+question *"can the auctioneer exclude a rival's bid?"* largely dissolves — by settlement
+every bid is public and anyone can recompute the result. That is a genuine answer. It is
+bought by publishing the bids. Keeping them sealed means the exclusion problem has to be
+**solved** rather than dissolved, which is what freezing the set before any reveal and
+the auctioneer's slashable bond are for.
+
 ## Two rails, and which one you will actually use
 
 **Bidding on the public rail is the ordinary path.** Connect a wallet, pick a level,
@@ -117,11 +136,9 @@ amount is never in the calldata and never reaches the chain.
 
 **The private rail additionally hides your address**, by funding the bid from a shielded
 balance inside the STRK20 pool. It is the deeper integration and it is what the rest of
-this section is about. It also has a real cost of entry: the Wallet API exposes exactly
-three STRK20 methods — `strk20Balances`, `strk20PrepareInvoke`, `strk20InvokeTransaction`
-— and **none of them deposits**. Shielding therefore happens inside your own wallet's
-interface, not on our site or anyone else's, and the pool charges its fee for the shield
-and again for the bid.
+this section is about. It also has a real cost of entry: you need a shielded balance
+before you can bid from one, this app currently sends you to your wallet to create it,
+and the pool charges its fee for the shield and again for the bid.
 
 So, in one sentence: **both rails seal your bid; the only difference is whether your
 address is publicly linked to having bid.** If you are here to try the auction, take the
@@ -252,6 +269,39 @@ public leg to receive on.
 Adding stealth accounts would mean introducing an address where the design currently has
 none. That is a step backwards from the property we are claiming, and the claim is the
 product.
+
+### A correction: a dapp *can* drive a deposit
+
+An earlier version of this section said the Wallet API "has exactly three STRK20 methods
+and none of them deposits", and concluded that shielding can only happen inside a
+wallet's own interface.
+
+**The first half is true and the conclusion was wrong.** There are three *methods*, but
+`strk20InvokeTransaction` carries *actions*, and the action union in Wallet API 0.10.3
+includes one:
+
+```ts
+export type STRK20_DEPOSIT_ACTION = {
+  type: 'deposit';
+  token: ADDRESS;
+  amount: FELT;
+};
+```
+
+Its own doc comment: *"Deposits public funds from the user's account into the privacy
+pool."* Checked against `@starknet-io/types-js@0.10.3`, which is the latest published
+version — the spec has not moved since we pinned it.
+
+Submitted to the live mainnet pool read-only, a `deposit` action is accepted in sequence:
+`deposit → withdraw → invoke` fails on `NO_REPLAY_PROTECTION`, not on
+`ACTIONS_OUT_OF_ORDER`, so the ordering is legal and only the missing note-spend stops
+it. What that does **not** establish is that a freshly deposited note is immediately
+spendable — deposits appear to need to mature before they can fund a withdraw, so
+shielding and bidding in one transaction is likely still out of reach.
+
+The practical consequence is narrower than it first looks, and worth stating rather than
+quietly fixing: **shielding does not have to send the user to their wallet's UI.** This
+app currently does, which is a product decision we could revisit, not a platform limit.
 
 ## How it works
 

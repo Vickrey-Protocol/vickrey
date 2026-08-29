@@ -83,8 +83,9 @@ depend on reading the wallet correctly.
 
 ### 0b. The smallest real shield — Xverse
 
-**This site cannot shield for you.** The Wallet API's three STRK20 methods do not include
-a deposit, so shielding happens in the wallet. Steps below are from Starknet's own
+**This site sends you to your wallet to shield.** That is how it is built today, not a
+platform limit — Wallet API 0.10.3 does define a `deposit` action, and the live pool
+accepts its shape (see the correction in the README). Steps below are from Starknet's own
 [strkBTC user guide](https://www.starknet.io/blog/strkbtc-user-guide/).
 
 **Step 1 is the one-time activation, and it is exactly what `NOT_REGISTERED` meant.**
