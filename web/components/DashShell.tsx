@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { config, shortAddr } from "@/lib/config";
 import { useWallet } from "@/components/WalletProvider";
+import { Balances } from "@/components/Balances";
 
 /**
  * The dashboard chrome: fixed sidebar, topbar, content.
@@ -99,7 +100,8 @@ export function DashShell({
       <div className="dash-main">
         <header className="dash-top">
           <h1 className="dash-title">{title}</h1>
-          <div className="row" style={{ gap: ".8rem" }}>
+          <div className="row" style={{ gap: ".9rem" }}>
+            <Balances />
             {actionsDue > 0 && (
               <Link href="/app" className="pill open" style={{ textDecoration: "none" }}>
                 {actionsDue} need{actionsDue === 1 ? "s" : ""} you

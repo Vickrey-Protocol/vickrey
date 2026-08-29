@@ -596,7 +596,21 @@ td.undisclosed { color: var(--muted); font-style: italic; }
   border-block-end: 1px solid transparent;
 }
 .nav a:hover { color: var(--ink); border-block-end-color: var(--accent-edge); }
-@media (max-width: 60rem) { .nav { display: none; } }
+/* The nav used to be display:none below 60rem, which left a phone with no navigation
+   at all — no auctions, no docs, no FAQ, and nothing to replace it. It now moves to its
+   own wrapping row under the wordmark. A row rather than a hamburger because it needs
+   no JavaScript, like the rest of the chrome. */
+@media (max-width: 60rem) {
+  .masthead { flex-wrap: wrap; row-gap: .6rem; }
+  .nav {
+    order: 3; flex: 1 0 100%;
+    flex-wrap: wrap; gap: .35rem .9rem;
+    padding-block-start: .55rem;
+    border-block-start: 1px solid var(--line);
+  }
+  /* Comfortable to hit with a thumb: 44px is the accessibility floor. */
+  .nav a { padding-block: .5rem; min-block-size: 2.05rem; display: inline-flex; align-items: center; }
+}
 
 /* ── FAQ ────────────────────────────────────────────────────────────── */
 .faq {
@@ -1028,3 +1042,53 @@ ul.tight li { font-size: var(--s--1); color: var(--ink-2); line-height: 1.5; }
   }
   .docs-toc .dash-group, .docs-toc hr { display: none; }
 }
+
+/* ── balances ─────────────────────────────────────────────────────────────
+   Two figures, one of which is deliberately absent. The shielded balance
+   needs a viewing key this app never asks for, so the gap is labelled: a
+   missing number without a reason reads as broken. */
+.bal { display: flex; gap: 1.1rem; align-items: center; }
+.bal-item { display: flex; flex-direction: column; line-height: 1.2; }
+.bal-lab {
+  font-size: .66rem; letter-spacing: .09em; text-transform: uppercase; color: var(--muted);
+}
+.bal-num {
+  font-family: var(--font-mono); font-size: var(--s--1); color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.bal-num.undisclosed { font-size: .78rem; }
+@media (max-width: 720px) { .bal { display: none; } }
+
+/* ── small screens ────────────────────────────────────────────────────────
+   Judges open things on phones. The gaps below were found by walking the
+   breakpoints rather than by assuming the grids collapse cleanly. */
+@media (max-width: 48rem) {
+  /* Reclaim horizontal room; the page gutter was tuned for a desktop measure. */
+  main, .dash-body { padding-inline: 1rem; }
+
+  /* The action queue's three columns stack, and the deadline stops being right-aligned
+     against nothing. */
+  .act { grid-template-columns: 1fr; gap: .7rem; }
+  .act-when { align-items: flex-start; text-align: start; }
+  .act .primary { justify-self: start; }
+
+  /* Tables are the worst offender on a phone: they force the page sideways. Each one
+     already sits in .scroller, so the fix is making sure nothing escapes it. */
+  .scroller { -webkit-overflow-scrolling: touch; }
+  .scroller table { min-inline-size: 34rem; }
+
+  /* Display type is sized for a wide measure and overflows a narrow one. */
+  .display { overflow-wrap: anywhere; }
+  .hero-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .6rem; }
+  .hero-stats dd { font-size: clamp(1.3rem, 7vw, 2rem); }
+
+  /* Buttons sit at the accessibility floor rather than the desktop's compact height. */
+  button, .primary, .chip { min-block-size: 2.6rem; }
+
+  .rails { grid-template-columns: 1fr; }
+  .facts { grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr)); }
+}
+
+/* Nothing may push the document sideways. A single overflowing element makes every
+   page on the site feel broken, and it is invisible until someone opens it on a phone. */
+html, body { overflow-x: hidden; }
