@@ -20,7 +20,7 @@ export function Masthead() {
       </div>
       <nav className="nav" aria-label="Sections">
         <Link href="/auctions">Auctions</Link>
-        <Link href="/#how">How it works</Link>
+        <Link href="/docs">How it works</Link>
         <Link href="/#faq">FAQ</Link>
         <a href="https://github.com/Vickrey-Protocol/vickrey" target="_blank" rel="noreferrer">GitHub</a>
       </nav>

@@ -1,0 +1,354 @@
+import Link from "next/link";
+import { PublicShell } from "@/components/PublicShell";
+import { Thermometer } from "@/components/docs/Thermometer";
+import { TrustStatement } from "@/components/TrustStatement";
+
+export const metadata = {
+  title: "How it works — Vickrey",
+  description:
+    "What a Vickrey auction is, why sealing bids on a public chain is hard, and the hash-chain construction that settles one without ever publishing a bid.",
+};
+
+const REPO = "https://github.com/Vickrey-Protocol/vickrey";
+const SECTIONS = [
+  ["what", "What this is"],
+  ["properties", "Six properties"],
+  ["thermometer", "The thermometer commitment"],
+  ["strk20", "How it uses STRK20"],
+  ["lifecycle", "Lifecycle and time gates"],
+  ["unshipped", "What didn't ship"],
+  ["source", "Source, tests, runbook"],
+] as const;
+
+const PROPERTIES = [
+  {
+    n: 1, title: "Bids are real escrowed funds, not promises",
+    hard: "Commit-reveal locks nothing. A bidder can commit to a price they cannot pay, and you only find out at the end.",
+    how: "Placing a bid transfers collateral into the contract in the same transaction that records it. A bid that is not funded does not exist.",
+  },
+  {
+    n: 2, title: "Sealed from everyone, including the auctioneer",
+    hard: "Designs with a trusted auctioneer leak every bid to whoever runs the server, from the moment it arrives.",
+    how: "During bidding the chain holds two hashes per bid and nothing else. Nobody — not the auctioneer, not us — can read an amount, because no amount was sent.",
+  },
+  {
+    n: 3, title: "The bid set is frozen before any amount can be read",
+    hard: "If the party producing the result picks the set after seeing the contents, they can drop a rival's high bid and claim it never arrived.",
+    how: "`seal()` stamps the block number and freezes the set on-chain. Only afterwards do bidders send their seeds. Excluding a bid that arrived is provable, and slashes the auctioneer's bond.",
+    star: true,
+  },
+  {
+    n: 4, title: "Losing bids are never published",
+    hard: "Every commit-reveal auction ends by publishing all of them. Your valuation is a business fact, and it is still true at the next auction.",
+    how: "Settlement proves the outcome from bounds. The clearing price is revealed because it is the price; every other bid stays a pair of hashes forever.",
+    star: true,
+  },
+  {
+    n: 5, title: "The outcome is proved, not asserted",
+    hard: "Most implementations ask you to trust that the settlement transaction did the arithmetic honestly.",
+    how: "The contract verifies N+1 hash-preimage witnesses: the winner at or above the clearing level, the runner-up exactly at it, everyone else at or below. A false outcome cannot produce them.",
+  },
+  {
+    n: 6, title: "Refusing to reveal cannot grief the auction",
+    hard: "In commit-reveal, a bidder who dislikes the result simply never reveals — and in a second-price auction one silent bidder moves the price the winner pays.",
+    how: "Settlement needs no cooperation from a bidder who stays silent: their collateral is forfeit and the auction completes without them.",
+  },
+];
+
+export default function Page() {
+  return (
+    <PublicShell>
+      <header style={{ maxWidth: "62ch", marginBottom: "2.4rem" }}>
+        <p className="eyebrow">Documentation</p>
+        <h1 className="display" style={{ fontSize: "var(--step-4)", margin: ".3rem 0 0" }}>
+          How it works
+        </h1>
+        <p style={{ marginTop: "1rem", fontSize: "var(--s-1)", color: "var(--ink-2)" }}>
+          A Vickrey auction has been the theoretically right way to sell one thing since
+          1961, and has never worked on a public chain. This is what it takes to make one
+          work, written so you can check the claims rather than take them.
+        </p>
+      </header>
+
+      <div className="docs">
+        {/* Plain anchors: the contents must work with no JavaScript, like the rest. */}
+        <nav className="docs-toc" aria-label="Contents">
+          <p className="dash-group">Contents</p>
+          {SECTIONS.map(([id, label]) => <a key={id} href={`#${id}`}>{label}</a>)}
+          <hr />
+          <a href={REPO} target="_blank" rel="noreferrer">GitHub ↗</a>
+          <Link href="/auctions">Live auctions</Link>
+        </nav>
+
+        <article className="docs-body">
+          {/* ── 1 ─────────────────────────────────────────────────────────── */}
+          <section id="what">
+            <h2 className="section" style={{ marginTop: 0 }}>What this is</h2>
+            <p>
+              In a <b>sealed-bid auction</b> everyone submits one bid without seeing the
+              others. In a <b>Vickrey</b> auction — second-price — the highest bidder wins
+              but pays the <em>second</em>-highest bid.
+            </p>
+            <p>
+              That second part sounds like a giveaway and is the opposite. If you pay your
+              own bid, you shade it down to leave room for profit, and you are guessing
+              about other people rather than about the thing being sold. If you pay the
+              runner-up&rsquo;s bid, bidding your honest valuation is your best move no
+              matter what anyone else does. The auction stops being a game about opponents
+              and starts being a question about value.
+            </p>
+            <p>
+              Getting there needs the bids sealed. On a public chain they never really
+              were. Either you hand your amount to an auctioneer and trust them not to
+              look, not to leak, and not to insert a bid of their own once they have seen
+              yours — or you use commit–reveal, where every bid is published at the end.
+            </p>
+            <p>
+              Publishing them destroys the thing the auction was for. And commit–reveal
+              has a second problem that is less discussed: it locks no money, so a bidder
+              who dislikes the outcome simply never reveals. In a second-price auction one
+              silent bidder changes what the winner pays.
+            </p>
+            <p className="lede">
+              <b>Vickrey never opens a bid.</b> Collateral is escrowed up front, so silence
+              costs money, and the winner and the price are proved with hash chains instead
+              of disclosure. The losing bids are not withheld — they are never on the chain
+              at all.
+            </p>
+          </section>
+
+          {/* ── 2 ─────────────────────────────────────────────────────────── */}
+          <section id="properties">
+            <h2 className="section">Six properties, and why each is hard</h2>
+            <p style={{ maxWidth: "62ch" }}>
+              Each of these is a place a straightforward implementation breaks. They are
+              listed because they are checkable, not because they are features.
+            </p>
+            <ol className="props">
+              {PROPERTIES.map((p) => (
+                <li key={p.n} className={p.star ? "prop prop-star" : "prop"}>
+                  <p className="prop-title">
+                    <span className="prop-n">{p.n}</span> {p.title}
+                  </p>
+                  <p className="note"><b>What normally goes wrong:</b> {p.hard}</p>
+                  <p><b>Here:</b> {p.how}</p>
+                </li>
+              ))}
+            </ol>
+            <p className="note" style={{ maxWidth: "62ch" }}>
+              Properties 3 and 4 are marked because they are the two that are genuinely
+              hard to get elsewhere. 3 is an attack most designs never consider — the
+              auctioneer choosing the set after seeing the contents. 4 is the one a
+              bidder feels: the auction ends and their number was never anywhere but their
+              own browser.
+            </p>
+          </section>
+
+          {/* ── 3 ─────────────────────────────────────────────────────────── */}
+          <section id="thermometer">
+            <h2 className="section">The thermometer commitment</h2>
+            <p style={{ maxWidth: "62ch" }}>
+              This is the one piece of cryptography you have to follow, and it is a hash
+              function used twice.
+            </p>
+            <p style={{ maxWidth: "62ch" }}>
+              Bids are not free-form amounts. They are <b>levels on a public ladder</b>:
+              level 0 is the reserve, and each step up adds a fixed tick. Bidding at all
+              means bidding at least the reserve, so the reserve needs no separate rule.
+            </p>
+            <p style={{ maxWidth: "62ch" }}>
+              A hash chain is a value hashed repeatedly. Given a link, anyone can walk{" "}
+              <em>forward</em> by hashing again; walking <em>backward</em> would mean
+              inverting the hash, which is the thing hash functions are for. So handing
+              someone a link from a known depth proves you knew a value that far along —
+              and proves nothing else.
+            </p>
+            <p style={{ maxWidth: "62ch" }}>
+              Each bidder publishes <b>two</b> anchors, one from each end of the ladder:
+            </p>
+            <pre className="code" aria-label="the two anchors">{`step(x) = poseidon([CHAIN_TAG, auction_id, claim_commitment, x])
+
+up_anchor   = step^(ℓ)        a depth-t preimage proves   ℓ ≥ t
+down_anchor = step^(P−1−ℓ)    a depth-(P−1−t) preimage proves  ℓ ≤ t`}</pre>
+            <Thermometer levels={8} bid={4} />
+            <p style={{ maxWidth: "62ch" }}>
+              Each witness reveals <em>one bound</em>, never the level. &ldquo;At least
+              4&rdquo; is compatible with 4, 5, 6 or 7. But the two together pin a level
+              exactly, and that is what settlement needs: the winner proves{" "}
+              <b>at or above</b> the clearing level, the runner-up proves{" "}
+              <b>exactly at</b> it, and everyone else proves <b>at or below</b>.
+            </p>
+            <p style={{ maxWidth: "62ch" }}>
+              Which gives the whole result. The second-highest bid is established as the
+              price, by the person who made it, without that bid ever being stated — and
+              every other bidder has said only &ldquo;mine was not higher than
+              that&rdquo;. Producing a witness for a bound you did not commit to is a
+              Poseidon preimage break.
+            </p>
+            <p className="note" style={{ maxWidth: "62ch" }}>
+              Settlement is O(N): N+1 witnesses for N bids, each a few hashes. Measured
+              cost for three bids is in the README.
+            </p>
+          </section>
+
+          {/* ── 4 ─────────────────────────────────────────────────────────── */}
+          <section id="strk20">
+            <h2 className="section">How it uses STRK20</h2>
+            <p style={{ maxWidth: "62ch" }}>
+              Sealing the amount is the auction&rsquo;s job. STRK20 does the other half:
+              unlinking the <em>bidder</em> from the bid.
+            </p>
+            <p style={{ maxWidth: "62ch" }}>
+              Bidding on the <b>public rail</b> is the ordinary path — connect, pick a
+              level, sign. Your bid is sealed; your address is visible. The{" "}
+              <b>private rail</b> funds the same bid from a shielded balance inside the
+              STRK20 pool, so neither is visible.
+            </p>
+            <p style={{ maxWidth: "62ch" }}>
+              Our <code>AuctionAnonymizer</code> makes that atomic. The pool withdraws
+              collateral to the helper, the helper forwards it into the auction and returns
+              an empty span — the protocol&rsquo;s way of saying &ldquo;credit
+              nothing&rdquo;, because the funds are parked, not returned. A revert anywhere
+              aborts the whole pool transaction and no funds move. <b>No bidder address
+              ever crosses that boundary</b>; the auction sees only the helper.
+            </p>
+            <p style={{ maxWidth: "62ch" }}>
+              Every way value comes back — a loser&rsquo;s refund, the winner&rsquo;s
+              surplus, a forfeited escrow redeemed late, the lot — returns as an{" "}
+              <b>open note credited inside the pool</b>. There is no public leg on the way
+              out, so winning does not put an address on chain next to a price.
+            </p>
+
+            <h3>What <code>Routed</code> does and does not leak</h3>
+            <p style={{ maxWidth: "62ch" }}>
+              The anonymizer emits one event per operation. It exists because a transaction
+              that touches the pool otherwise looks identical whether it came through our
+              contracts or somebody else&rsquo;s.
+            </p>
+            <div className="cols" style={{ marginTop: "1rem" }}>
+              <div className="panel">
+                <p className="eyebrow">It carries</p>
+                <ul className="tight">
+                  <li><code>auction_id</code> — already public</li>
+                  <li>the operation kind — bid, refund, forfeit, lot</li>
+                </ul>
+              </div>
+              <div className="panel">
+                <p className="eyebrow">It deliberately does not carry</p>
+                <ul className="tight">
+                  <li><code>note_id</code> — a pool-side handle. Publishing it would let an
+                    observer tie a private note to an auction action, which is the exact
+                    link the helper exists to break</li>
+                  <li>the bid index on a placement — the auction emits that itself; two
+                    contracts publishing the same correlator is one too many</li>
+                  <li>any amount — collateral is uniform so it would leak nothing today,
+                    but an event is not something a later change can take back</li>
+                </ul>
+              </div>
+            </div>
+            <p className="note" style={{ maxWidth: "62ch", marginTop: ".9rem" }}>
+              The test asserts the <em>exact</em> event, so adding a member stops the suite
+              compiling rather than quietly widening what is published.
+            </p>
+          </section>
+
+          {/* ── 5 ─────────────────────────────────────────────────────────── */}
+          <section id="lifecycle">
+            <h2 className="section">Lifecycle and time gates</h2>
+            <p style={{ maxWidth: "62ch" }}>
+              Two of these are deadlines a participant can miss, and missing one costs
+              money. They are shown throughout the app as a countdown <em>and</em> an
+              absolute UTC time, because a countdown alone cannot be quoted in a dispute.
+            </p>
+            <ol className="phases">
+              <li><b>Open</b> — bids arrive as two hashes plus escrow. Anyone can bid.
+                <span className="note"> Ends at the bid deadline.</span></li>
+              <li><b>Sealed</b> — the set is frozen and stamped from the block. Bidders now
+                send seeds to the auctioneer.
+                <span className="note"> A seed not sent means collateral forfeited.</span></li>
+              <li><b>Settled</b> — the outcome is proved on-chain from N+1 witnesses.
+                <span className="note"> The dispute window opens here — the only time a
+                wrong outcome can be challenged.</span></li>
+              <li><b>Finalized</b> — the window closed clean and funds move. The winner
+                claims the lot; losers claim refunds in full.</li>
+              <li><b>Cancelled</b> — a dispute succeeded, nothing was awarded, or the
+                auctioneer never settled. Everything unwinds and every bidder is refunded.</li>
+            </ol>
+            <p style={{ maxWidth: "62ch" }}>
+              That last route matters. A sealed auction otherwise has exactly one way out —
+              settlement, which only the auctioneer can perform — so an auctioneer who
+              walks away would lock every bidder&rsquo;s collateral permanently.{" "}
+              <code>abandon()</code> is a permissionless timeout: after the grace period
+              anyone can cancel a sealed auction and everyone is made whole.
+            </p>
+          </section>
+
+          {/* ── 6 ─────────────────────────────────────────────────────────── */}
+          <section id="unshipped">
+            <h2 className="section">What didn&rsquo;t ship</h2>
+            <p style={{ maxWidth: "62ch" }}>
+              An entry that states its own gaps is worth more than one that hides them.
+            </p>
+            <dl className="facts">
+              <div className="fact">
+                <dt>Sponsored private bidding</dt>
+                <dd>Designed and costed; the pool supports paying another party&rsquo;s
+                  fee. No relayer is deployed, so the interface shows it and does not offer
+                  it.</dd>
+              </div>
+              <div className="fact">
+                <dt>Multi-unit auctions</dt>
+                <dd>The ladder generalises to uniform-price and pay-as-bid. Only
+                  single-lot first-price and Vickrey are implemented.</dd>
+              </div>
+              <div className="fact">
+                <dt>An audit</dt>
+                <dd>None of this has been audited. The anonymizer in particular is
+                  app-team code that handles funds mid-transaction.</dd>
+              </div>
+              <div className="fact">
+                <dt>The privacy SDK</dt>
+                <dd>Not on public npm, so the Wallet API is the only installable route.
+                  See the README for the check.</dd>
+              </div>
+            </dl>
+          </section>
+
+          {/* ── 7 ─────────────────────────────────────────────────────────── */}
+          <section id="source">
+            <h2 className="section">Source, tests, runbook</h2>
+            <div className="cols">
+              <div className="panel">
+                <p className="eyebrow">Contracts</p>
+                <ul className="tight">
+                  <li><a href={`${REPO}/blob/main/packages/auction/src/auction.cairo`} target="_blank" rel="noreferrer">SealedBidAuction</a> — states, settlement, disputes</li>
+                  <li><a href={`${REPO}/blob/main/packages/auction/src/ladder.cairo`} target="_blank" rel="noreferrer">ladder.cairo</a> — the two chains</li>
+                  <li><a href={`${REPO}/blob/main/packages/anonymizer/src/auction_anonymizer.cairo`} target="_blank" rel="noreferrer">AuctionAnonymizer</a> — the pool sandwich</li>
+                </ul>
+              </div>
+              <div className="panel">
+                <p className="eyebrow">Checks anyone can run</p>
+                <ul className="tight">
+                  <li><code>snforge test</code> — 70 contract tests, negative ones first</li>
+                  <li><code>npm test</code> — 50 client tests</li>
+                  <li><code>npm run verify:pool</code> — our encoding against the live
+                    mainnet pool, with controls that prove the check can fail</li>
+                </ul>
+              </div>
+            </div>
+            <div className="panel" style={{ marginTop: ".9rem" }}>
+              <p className="eyebrow">Written down</p>
+              <ul className="tight">
+                <li><a href={`${REPO}/blob/main/docs/runbook.md`} target="_blank" rel="noreferrer">runbook.md</a> — the mainnet deployment, command by command</li>
+                <li><a href={`${REPO}/blob/main/docs/sepolia-done.md`} target="_blank" rel="noreferrer">sepolia-done.md</a> — what must be true before mainnet</li>
+                <li><a href={`${REPO}/blob/main/PHASE0.md`} target="_blank" rel="noreferrer">PHASE0.md</a> — the investigation, including what it ruled out</li>
+              </ul>
+            </div>
+          </section>
+
+          <div style={{ marginTop: "2rem" }}><TrustStatement /></div>
+        </article>
+      </div>
+    </PublicShell>
+  );
+}
