@@ -12,6 +12,7 @@ import {
 import { settleCalldata, type AuctionView } from "@/lib/chain";
 import { config, countdown, formatUnits, utcDate } from "@/lib/config";
 import type { Connection } from "@/lib/wallet";
+import { SeedTracker } from "@/components/SeedTracker";
 
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
@@ -126,6 +127,7 @@ export function AuctioneerSection({
         {canSettle && (
           <div className="stack" style={{ gap: ".6rem" }}>
             <h3 style={{ fontSize: "var(--step-1)" }}>Settle</h3>
+            <SeedTracker auction={auction} bids={bids} now={now} />
             <p className="note">
               Builds the {bids.length + 1} witnesses the contract checks. Only the
               clearing price and the winning index reach the chain; every other bid is

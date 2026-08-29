@@ -1092,3 +1092,14 @@ ul.tight li { font-size: var(--s--1); color: var(--ink-2); line-height: 1.5; }
 /* Nothing may push the document sideways. A single overflowing element makes every
    page on the site feel broken, and it is invisible until someone opens it on a phone. */
 html, body { overflow-x: hidden; }
+
+/* ── seed arrival ─────────────────────────────────────────────────────────
+   Arrival, never level. A missing seed is a bid about to be forfeited and
+   nobody is told; this is what makes it noticeable in time to go and ask. */
+.seeds { display: flex; flex-wrap: wrap; gap: .4rem; margin-block-start: .7rem; }
+.seed {
+  display: inline-flex; align-items: baseline; gap: .4rem;
+  padding: .3rem .6rem; border-radius: 999px;
+  border: 1px dashed var(--line-lit); background: var(--hatch-bg);
+}
+.seed-in { border-style: solid; border-color: var(--good); background: rgba(127, 206, 151, .08); }

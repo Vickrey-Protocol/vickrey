@@ -32,6 +32,8 @@ export interface AuctionView {
   bidDeadline: number;
   disputeWindow: number;
   disputeDeadline: number;
+  /** Stamped from the block by `seal`. The grace before `abandon` counts from here. */
+  sealedAtTime: number;
   bidCount: number;
   bidRoot: bigint;
   clearingLevel: number;
@@ -143,6 +145,7 @@ export async function readAuction(id: bigint): Promise<AuctionView | null> {
     disputeWindow: Number(n(cfg[10]!)),
     bond: n(cfg[11]!),
     status: Number(n(st[0]!)) as Status,
+    sealedAtTime: Number(n(st[4]!)),
     bidCount: Number(n(st[1]!)),
     bidRoot: n(st[2]!),
     clearingLevel: Number(n(st[5]!)),
