@@ -1,27 +1,14 @@
 {
-  "$comment": "Every field here is either a real, verifiable value or listed under 'pending' with the reason it cannot exist yet. Nothing is a placeholder. 'contracts.*.class_hash' is filled before the mainnet declare because a class hash is deterministic from the build - it is computed from the artifacts in target/dev and checked against mainnet, where it is currently absent. Addresses depend on the deploy salt and appear when they are real.",
+  "$comment": "Top-level field names and TYPES follow the sprint's strk20.json spec exactly: `transactions` and `contracts` are arrays, not objects. An earlier version had `contracts` as an object keyed by contract name, which the hub would not have read \u2014 and the transaction check depends on it, because a qualifying hash must have run through a contract listed there. Fields that cannot be true yet are omitted rather than left empty, per 'add each field when you have it'; `pending` says what unblocks each one.",
+  "demo_url": "https://vickrey-ten.vercel.app",
   "name": "Vickrey",
   "tagline": "Sealed-bid auctions where the losing bids are never published",
   "description": "A Vickrey (second-price) auction on Starknet where no bid is ever revealed - not the losers', not the winner's. Bidders commit to a price level with two Poseidon hash chains that let the contract verify 'my bid is at least X' and 'my bid is at most X' without learning the bid. Settlement proves the Vickrey outcome from N+1 such witnesses: the winner is at or above the clearing level, the runner-up is exactly at it, everyone else is at or below. Funds move through the STRK20 privacy pool, so the bidder's identity is unlinked from the bid as well.",
   "rfp": "RFP-08",
-  "category": "privacy-application",
   "license": "MIT",
   "repo": "https://github.com/Vickrey-Protocol/vickrey",
-  "live_url": "https://vickrey-ten.vercel.app",
-  "strk20_integration": {
-    "pool_mainnet": "0x040337b1af3c663e86e333bab5a4b28da8d4652a15a69beee2b677776ffe812a",
-    "pool_sepolia": "0x254a6b2997ef52e9f830ce1f543f6b29768295e8d17e2267d672c552cfe0d91",
-    "how": "Bid collateral is withdrawn from the pool straight into the auction escrow inside a single privacy_invoke, so the bidder's public address never holds the funds and never appears as the escrow's source. Refunds and the winner's surplus return the same way.",
-    "actions_used": [
-      "withdraw",
-      "invoke",
-      "transfer"
-    ],
-    "proving": "Fixed-program (VIRTUAL_SNOS). No custom circuit slot is required, so the entry runs against the pool exactly as deployed.",
-    "verification": "client/scripts/verify-pool-shapes.mjs checks our encoded actions against the live MAINNET pool's compile_actions view, which is read-only: our two shapes fail on state, three deliberately malformed controls fail on shape. Separately, Sepolia transaction 0x1b9d71e1a5355b39f06c336a16b28f36b19862b9b8077d145282b2b10eeb9cb carries a Routed event from the anonymizer and a BidPlaced from the auction in one transaction, which is the shape the submission rule requires of a qualifying mainnet hash.",
-    "action_note": "These are the STRK20_ACTION variants the client encodes, verified against the pool's own type. packages/anonymizer/src/privacy_objects.cairo mirrors the pool's OpenNoteDeposit struct byte-for-byte against the STRK20 monorepo at commit 36eac4ea88cd8c59dde1493176e16501c6e90328."
-  },
-  "contracts": {
+  "contract_details": {
+    "_comment": "Our own record. The spec's `contracts` is a flat array of deployed addresses; this keeps the class hashes and sources that array has no room for.",
     "SealedBidAuction": {
       "class_hash": "0x19abab9ba38af44a3a9dd2393bfa012dc708eb9003d8225deb4d6b4587c699a",
       "source": "packages/auction/src/auction.cairo"
@@ -35,6 +22,19 @@
       ]
     }
   },
+  "strk20_integration": {
+    "pool_mainnet": "0x040337b1af3c663e86e333bab5a4b28da8d4652a15a69beee2b677776ffe812a",
+    "pool_sepolia": "0x254a6b2997ef52e9f830ce1f543f6b29768295e8d17e2267d672c552cfe0d91",
+    "how": "Bid collateral is withdrawn from the pool straight into the auction escrow inside a single privacy_invoke, so the bidder's public address never holds the funds and never appears as the escrow's source. Refunds and the winner's surplus return the same way.",
+    "actions_used": [
+      "withdraw",
+      "invoke",
+      "transfer"
+    ],
+    "proving": "Fixed-program (VIRTUAL_SNOS). No custom circuit slot is required, so the entry runs against the pool exactly as deployed.",
+    "verification": "client/scripts/verify-pool-shapes.mjs checks our encoded actions against the live MAINNET pool's compile_actions view, which is read-only: our two shapes fail on state, three deliberately malformed controls fail on shape. Separately, Sepolia transaction 0x1b9d71e1a5355b39f06c336a16b28f36b19862b9b8077d145282b2b10eeb9cb carries a Routed event from the anonymizer and a BidPlaced from the auction in one transaction, which is the shape the submission rule requires of a qualifying mainnet hash.",
+    "action_note": "These are the STRK20_ACTION variants the client encodes, verified against the pool's own type. packages/anonymizer/src/privacy_objects.cairo mirrors the pool's OpenNoteDeposit struct byte-for-byte against the STRK20 monorepo at commit 36eac4ea88cd8c59dde1493176e16501c6e90328."
+  },
   "build": {
     "cairo": "2.14.0",
     "scarb_profile": "release",
@@ -45,6 +45,14 @@
     "sierra": "1.7.0"
   },
   "trust_statement": "What is assured: the winner and the clearing price are established by hash-preimage proofs verified on-chain over a bid set the contract froze before any bid could be opened, so the auctioneer cannot alter the outcome, exclude a bid, or misreport the price without failing a proof or being slashed in the dispute window. What is not: after sealing, the auctioneer learns every bid amount - it can never publish them, prove a false outcome, or spend anyone's funds, but it knows them; and the number of bids, their timing, and the uniform escrow amount are public on-chain.",
+  "freeze": {
+    "_comment": "Contracts are CANDIDATE-FROZEN until the on-chain gates pass on Sepolia against the declared candidate. Mainnet declares only after that, because declaring twice pays twice.",
+    "state": "candidate-frozen",
+    "gate_abandon": "PASS 6/6 \u2014 scripts/verify-abandon.mjs, Sepolia",
+    "gate_events": "PASS 5/5 \u2014 scripts/verify-events.mjs, Sepolia",
+    "gate_browser_lifecycle": "outstanding \u2014 needs a human with a wallet extension",
+    "cairo_changes_required_so_far": 0
+  },
   "rehearsals": [
     {
       "network": "sepolia",
@@ -86,18 +94,9 @@
     }
   ],
   "pending": {
-    "$comment": "Fields the sprint requires that cannot hold a true value yet. Each says what unblocks it. They are listed rather than left as empty strings so a reader can tell 'not yet' from 'forgotten'.",
-    "network": "Set to 'mainnet' when the declare lands. Gated on the freeze, not on a date \u2014 see docs/sepolia-done.md.",
-    "contracts.*.address": "Deploy-time. The class hashes above are already final.",
-    "transactions": "At least three mainnet hashes that touched the STRK20 pool, per the submission rule. Needs a funded mainnet account and a privacy wallet - see docs/mainnet.md.",
-    "demo_video": "Script written and timed at docs/demo-script.md. Records after the mainnet auction runs, so the footage shows real hashes."
-  },
-  "freeze": {
-    "_comment": "Contracts are CANDIDATE-FROZEN until the on-chain gates pass on Sepolia against the declared candidate. Mainnet declares only after that, because declaring twice pays twice.",
-    "state": "candidate-frozen",
-    "gate_abandon": "PASS 6/6 \u2014 scripts/verify-abandon.mjs, Sepolia",
-    "gate_events": "PASS 5/5 \u2014 scripts/verify-events.mjs, Sepolia",
-    "gate_browser_lifecycle": "outstanding \u2014 needs a human with a wallet extension",
-    "cairo_changes_required_so_far": 0
+    "$comment": "Spec fields omitted because they cannot hold a true value yet. Each says what unblocks it.",
+    "transactions": "Array of at least three mainnet hashes, each having touched the STRK20 pool AND carried an event from a contract listed in `contracts`. Needs the mainnet declare and a shielded balance \u2014 see docs/runbook.md step 5.",
+    "contracts": "Array of the two deployed mainnet addresses. Class hashes are already final and recorded under contract_details.",
+    "demo_video": "Script written and timed at docs/demo-script.md. Records after the mainnet auction so the footage shows real hashes."
   }
 }

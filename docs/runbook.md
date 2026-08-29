@@ -95,8 +95,14 @@ and deploys. It refuses before spending if anything is wrong.
 cat deployments.mainnet.json
 ```
 
-Copy both addresses into `strk20.json` under `contracts`, and delete the matching lines
-from `pending`. Then:
+Add both addresses to `strk20.json` as a **flat array** — the spec's shape, and what the
+hub reads to decide whether a transaction ran through one of your contracts:
+
+```json
+"contracts": ["<auction address>", "<anonymizer address>"]
+```
+
+Delete the matching line from `pending`. Then:
 
 ```
 git add -A && git commit -m "deploy: mainnet" && git push
@@ -189,8 +195,16 @@ Then place three bids **through the pool**: open `/auction/<id>`, connect, choos
 
 **5e. Record them the moment they land:**
 
-Put all three hashes in `strk20.json` under `transactions`, remove the `pending` entry,
-commit, push.
+Put all three hashes in `strk20.json` as a flat array, remove the `pending` entry,
+commit, push:
+
+```json
+"transactions": ["0x…", "0x…", "0x…"]
+```
+
+Both of these are arrays of strings. Not objects. The hub reads `contracts` to check that
+each transaction ran through one of yours, so a wrong shape here costs the scoring gate
+even with three perfect transactions on chain.
 
 ---
 
