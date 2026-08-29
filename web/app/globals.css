@@ -960,14 +960,37 @@ button.primary:hover::before { opacity: .9; animation: spinEdge 2.4s linear infi
    this is the same product explaining itself, not a second design.
    ───────────────────────────────────────────────────────────────────────── */
 
-.docs { display: grid; grid-template-columns: 13rem minmax(0, 1fr); gap: 2.6rem; align-items: start; }
+/* The sticky header's height, so anything else that sticks can clear it rather than
+   sliding underneath. The docs rail did exactly that: its first item sat behind the
+   navbar and the list appeared to start at item two. */
+:root { --nav-h: 4.9rem; }
 
-.docs-nav { position: sticky; inset-block-start: 1.5rem; }
+/* Two columns sized to the writing, centred as a block.
+   `1fr` gave the content column the whole remaining width while the prose stayed at its
+   measure, so on a wide display the text stopped near the middle and the right half was
+   dead space — spacious is not what that reads as. Capping the column and centring the
+   pair balances the margin on both sides at any width. */
+/* The intro shares the grid's centring, or it sits flush left while the columns sit in
+   the middle and the page reads as two unrelated layouts. */
+.docs-head {
+  max-inline-size: 67.6rem;      /* 13 + 2.6 + 52, the docs block */
+  margin: 0 auto 2.4rem;
+}
+.docs-head > * { max-inline-size: 62ch; }
+
+.docs {
+  display: grid;
+  grid-template-columns: 13rem minmax(0, 52rem);
+  justify-content: center;
+  gap: 2.6rem; align-items: start;
+}
+
+.docs-nav { position: sticky; inset-block-start: calc(var(--nav-h) + 1rem); }
 .docs-toc {
   display: flex; flex-direction: column; gap: .1rem;
   padding-inline-end: .4rem;
   /* Scrolls itself rather than the page if the list ever outgrows the viewport. */
-  max-block-size: calc(100dvh - 3rem);
+  max-block-size: calc(100dvh - var(--nav-h) - 2.5rem);
   overflow-y: auto; overscroll-behavior: contain;
 }
 .docs-toc a {
@@ -978,9 +1001,12 @@ button.primary:hover::before { opacity: .9; animation: spinEdge 2.4s linear infi
 .docs-toc hr { border: 0; border-block-start: 1px solid var(--line); margin: .6rem .5rem; }
 
 .docs-body { min-inline-size: 0; }
-.docs-body section { scroll-margin-block-start: 5rem; }
+/* Anchor jumps land below the header rather than behind it. */
+.docs-body section { scroll-margin-block-start: calc(var(--nav-h) + 1rem); }
 .docs-body section + section { margin-block-start: 3.2rem; }
-.docs-body p { max-inline-size: 65ch; }
+/* One measure, in one place. It used to be an inline style repeated on twenty
+   paragraphs, which is how half of them ended up at 62ch and half at 65ch. */
+.docs-body :is(p, li, figcaption, dd) { max-inline-size: 68ch; }
 .docs-body h3 { font-size: var(--s-0); margin-block: 1.8rem .6rem; }
 .docs-body code { font-family: var(--font-mono); font-size: .88em; color: var(--ink); }
 

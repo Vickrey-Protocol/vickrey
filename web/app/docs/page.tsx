@@ -59,7 +59,7 @@ const PROPERTIES = [
 export default function Page() {
   return (
     <PublicShell>
-      <header style={{ maxWidth: "62ch", marginBottom: "2.4rem" }}>
+      <header className="docs-head">
         <p className="eyebrow">Documentation</p>
         <h1 className="display" style={{ fontSize: "var(--step-4)", margin: ".3rem 0 0" }}>
           How it works
@@ -126,7 +126,7 @@ export default function Page() {
           {/* ── 2 ─────────────────────────────────────────────────────────── */}
           <section id="properties">
             <h2 className="section">Six properties, and why each is hard</h2>
-            <p style={{ maxWidth: "62ch" }}>
+            <p>
               Each of these is a place a straightforward implementation breaks. They are
               listed because they are checkable, not because they are features.
             </p>
@@ -141,7 +141,7 @@ export default function Page() {
                 </li>
               ))}
             </ol>
-            <p className="note" style={{ maxWidth: "62ch" }}>
+            <p className="note">
               Properties 3 and 4 are marked because they are the two that are genuinely
               hard to get elsewhere. 3 is an attack most designs never consider — the
               auctioneer choosing the set after seeing the contents. 4 is the one a
@@ -153,23 +153,23 @@ export default function Page() {
           {/* ── 3 ─────────────────────────────────────────────────────────── */}
           <section id="thermometer">
             <h2 className="section">The thermometer commitment</h2>
-            <p style={{ maxWidth: "62ch" }}>
+            <p>
               This is the one piece of cryptography you have to follow, and it is a hash
               function used twice.
             </p>
-            <p style={{ maxWidth: "62ch" }}>
+            <p>
               Bids are not free-form amounts. They are <b>levels on a public ladder</b>:
               level 0 is the reserve, and each step up adds a fixed tick. Bidding at all
               means bidding at least the reserve, so the reserve needs no separate rule.
             </p>
-            <p style={{ maxWidth: "62ch" }}>
+            <p>
               A hash chain is a value hashed repeatedly. Given a link, anyone can walk{" "}
               <em>forward</em> by hashing again; walking <em>backward</em> would mean
               inverting the hash, which is the thing hash functions are for. So handing
               someone a link from a known depth proves you knew a value that far along —
               and proves nothing else.
             </p>
-            <p style={{ maxWidth: "62ch" }}>
+            <p>
               Each bidder publishes <b>two</b> anchors, one from each end of the ladder:
             </p>
             <pre className="code" aria-label="the two anchors">{`step(x) = poseidon([CHAIN_TAG, auction_id, claim_commitment, x])
@@ -177,14 +177,14 @@ export default function Page() {
 up_anchor   = step^(ℓ)        a depth-t preimage proves   ℓ ≥ t
 down_anchor = step^(P−1−ℓ)    a depth-(P−1−t) preimage proves  ℓ ≤ t`}</pre>
             <Thermometer levels={8} bid={4} />
-            <p style={{ maxWidth: "62ch" }}>
+            <p>
               Each witness reveals <em>one bound</em>, never the level. &ldquo;At least
               4&rdquo; is compatible with 4, 5, 6 or 7. But the two together pin a level
               exactly, and that is what settlement needs: the winner proves{" "}
               <b>at or above</b> the clearing level, the runner-up proves{" "}
               <b>exactly at</b> it, and everyone else proves <b>at or below</b>.
             </p>
-            <p style={{ maxWidth: "62ch" }}>
+            <p>
               Which gives the whole result. The second-highest bid is established as the
               price, by the person who made it, without that bid ever being stated — and
               every other bidder has said only &ldquo;mine was not higher than
@@ -193,14 +193,14 @@ down_anchor = step^(P−1−ℓ)    a depth-(P−1−t) preimage proves  ℓ ≤
             </p>
 
             <h3>Why it is N+1 witnesses, and why that is enough</h3>
-            <p style={{ maxWidth: "62ch" }}>
+            <p>
               For N bids the auctioneer submits <b>N+1</b> witnesses: one per bid, plus a
               second for the runner-up. The runner-up needs two because they are the only
               party whose level must be pinned <em>exactly</em> — one witness proves they
               are at least at the clearing level, the other that they are at most at it,
               and together those say <em>equals</em>.
             </p>
-            <p style={{ maxWidth: "62ch" }}>
+            <p>
               That set is sufficient to establish a Vickrey outcome, and the contract
               checks it rather than trusting it. If the claimed price were too low, the
               runner-up&rsquo;s &ldquo;exactly&rdquo; proof would not verify. If it were
@@ -208,12 +208,12 @@ down_anchor = step^(P−1−ℓ)    a depth-(P−1−t) preimage proves  ℓ ≤
               if a losing bid were really above the price, its &ldquo;at or below&rdquo;
               proof could not be produced at all.
             </p>
-            <p style={{ maxWidth: "62ch" }}>
+            <p>
               Each witness is a hash chain walk, so the whole settlement is linear in the
               number of bids — no sorting network, no pairwise comparisons, and nothing
               that grows quadratically as the auction fills up.
             </p>
-            <p className="note" style={{ maxWidth: "62ch" }}>
+            <p className="note">
               Settlement is O(N): N+1 witnesses for N bids, each a few hashes. Measured
               cost for three bids is in the README.
             </p>
@@ -222,13 +222,13 @@ down_anchor = step^(P−1−ℓ)    a depth-(P−1−t) preimage proves  ℓ ≤
           {/* ── 3b ────────────────────────────────────────────────────────── */}
           <section id="escrow">
             <h2 className="section">Escrow, silence, and exclusion</h2>
-            <p style={{ maxWidth: "62ch" }}>
+            <p>
               Three mechanisms that are not cryptography. Each closes an attack the hash
               chains do not touch.
             </p>
 
             <h3>Everyone escrows the same amount, and it is the top of the ladder</h3>
-            <p style={{ maxWidth: "62ch" }}>
+            <p>
               A bidder posts collateral equal to the <b>cap</b> — the highest level on the
               ladder — regardless of what they actually bid. Bidding level 2 out of 8 and
               bidding level 7 lock identical amounts.
@@ -239,7 +239,7 @@ down_anchor = step^(P−1−ℓ)    a depth-(P−1−t) preimage proves  ℓ ≤
               <b> the transfer would publish the bid</b> — and everything else here would
               be theatre.
             </p>
-            <p style={{ maxWidth: "62ch" }}>
+            <p>
               A uniform amount says nothing beyond &ldquo;someone bid&rdquo;, which the
               chain already shows. The cost is capital efficiency: a low bidder locks more
               than they intend to spend. The difference comes back at settlement — and on
@@ -248,30 +248,30 @@ down_anchor = step^(P−1−ℓ)    a depth-(P−1−t) preimage proves  ℓ ≤
             </p>
 
             <h3>Staying silent cannot grief the auction</h3>
-            <p style={{ maxWidth: "62ch" }}>
+            <p>
               In commit–reveal, a bidder who dislikes the result simply never reveals. In a
               second-price auction that is not a small problem: the runner-up going quiet
               changes what the winner pays. So non-reveal is an attack, and it is free.
             </p>
-            <p style={{ maxWidth: "62ch" }}>
+            <p>
               Here it costs the collateral. A bidder who never sends their seed is marked
               <b> forfeited</b> — the auctioneer proves it with the loser-side witness — and
               settlement proceeds without them. The auction does not wait, does not stall,
               and does not need their cooperation. Their escrow is not returned.
             </p>
-            <p className="note" style={{ maxWidth: "62ch" }}>
+            <p className="note">
               A bidder who forfeited but was genuinely above the clearing price can still
               redeem later by presenting the proof they withheld — so the penalty falls on
               obstruction, not on a lost connection.
             </p>
 
             <h3>The auctioneer cannot drop a rival&rsquo;s bid</h3>
-            <p style={{ maxWidth: "62ch" }}>
+            <p>
               The auctioneer learns every level after sealing. The obvious attack is to
               pretend a high bid never arrived, settle lower, and win the lot cheaply — or
               hand it to a friend.
             </p>
-            <p style={{ maxWidth: "62ch" }}>
+            <p>
               Two things stop it. <b>Ordering:</b> <code>seal()</code> freezes the set and
               stamps the block <em>before</em> any seed is sent, so the set cannot be
               chosen after seeing the contents. <b>Consequence:</b> during the dispute
@@ -279,7 +279,7 @@ down_anchor = step^(P−1−ℓ)    a depth-(P−1−t) preimage proves  ℓ ≤
               clearing price can present it. The contract verifies it, cancels the auction,
               and <b>slashes the auctioneer&rsquo;s bond to the disputer</b>.
             </p>
-            <p style={{ maxWidth: "62ch" }}>
+            <p>
               So excluding a bid is not merely detectable — it is detectable by exactly the
               person with the motive to detect it, and it pays them to do so.
             </p>
@@ -288,17 +288,17 @@ down_anchor = step^(P−1−ℓ)    a depth-(P−1−t) preimage proves  ℓ ≤
           {/* ── 4 ─────────────────────────────────────────────────────────── */}
           <section id="strk20">
             <h2 className="section">How it uses STRK20</h2>
-            <p style={{ maxWidth: "62ch" }}>
+            <p>
               Sealing the amount is the auction&rsquo;s job. STRK20 does the other half:
               unlinking the <em>bidder</em> from the bid.
             </p>
-            <p style={{ maxWidth: "62ch" }}>
+            <p>
               Bidding on the <b>public rail</b> is the ordinary path — connect, pick a
               level, sign. Your bid is sealed; your address is visible. The{" "}
               <b>private rail</b> funds the same bid from a shielded balance inside the
               STRK20 pool, so neither is visible.
             </p>
-            <p style={{ maxWidth: "62ch" }}>
+            <p>
               Our <code>AuctionAnonymizer</code> makes that atomic. The pool withdraws
               collateral to the helper, the helper forwards it into the auction and returns
               an empty span — the protocol&rsquo;s way of saying &ldquo;credit
@@ -306,7 +306,7 @@ down_anchor = step^(P−1−ℓ)    a depth-(P−1−t) preimage proves  ℓ ≤
               aborts the whole pool transaction and no funds move. <b>No bidder address
               ever crosses that boundary</b>; the auction sees only the helper.
             </p>
-            <p style={{ maxWidth: "62ch" }}>
+            <p>
               Every way value comes back — a loser&rsquo;s refund, the winner&rsquo;s
               surplus, a forfeited escrow redeemed late, the lot — returns as an{" "}
               <b>open note credited inside the pool</b>. There is no public leg on the way
@@ -314,24 +314,24 @@ down_anchor = step^(P−1−ℓ)    a depth-(P−1−t) preimage proves  ℓ ≤
             </p>
 
             <h3>Only one rail touches the pool</h3>
-            <p style={{ maxWidth: "62ch" }}>
+            <p>
               This distinction matters more than it first looks, because the two rails
               are not two grades of the same thing.
             </p>
-            <p style={{ maxWidth: "62ch" }}>
+            <p>
               A <b>public-rail</b> bid is a direct call to the auction contract. The
               collateral moves from the bidder&rsquo;s own address, and{" "}
               <b>the STRK20 pool is not involved at any point</b>. The bid is still sealed
               — the amount was never in the calldata — but nothing private happened. It is
               an ordinary transaction that happens to carry two hashes.
             </p>
-            <p style={{ maxWidth: "62ch" }}>
+            <p>
               A <b>private-rail</b> bid is a pool transaction. The pool withdraws to the
               anonymizer, the anonymizer calls the auction, and the whole thing succeeds or
               reverts together. That is the only path where funds leave a shielded balance
               and the only one that produces a <code>Routed</code> event.
             </p>
-            <p style={{ maxWidth: "62ch" }}>
+            <p>
               So a public-rail bid can never stand in for a private one when what is being
               demonstrated is the pool integration — however many of them there are. If
               you are checking whether this project really runs against STRK20, the
@@ -341,7 +341,7 @@ down_anchor = step^(P−1−ℓ)    a depth-(P−1−t) preimage proves  ℓ ≤
             </p>
 
             <h3>What <code>Routed</code> does and does not leak</h3>
-            <p style={{ maxWidth: "62ch" }}>
+            <p>
               The anonymizer emits one event per operation. It exists because a transaction
               that touches the pool otherwise looks identical whether it came through our
               contracts or somebody else&rsquo;s.
@@ -367,7 +367,7 @@ down_anchor = step^(P−1−ℓ)    a depth-(P−1−t) preimage proves  ℓ ≤
                 </ul>
               </div>
             </div>
-            <p className="note" style={{ maxWidth: "62ch", marginTop: ".9rem" }}>
+            <p className="note" style={{ marginTop: ".9rem" }}>
               The test asserts the <em>exact</em> event, so adding a member stops the suite
               compiling rather than quietly widening what is published.
             </p>
@@ -376,7 +376,7 @@ down_anchor = step^(P−1−ℓ)    a depth-(P−1−t) preimage proves  ℓ ≤
           {/* ── 5 ─────────────────────────────────────────────────────────── */}
           <section id="lifecycle">
             <h2 className="section">Lifecycle and time gates</h2>
-            <p style={{ maxWidth: "62ch" }}>
+            <p>
               Two of these are deadlines a participant can miss, and missing one costs
               money. They are shown throughout the app as a countdown <em>and</em> an
               absolute UTC time, because a countdown alone cannot be quoted in a dispute.
@@ -395,7 +395,7 @@ down_anchor = step^(P−1−ℓ)    a depth-(P−1−t) preimage proves  ℓ ≤
               <li><b>Cancelled</b> — a dispute succeeded, nothing was awarded, or the
                 auctioneer never settled. Everything unwinds and every bidder is refunded.</li>
             </ol>
-            <p style={{ maxWidth: "62ch" }}>
+            <p>
               That last route matters. A sealed auction otherwise has exactly one way out —
               settlement, which only the auctioneer can perform — so an auctioneer who
               walks away would lock every bidder&rsquo;s collateral permanently.{" "}
@@ -407,7 +407,7 @@ down_anchor = step^(P−1−ℓ)    a depth-(P−1−t) preimage proves  ℓ ≤
           {/* ── 6 ─────────────────────────────────────────────────────────── */}
           <section id="unshipped">
             <h2 className="section">What didn&rsquo;t ship</h2>
-            <p style={{ maxWidth: "62ch" }}>
+            <p>
               An entry that states its own gaps is worth more than one that hides them.
             </p>
             <dl className="facts">
