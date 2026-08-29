@@ -30,6 +30,8 @@ export default function AuctionPageClient({
   const [mine, setMine] = useState<StoredBid[]>([]);
   const [error, setError] = useState<string | null>(null);
 
+  const [missing, setMissing] = useState(false);
+
   const refresh = useCallback(async () => {
     try {
       const a = await readAuction(BigInt(id));
@@ -38,7 +40,9 @@ export default function AuctionPageClient({
       setBids(await readBids(BigInt(id), a.bidCount));
       setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.includes("AUCTION_NOT_FOUND")) setMissing(true);
+      else setError(msg);
     }
   }, [id]);
 
@@ -60,11 +64,23 @@ export default function AuctionPageClient({
       ) : (
         <div className="panel">
           <h1 className="display" style={{ fontSize: "var(--step-2)" }}>Auction #{id}</h1>
-          <p className="note" style={{ marginTop: ".6rem" }}>
-            {error
-              ? `Could not read ${config.label}: ${error}`
-              : `Reading auction #${id} from ${config.label}…`}
-          </p>
+          {missing ? (
+            <>
+              <p style={{ marginTop: ".6rem" }}>
+                <b>No auction #{id} exists</b> on {config.label}.
+              </p>
+              <p className="note" style={{ marginTop: ".4rem" }}>
+                Auctions are numbered from 0 in the order they were created.{" "}
+                <Link href="/auctions">See the ones that do exist</Link>.
+              </p>
+            </>
+          ) : (
+            <p className="note" style={{ marginTop: ".6rem" }}>
+              {error
+                ? `Could not read ${config.label}: ${error}`
+                : `Reading auction #${id} from ${config.label}…`}
+            </p>
+          )}
         </div>
       )}
     </PublicShell>

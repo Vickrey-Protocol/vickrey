@@ -25,6 +25,12 @@ const RPC = process.env.STARKNET_RPC ?? {
 }[NETWORK];
 if (!RPC) throw new Error(`no RPC for network ${NETWORK}; set STARKNET_RPC`);
 const STRK = "0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d";
+/* The auction is denominated in whatever token it is told to use, and the interface
+   reads that token's decimals rather than assuming eighteen. Overriding this is how the
+   six-decimal case gets exercised for real instead of only in a unit test. */
+const TOKEN = process.env.TOKEN ?? STRK;
+const DECIMALS = BigInt(process.env.DECIMALS ?? 18);
+const UNIT = 10n ** DECIMALS;
 const AUCTION = process.env.AUCTION;
 
 const ks = JSON.parse(readFileSync(process.env.HOME + "/.starknet_accounts/starknet_open_zeppelin_accounts.json", "utf8"));
@@ -37,7 +43,7 @@ const provider = new RpcProvider({ nodeUrl: RPC });
 const account = new Account({ provider, address: me.address, signer: me.private_key });
 
 const log = (...a) => console.log(...a);
-const E15 = 1_000_000_000_000_000n;
+const E15 = UNIT / 1000n > 0n ? UNIT / 1000n : 1n;   // one thousandth of a token
 
 async function send(label, calls) {
   const { transaction_hash } = await account.execute(calls);
@@ -67,18 +73,19 @@ const WINDOW = 60;
 log(`\nnetwork  ${NETWORK}`);
 log(`auction  ${AUCTION}`);
 log(`account  ${me.address}`);
-log(`cap      ${CAP} wei  ·  deadline +200s  ·  dispute window ${WINDOW}s\n`);
+log(`token    ${TOKEN}  (${DECIMALS} decimals)`);
+log(`cap      ${CAP} units  ·  deadline +200s  ·  dispute window ${WINDOW}s\n`);
 
 // ── 1. list ────────────────────────────────────────────────────────────
 const config = CallData.compile([
-  me.address, me.address, STRK, STRK,
+  me.address, me.address, TOKEN, TOKEN,
   num.toHex(LOT), "0x1",                       // lot_amount, kind = Vickrey
   num.toHex(terms.reservePrice), num.toHex(terms.tick),
   num.toHex(NUM_LEVELS), num.toHex(DEADLINE), num.toHex(WINDOW),
   num.toHex(BOND), shortString.encodeShortString("ONE RARE THING"),
 ]);
 hashes.create = await send("approve + create_auction", [
-  { contractAddress: STRK, entrypoint: "approve", calldata: CallData.compile([AUCTION, num.toHex(LOT + BOND), "0x0"]) },
+  { contractAddress: TOKEN, entrypoint: "approve", calldata: CallData.compile([AUCTION, num.toHex(LOT + BOND), "0x0"]) },
   { contractAddress: AUCTION, entrypoint: "create_auction", calldata: config },
 ]);
 const id = BigInt((await read("auction_count"))[0]) - 1n;
@@ -92,7 +99,7 @@ for (const [i, level] of LEVELS.entries()) {
   const b = { ...createBid(terms, level), index: i };
   bids.push(b);
   hashes[`bid${i}`] = await send(`approve + place_bid #${i}`, [
-    { contractAddress: STRK, entrypoint: "approve", calldata: CallData.compile([AUCTION, num.toHex(CAP), "0x0"]) },
+    { contractAddress: TOKEN, entrypoint: "approve", calldata: CallData.compile([AUCTION, num.toHex(CAP), "0x0"]) },
     { contractAddress: AUCTION, entrypoint: "place_bid",
       calldata: CallData.compile([num.toHex(id), num.toHex(b.claimCommitment), num.toHex(b.upAnchor), num.toHex(b.downAnchor)]) },
   ]);

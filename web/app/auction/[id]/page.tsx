@@ -35,10 +35,13 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
         }))}
       />
     );
-  } catch {
-    // The client retries and states the failure honestly. A read error must not turn
-    // into a 404 — "we could not reach the chain" and "no such auction" are different
-    // facts and conflating them would misreport the chain.
+  } catch (e) {
+    /* "No such auction" and "could not reach the chain" are different facts and must not
+       render the same. The contract answers the first with AUCTION_NOT_FOUND, so that
+       becomes a real 404; anything else is a read failure the client states honestly and
+       retries. Conflating them left /auction/999999 saying "Reading auction #999999…"
+       forever — a loading state that could never finish. */
+    if (String((e as Error)?.message ?? e).includes("AUCTION_NOT_FOUND")) notFound();
     return <AuctionPageClient id={id} initial={null} initialBids={[]} />;
   }
 }
