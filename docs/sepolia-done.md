@@ -10,6 +10,13 @@
 > | **§5 abandon** | **PASS 6/6** — `scripts/verify-abandon.mjs` |
 > | **§6a Routed + BidPlaced** | **PASS 5/5** — tx `0x1b9d71e1…0eeb9cb` |
 > | §1 full lifecycle in a browser | outstanding — needs a human |
+> | **§2 failure paths** | 404 verified; the rest need a browser |
+> | **§4 six-decimal live run** | **PASS** — auction #3 in `SIX`, renders 0.001–0.008, no bare zeros |
+>
+> Two interface bugs found by running §2 and §4 for real, both invisible to the test
+> suite: a missing auction rendered a permanent loading state instead of 404, and the
+> fix for it could never have worked because `notFound()` throws and the surrounding
+> `catch` swallowed it.
 >
 > Candidate on Sepolia:
 > `SealedBidAuction 0x00a9b781…4d0639` · `AuctionAnonymizer 0x065c8eb2…2d40334`

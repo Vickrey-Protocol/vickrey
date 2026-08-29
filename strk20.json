@@ -54,7 +54,15 @@
       "SealedBidAuction": "0x00a9b781351f83ac43613e05f4bb1f49dabff307f750b691af9933e23e4d0639",
       "AuctionAnonymizer": "0x065c8eb2b8d318065dd2742a27f0b557266a0455bd9ce7d80ae0d85a62d40334",
       "abandon_verified": "6/6 \u2014 scripts/verify-abandon.mjs",
-      "events_verified": "5/5 \u2014 scripts/verify-events.mjs, tx 0x1b9d71e1a5355b39f06c336a16b28f36b19862b9b8077d145282b2b10eeb9cb"
+      "events_verified": "5/5 \u2014 scripts/verify-events.mjs, tx 0x1b9d71e1a5355b39f06c336a16b28f36b19862b9b8077d145282b2b10eeb9cb",
+      "six_decimal_auction": {
+        "token": "0x01a1b37f8bded38e29e828dc95a8c10b9a069de0c9171ee7727eca84afdeff28",
+        "symbol": "SIX",
+        "decimals": 6,
+        "note": "A full Vickrey lifecycle denominated in a six-decimal token, to exercise the case that broke: the interface formatted every amount at a hardcoded 18 and rendered a 250 USDC lot as 0. The rendered ladder reads 0.001 through 0.008 and the clearing price 0.005.",
+        "auction_id": 3,
+        "clearing_price_raw": "5000"
+      }
     },
     {
       "network": "sepolia",
