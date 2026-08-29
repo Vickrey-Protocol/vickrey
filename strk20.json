@@ -18,7 +18,7 @@
       "transfer"
     ],
     "proving": "Fixed-program (VIRTUAL_SNOS). No custom circuit slot is required, so the entry runs against the pool exactly as deployed.",
-    "verification": "client/scripts/verify-pool-shapes.mjs checks our encoded actions against the live pool's compile_actions view, which is read-only. Three deliberately malformed controls confirm the check can still fail.",
+    "verification": "client/scripts/verify-pool-shapes.mjs checks our encoded actions against the live MAINNET pool's compile_actions view, which is read-only: our two shapes fail on state, three deliberately malformed controls fail on shape. Separately, Sepolia transaction 0x1b9d71e1a5355b39f06c336a16b28f36b19862b9b8077d145282b2b10eeb9cb carries a Routed event from the anonymizer and a BidPlaced from the auction in one transaction, which is the shape the submission rule requires of a qualifying mainnet hash.",
     "action_note": "These are the STRK20_ACTION variants the client encodes, verified against the pool's own type. packages/anonymizer/src/privacy_objects.cairo mirrors the pool's OpenNoteDeposit struct byte-for-byte against the STRK20 monorepo at commit 36eac4ea88cd8c59dde1493176e16501c6e90328."
   },
   "contracts": {
@@ -87,9 +87,17 @@
   ],
   "pending": {
     "$comment": "Fields the sprint requires that cannot hold a true value yet. Each says what unblocks it. They are listed rather than left as empty strings so a reader can tell 'not yet' from 'forgotten'.",
-    "network": "Set to 'mainnet' when the declare lands. Scheduled Wed 26 Aug 2026.",
+    "network": "Set to 'mainnet' when the declare lands. Gated on the freeze, not on a date \u2014 see docs/sepolia-done.md.",
     "contracts.*.address": "Deploy-time. The class hashes above are already final.",
     "transactions": "At least three mainnet hashes that touched the STRK20 pool, per the submission rule. Needs a funded mainnet account and a privacy wallet - see docs/mainnet.md.",
-    "demo_video": "Script is written and timed at docs/demo-script.md. Records after the mainnet auction runs, so the footage shows real hashes."
+    "demo_video": "Script written and timed at docs/demo-script.md. Records after the mainnet auction runs, so the footage shows real hashes."
+  },
+  "freeze": {
+    "_comment": "Contracts are CANDIDATE-FROZEN until the on-chain gates pass on Sepolia against the declared candidate. Mainnet declares only after that, because declaring twice pays twice.",
+    "state": "candidate-frozen",
+    "gate_abandon": "PASS 6/6 \u2014 scripts/verify-abandon.mjs, Sepolia",
+    "gate_events": "PASS 5/5 \u2014 scripts/verify-events.mjs, Sepolia",
+    "gate_browser_lifecycle": "outstanding \u2014 needs a human with a wallet extension",
+    "cairo_changes_required_so_far": 0
   }
 }
