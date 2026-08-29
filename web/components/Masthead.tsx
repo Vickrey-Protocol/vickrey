@@ -20,7 +20,12 @@ export function Masthead() {
       </div>
       <nav className="nav" aria-label="Sections">
         <Link href="/auctions">Auctions</Link>
-        <Link href="/docs">How it works</Link>
+        {/* Two audiences. The anchor is the ninety-second version on the landing page;
+            Docs is the reference. Pointing both at the same place meant whoever wanted
+            an overview got a wall, and whoever wanted the reference never learned it
+            existed. */}
+        <Link href="/#how">How it works</Link>
+        <Link href="/docs">Docs</Link>
         <Link href="/#faq">FAQ</Link>
         <a href="https://github.com/Vickrey-Protocol/vickrey" target="_blank" rel="noreferrer">GitHub</a>
       </nav>

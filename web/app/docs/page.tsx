@@ -14,6 +14,7 @@ const SECTIONS = [
   ["what", "What this is"],
   ["properties", "Six properties"],
   ["thermometer", "The thermometer commitment"],
+  ["escrow", "Escrow, silence, and exclusion"],
   ["strk20", "How it uses STRK20"],
   ["lifecycle", "Lifecycle and time gates"],
   ["unshipped", "What didn't ship"],
@@ -71,14 +72,19 @@ export default function Page() {
       </header>
 
       <div className="docs">
-        {/* Plain anchors: the contents must work with no JavaScript, like the rest. */}
-        <nav className="docs-toc" aria-label="Contents">
-          <p className="dash-group">Contents</p>
-          {SECTIONS.map(([id, label]) => <a key={id} href={`#${id}`}>{label}</a>)}
-          <hr />
-          <a href={REPO} target="_blank" rel="noreferrer">GitHub ↗</a>
-          <Link href="/auctions">Live auctions</Link>
-        </nav>
+        {/* Plain anchors, and a native <details> so the narrow layout collapses without
+            JavaScript. `open` means it is expanded by default on wide screens, where the
+            summary is hidden and it behaves as an ordinary sticky rail. */}
+        <details className="docs-nav" open>
+          <summary>Contents</summary>
+          <nav className="docs-toc" aria-label="Contents">
+            <p className="dash-group">Contents</p>
+            {SECTIONS.map(([id, label]) => <a key={id} href={`#${id}`}>{label}</a>)}
+            <hr />
+            <a href={REPO} target="_blank" rel="noreferrer">GitHub ↗</a>
+            <Link href="/auctions">Live auctions</Link>
+          </nav>
+        </details>
 
         <article className="docs-body">
           {/* ── 1 ─────────────────────────────────────────────────────────── */}
@@ -185,9 +191,97 @@ down_anchor = step^(P−1−ℓ)    a depth-(P−1−t) preimage proves  ℓ ≤
               that&rdquo;. Producing a witness for a bound you did not commit to is a
               Poseidon preimage break.
             </p>
+
+            <h3>Why it is N+1 witnesses, and why that is enough</h3>
+            <p style={{ maxWidth: "62ch" }}>
+              For N bids the auctioneer submits <b>N+1</b> witnesses: one per bid, plus a
+              second for the runner-up. The runner-up needs two because they are the only
+              party whose level must be pinned <em>exactly</em> — one witness proves they
+              are at least at the clearing level, the other that they are at most at it,
+              and together those say <em>equals</em>.
+            </p>
+            <p style={{ maxWidth: "62ch" }}>
+              That set is sufficient to establish a Vickrey outcome, and the contract
+              checks it rather than trusting it. If the claimed price were too low, the
+              runner-up&rsquo;s &ldquo;exactly&rdquo; proof would not verify. If it were
+              too high, the winner&rsquo;s &ldquo;at or above&rdquo; proof would not. And
+              if a losing bid were really above the price, its &ldquo;at or below&rdquo;
+              proof could not be produced at all.
+            </p>
+            <p style={{ maxWidth: "62ch" }}>
+              Each witness is a hash chain walk, so the whole settlement is linear in the
+              number of bids — no sorting network, no pairwise comparisons, and nothing
+              that grows quadratically as the auction fills up.
+            </p>
             <p className="note" style={{ maxWidth: "62ch" }}>
               Settlement is O(N): N+1 witnesses for N bids, each a few hashes. Measured
               cost for three bids is in the README.
+            </p>
+          </section>
+
+          {/* ── 3b ────────────────────────────────────────────────────────── */}
+          <section id="escrow">
+            <h2 className="section">Escrow, silence, and exclusion</h2>
+            <p style={{ maxWidth: "62ch" }}>
+              Three mechanisms that are not cryptography. Each closes an attack the hash
+              chains do not touch.
+            </p>
+
+            <h3>Everyone escrows the same amount, and it is the top of the ladder</h3>
+            <p style={{ maxWidth: "62ch" }}>
+              A bidder posts collateral equal to the <b>cap</b> — the highest level on the
+              ladder — regardless of what they actually bid. Bidding level 2 out of 8 and
+              bidding level 7 lock identical amounts.
+            </p>
+            <p className="lede">
+              This is not caution, it is the whole point. Escrow moves as an ordinary
+              ERC-20 transfer, and a transfer is public. If the amount tracked the bid,
+              <b> the transfer would publish the bid</b> — and everything else here would
+              be theatre.
+            </p>
+            <p style={{ maxWidth: "62ch" }}>
+              A uniform amount says nothing beyond &ldquo;someone bid&rdquo;, which the
+              chain already shows. The cost is capital efficiency: a low bidder locks more
+              than they intend to spend. The difference comes back at settlement — and on
+              the private rail it comes back as a note inside the pool, so even the refund
+              does not reveal how much was unspent.
+            </p>
+
+            <h3>Staying silent cannot grief the auction</h3>
+            <p style={{ maxWidth: "62ch" }}>
+              In commit–reveal, a bidder who dislikes the result simply never reveals. In a
+              second-price auction that is not a small problem: the runner-up going quiet
+              changes what the winner pays. So non-reveal is an attack, and it is free.
+            </p>
+            <p style={{ maxWidth: "62ch" }}>
+              Here it costs the collateral. A bidder who never sends their seed is marked
+              <b> forfeited</b> — the auctioneer proves it with the loser-side witness — and
+              settlement proceeds without them. The auction does not wait, does not stall,
+              and does not need their cooperation. Their escrow is not returned.
+            </p>
+            <p className="note" style={{ maxWidth: "62ch" }}>
+              A bidder who forfeited but was genuinely above the clearing price can still
+              redeem later by presenting the proof they withheld — so the penalty falls on
+              obstruction, not on a lost connection.
+            </p>
+
+            <h3>The auctioneer cannot drop a rival&rsquo;s bid</h3>
+            <p style={{ maxWidth: "62ch" }}>
+              The auctioneer learns every level after sealing. The obvious attack is to
+              pretend a high bid never arrived, settle lower, and win the lot cheaply — or
+              hand it to a friend.
+            </p>
+            <p style={{ maxWidth: "62ch" }}>
+              Two things stop it. <b>Ordering:</b> <code>seal()</code> freezes the set and
+              stamps the block <em>before</em> any seed is sent, so the set cannot be
+              chosen after seeing the contents. <b>Consequence:</b> during the dispute
+              window, anyone holding a witness that their bid was above the claimed
+              clearing price can present it. The contract verifies it, cancels the auction,
+              and <b>slashes the auctioneer&rsquo;s bond to the disputer</b>.
+            </p>
+            <p style={{ maxWidth: "62ch" }}>
+              So excluding a bid is not merely detectable — it is detectable by exactly the
+              person with the motive to detect it, and it pays them to do so.
             </p>
           </section>
 
@@ -217,6 +311,33 @@ down_anchor = step^(P−1−ℓ)    a depth-(P−1−t) preimage proves  ℓ ≤
               surplus, a forfeited escrow redeemed late, the lot — returns as an{" "}
               <b>open note credited inside the pool</b>. There is no public leg on the way
               out, so winning does not put an address on chain next to a price.
+            </p>
+
+            <h3>Only one rail touches the pool</h3>
+            <p style={{ maxWidth: "62ch" }}>
+              This distinction matters more than it first looks, because the two rails
+              are not two grades of the same thing.
+            </p>
+            <p style={{ maxWidth: "62ch" }}>
+              A <b>public-rail</b> bid is a direct call to the auction contract. The
+              collateral moves from the bidder&rsquo;s own address, and{" "}
+              <b>the STRK20 pool is not involved at any point</b>. The bid is still sealed
+              — the amount was never in the calldata — but nothing private happened. It is
+              an ordinary transaction that happens to carry two hashes.
+            </p>
+            <p style={{ maxWidth: "62ch" }}>
+              A <b>private-rail</b> bid is a pool transaction. The pool withdraws to the
+              anonymizer, the anonymizer calls the auction, and the whole thing succeeds or
+              reverts together. That is the only path where funds leave a shielded balance
+              and the only one that produces a <code>Routed</code> event.
+            </p>
+            <p style={{ maxWidth: "62ch" }}>
+              So a public-rail bid can never stand in for a private one when what is being
+              demonstrated is the pool integration — however many of them there are. If
+              you are checking whether this project really runs against STRK20, the
+              transactions to look at are the ones carrying <code>Routed</code> from the
+              anonymizer <em>and</em> <code>BidPlaced</code> from the auction, in the same
+              transaction.
             </p>
 
             <h3>What <code>Routed</code> does and does not leak</h3>

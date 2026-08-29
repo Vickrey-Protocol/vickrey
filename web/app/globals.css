@@ -962,10 +962,13 @@ button.primary:hover::before { opacity: .9; animation: spinEdge 2.4s linear infi
 
 .docs { display: grid; grid-template-columns: 13rem minmax(0, 1fr); gap: 2.6rem; align-items: start; }
 
+.docs-nav { position: sticky; inset-block-start: 1.5rem; }
 .docs-toc {
-  position: sticky; inset-block-start: 1.5rem;
   display: flex; flex-direction: column; gap: .1rem;
   padding-inline-end: .4rem;
+  /* Scrolls itself rather than the page if the list ever outgrows the viewport. */
+  max-block-size: calc(100dvh - 3rem);
+  overflow-y: auto; overscroll-behavior: contain;
 }
 .docs-toc a {
   padding: .34rem .5rem; border-radius: 8px; border-inline-start: 2px solid transparent;
@@ -1035,12 +1038,34 @@ ul.tight li { font-size: var(--s--1); color: var(--ink-2); line-height: 1.5; }
 .thermo figcaption { margin-block-start: .8rem; max-inline-size: 65ch; }
 
 @media (max-width: 860px) {
-  .docs { grid-template-columns: 1fr; gap: 1.4rem; }
-  .docs-toc {
-    position: static; flex-direction: row; flex-wrap: wrap; gap: .3rem;
-    padding: .8rem; border: 1px solid var(--line); border-radius: 12px; background: var(--glass);
+  .docs { grid-template-columns: 1fr; gap: 1.2rem; }
+  /* A long list of links above the article pushes the writing off the screen. It
+     collapses into a native <details>, which needs no JavaScript and stays reachable
+     because the summary sticks to the top of the viewport as you read. */
+  .docs-nav {
+    position: sticky; inset-block-start: 0; z-index: 4;
+    border: 1px solid var(--line); border-radius: 12px;
+    background: rgba(10, 21, 20, .92); backdrop-filter: blur(12px);
   }
+  .docs-nav > summary {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: .75rem .95rem; cursor: pointer; list-style: none;
+    font-size: var(--s--1); color: var(--ink-2);
+  }
+  .docs-nav > summary::-webkit-details-marker { display: none; }
+  .docs-nav > summary::after { content: "▾"; color: var(--muted); }
+  .docs-nav[open] > summary::after { content: "▴"; }
+  .docs-toc {
+    position: static; max-block-size: none; overflow: visible;
+    flex-direction: row; flex-wrap: wrap; gap: .3rem;
+    padding: 0 .7rem .8rem;
+  }
+  .docs-toc a { min-block-size: 2.05rem; display: inline-flex; align-items: center; }
   .docs-toc .dash-group, .docs-toc hr { display: none; }
+}
+/* Above the breakpoint the wrapper is not a disclosure at all. */
+@media (min-width: 861px) {
+  .docs-nav > summary { display: none; }
 }
 
 /* ── balances ─────────────────────────────────────────────────────────────
@@ -1089,9 +1114,14 @@ ul.tight li { font-size: var(--s--1); color: var(--ink-2); line-height: 1.5; }
   .facts { grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr)); }
 }
 
-/* Nothing may push the document sideways. A single overflowing element makes every
-   page on the site feel broken, and it is invisible until someone opens it on a phone. */
-html, body { overflow-x: hidden; }
+/* Nothing may push the document sideways. A single overflowing element makes every page
+   feel broken and is invisible until someone opens it on a phone.
+
+   `clip`, not `hidden`. `overflow: hidden` establishes a scroll container, and that
+   breaks `position: sticky` on every descendant — which is exactly what happened to the
+   docs contents rail when this rule was added. `clip` cuts the overflow without becoming
+   a scroll container, so sticky keeps working. */
+html { overflow-x: clip; }
 
 /* ── seed arrival ─────────────────────────────────────────────────────────
    Arrival, never level. A missing seed is a bid about to be forfeited and

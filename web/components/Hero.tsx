@@ -1,3 +1,4 @@
+import Link from "next/link";
 /**
  * The pitch.
  *
@@ -53,6 +54,14 @@ export function HowItWorks() {
           </div>
         ))}
       </dl>
+      {/* The door to the reference. Without it the short version is a dead end for the
+          reader who wanted more, which is the half of the audience that reads on. */}
+      <p className="note" style={{ marginBlockStart: ".9rem" }} data-reveal>
+        <Link href="/docs">
+          The full explanation — the six properties, the hash-chain construction, and what
+          the STRK20 integration does and does not reveal &rarr;
+        </Link>
+      </p>
     </section>
   );
 }

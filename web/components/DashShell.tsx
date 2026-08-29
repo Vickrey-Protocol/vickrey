@@ -78,7 +78,7 @@ export function DashShell({
           )}
 
           <hr />
-          <Link href="/docs">How it works</Link>
+          <Link href="/docs">Docs</Link>
           <Link href="/auctions">Public site</Link>
           <a href="https://github.com/Vickrey-Protocol/vickrey" target="_blank" rel="noreferrer">GitHub</a>
         </nav>

@@ -33,7 +33,8 @@ export function Footer() {
           <h4>Product</h4>
           <ul>
             <li><a href="/auctions">Auctions</a></li>
-            <li><a href="/docs">How it works</a></li>
+            <li><a href="/#how">How it works</a></li>
+            <li><a href="/docs">Docs</a></li>
             <li><a href="/#faq">FAQ</a></li>
           </ul>
         </div>
