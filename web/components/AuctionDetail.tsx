@@ -1,12 +1,13 @@
 "use client";
 
-import Link from "next/link";
+
 import { AuctionKind, Status, type PublicBid } from "@vickrey/client";
 import type { AuctionView } from "@/lib/chain";
 import { countdown, formatUnits, kindLabel, priceAt, utcDate } from "@/lib/config";
 import type { StoredBid } from "@/lib/vault";
 import type { Connection } from "@/lib/wallet";
 import { STATUS } from "@/lib/ui";
+import { useWallet } from "@/components/WalletProvider";
 import { Ladder } from "@/components/Ladder";
 import { CountUp } from "@/components/CountUp";
 import { TrustStatement } from "@/components/TrustStatement";
@@ -37,6 +38,7 @@ export function AuctionDetail({
   motionKey?: number;
   playing?: boolean;
 }) {
+  const { connect, connecting } = useWallet();
   const settled = auction.status === Status.Settled || auction.status === Status.Finalized;
   const resolved = auction.status === Status.Finalized;
   /* The price is derived from the proved level, not stored — the chain records the
@@ -160,9 +162,14 @@ export function AuctionDetail({
                   ? "Everything above is on-chain and needs no wallet. Connect one to place a sealed bid."
                   : "Everything above is on-chain and needs no wallet. Connect one to claim, reveal or dispute if you took part."}
               </p>
-              <Link className="primary" href="/app" style={{ display: "inline-block", marginTop: ".9rem" }}>
-                Connect wallet
-              </Link>
+              {/* Connects here rather than routing to the dashboard: the reason someone
+                  is on this page is this auction, and sending them elsewhere loses it.
+                  The panel to the left is unchanged by connecting — only this column
+                  gains the actions. */}
+              <button className="primary" style={{ marginTop: ".9rem" }}
+                      onClick={() => void connect()} disabled={connecting}>
+                {connecting ? "Connecting…" : "Connect wallet"}
+              </button>
               <p className="note" style={{ marginTop: ".8rem" }}>
                 Bid amounts stay sealed on either rail. Connecting reveals nothing about
                 what you bid.

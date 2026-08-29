@@ -1,8 +1,9 @@
 "use client";
 
 import {
-  createContext, useCallback, useContext, useEffect, useMemo, useState,
+  createContext, useCallback, useContext, useEffect, useMemo, useRef, useState,
 } from "react";
+import { useRouter } from "next/navigation";
 import { availableWallets, connect as connectWallet, type Connection } from "@/lib/wallet";
 import type { WalletWithStarknetFeatures } from "@starknet-io/get-starknet-wallet-standard/features";
 
@@ -22,14 +23,25 @@ interface WalletState {
   connection: Connection | null;
   error: string | null;
   connecting: boolean;
-  /** Opens the picker. Never connects to a wallet the user did not name. */
-  connect: () => Promise<void>;
+  /**
+   * Opens the picker. Never connects to a wallet the user did not name.
+   *
+   * `goTo` is where to land once a wallet is chosen. The landing page passes `/app`,
+   * because connecting there has no other visible effect — the button turned into an
+   * address and the user stayed on a marketing page, with the route to the dashboard
+   * hidden behind clicking that same address again. Nobody finds that.
+   *
+   * An auction page passes nothing: connecting there reveals the bid panel in place, and
+   * navigating away would lose the auction the user was looking at.
+   */
+  connect: (goTo?: string) => Promise<void>;
   disconnect: () => void;
 }
 
 const Ctx = createContext<WalletState | null>(null);
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
   const [connection, setConnection] = useState<Connection | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
@@ -44,7 +56,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
    * wallets detected and the pool leg riding on *which* one holds the shielded balance,
    * picking silently is the wrong default even when it guesses right.
    */
-  const connect = useCallback(async () => {
+  const goToRef = useRef<string | null>(null);
+
+  const connect = useCallback(async (goTo?: string) => {
+    goToRef.current = goTo ?? null;
     setError(null);
     try {
       const found = await availableWallets();
@@ -64,6 +79,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     setError(null);
     try {
       setConnection(await connectWallet(w));
+      if (goToRef.current) { const to = goToRef.current; goToRef.current = null; router.push(to); }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {

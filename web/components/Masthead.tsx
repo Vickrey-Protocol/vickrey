@@ -30,7 +30,7 @@ export function Masthead() {
             {shortAddr(connection.address)}{connection.strk20 ? "" : " · no strk20"}
           </Link>
         ) : (
-          <button className="primary" onClick={() => void connect()} disabled={connecting}>
+          <button className="primary" onClick={() => void connect("/app")} disabled={connecting}>
             {connecting ? "Connecting…" : "Connect wallet"}
           </button>
         )}

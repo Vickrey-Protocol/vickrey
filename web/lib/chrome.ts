@@ -22,23 +22,18 @@ export function watchScroll(): () => void {
  * Lights the background grid around the pointer. Writes two custom properties on
  * a single fixed element rather than tracking hundreds of grid cells.
  */
+/**
+ * The backdrop no longer tracks the pointer.
+ *
+ * It used to reveal an ember copy of the grid around the cursor, which tinted whatever
+ * cell you happened to be over on every page. Decorative, and it pulled the eye away
+ * from the numbers — on a page whose whole claim is what the numbers do and do not say,
+ * that is the wrong thing to animate.
+ *
+ * Kept as a no-op so the callers that unsubscribe it stay unchanged.
+ */
 export function watchBackdrop(): () => void {
-  const el = document.querySelector<HTMLElement>(".backdrop");
-  if (!el) return () => {};
-  let frame = 0;
-  const onMove = (e: PointerEvent) => {
-    if (frame) return;
-    frame = requestAnimationFrame(() => {
-      frame = 0;
-      el.style.setProperty("--gx", `${e.clientX}px`);
-      el.style.setProperty("--gy", `${e.clientY}px`);
-    });
-  };
-  addEventListener("pointermove", onMove, { passive: true });
-  return () => {
-    removeEventListener("pointermove", onMove);
-    if (frame) cancelAnimationFrame(frame);
-  };
+  return () => {};
 }
 
 /**

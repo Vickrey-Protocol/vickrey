@@ -681,12 +681,13 @@ footer {
    revealed only in a radius around the pointer, so the ground lights up
    where you are looking. Both sit at z-index -1 behind everything and
    neither ever crosses a number. */
+/* Static. An ember copy of the grid used to follow the pointer and tint whatever
+   cell you hovered — decorative, distracting, and it drew the eye away from the
+   numbers on every page. */
 .backdrop {
   position: fixed; inset: 0; z-index: -1; pointer-events: none;
-  --gx: 50vw; --gy: 30vh;
 }
-.backdrop::before,
-.backdrop::after {
+.backdrop::before {
   content: ""; position: absolute; inset: 0;
   background-image:
     linear-gradient(rgba(255, 255, 255, .055) 1px, transparent 1px),
@@ -698,16 +699,6 @@ footer {
   mask-image: linear-gradient(180deg, #000 0%, #000 42%, transparent 88%);
   -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 42%, transparent 88%);
 }
-/* The same grid in ember, revealed around the pointer. */
-.backdrop::after {
-  background-image:
-    linear-gradient(rgba(242, 145, 63, .5) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(242, 145, 63, .5) 1px, transparent 1px);
-  mask-image: radial-gradient(16rem circle at var(--gx) var(--gy), #000 0%, transparent 68%);
-  -webkit-mask-image: radial-gradient(16rem circle at var(--gx) var(--gy), #000 0%, transparent 68%);
-  transition: opacity .4s ease;
-}
-@media (hover: none) { .backdrop::after { display: none; } }
 
 /* Cursor-follow glow on cards. Applied to chrome only — never the instrument,
    never over a number. Driven by two custom properties set from one listener. */
