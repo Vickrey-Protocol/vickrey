@@ -369,6 +369,17 @@ money. It opens a **dispute window**. A forfeited bidder who proves `ℓ ≥ ℓ
 the settlement and takes the auctioneer's bond. `finalize` releases funds only after
 the window closes clean.
 
+> **What the bond does not cover.** It answers for a *dishonest settlement*. It does not
+> answer for walking away: the bond is pulled from the seller at listing and returned to
+> the seller by `abandon`, so where one address is both seller and auctioneer — the
+> convenient default — an auctioneer can seal, read the outcome off-chain, abandon if the
+> price disappoints, and re-list having lost only gas. Bidders are always made whole, so
+> this biases outcomes rather than stealing, but it is cheaper than the exclusion attack
+> the bond was designed for. The contract also enforces **no minimum bond**; zero lists
+> fine. Covered by three tests in `test_negative.cairo`, with a fix proposed in
+> [docs/proposal-bond.md](docs/proposal-bond.md). Until it ships, use a **separate
+> auctioneer address** where the outcome matters.
+
 ### What the chain sees
 
 | Public | Private |

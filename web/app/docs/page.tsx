@@ -327,6 +327,17 @@ down_anchor = step^(P−1−ℓ)    a depth-(P−1−t) preimage proves  ℓ ≤
               So excluding a bid is not merely detectable — it is detectable by exactly the
               person with the motive to detect it, and it pays them to do so.
             </p>
+            <p className="lede">
+              <b>What the bond does not cover.</b> It answers for a dishonest settlement,
+              not for walking away. The bond is taken from the seller at listing and
+              returned to the seller by <code>abandon</code>, so where one address is both
+              seller and auctioneer an auctioneer can seal, read the outcome off-chain,
+              abandon if the price disappoints, and re-list having lost only gas. Bidders
+              are always refunded in full, so this biases outcomes rather than stealing —
+              but it is cheaper than the attack the bond was built for, and the contract
+              enforces no minimum bond at all. Use a separate auctioneer address where the
+              outcome matters.
+            </p>
           </section>
 
           {/* ── 4 ─────────────────────────────────────────────────────────── */}
