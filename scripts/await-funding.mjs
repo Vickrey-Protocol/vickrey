@@ -15,7 +15,7 @@ import { RpcProvider, hash } from "starknet";
 const STRK = "0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d";
 const ACCOUNTS = [
   ["sepolia", "https://api.cartridge.gg/x/starknet/sepolia",
-   "0xbf54b8d90403f275fbf0e9db0bb7e2a278bcc0e8b53f3fe71a3e2931c668fa", 100],
+   "0xbf54b8d90403f275fbf0e9db0bb7e2a278bcc0e8b53f3fe71a3e2931c668fa", 70],
   ["mainnet", "https://api.cartridge.gg/x/starknet/mainnet",
    "0x04c475d32f7929507ad3d4691f8e263528355eca074e43b8ac26892fb03ace5f", 61.6],
 ];
@@ -37,8 +37,11 @@ for (let i = 0; i < MAX_MINUTES; i++) {
     try {
       const b = await balance(rpc, addr);
       seen.push(`${net} ${b.toFixed(2)}/${need}`);
-      if (net === "sepolia" && b >= need) {
-        console.log(`\nSEPOLIA FUNDED: ${b.toFixed(2)} STRK. Declaring the candidate build.`);
+      /* Either account unblocks work now. Mainnet unblocks the entry itself, so it
+         counts as much as Sepolia — with two days left, whichever lands first is the
+         one to act on. */
+      if (b >= need) {
+        console.log(`\n${net.toUpperCase()} FUNDED: ${b.toFixed(2)} STRK.`);
         console.log(seen.join("   "));
         process.exit(0);
       }
