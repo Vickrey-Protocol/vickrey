@@ -1,5 +1,23 @@
 # Sepolia definition of done
 
+> ## STATUS — Sat 29 Aug, 14:43 UTC · 2d 9h to the deadline
+>
+> **Neither account was ever funded, and nothing is deployed on mainnet.** This has been
+> the sole blocker since Monday. No line below has moved because none of them can.
+>
+> | | Needs | Has |
+> |---|---|---|
+> | Sepolia `0xbf54…c668fa` | 150 (faucet, free) | **57.11** — no longer enough for even one declare |
+> | Mainnet `0x04c4…ce5f` | 90 | **0.00** |
+>
+> Gas rose while we waited. Mainnet declares are now **46.96 STRK** (were 44.53) and the
+> bound is **64.99**. Sepolia's bound is **62.71** against a 57.11 balance, so the
+> "declare on the 57" fallback offered on Monday no longer exists — it expired
+> unexercised.
+>
+> **The freeze plan is now conditional on funding arriving today.** See
+> [mainnet.md](mainnet.md) for what happens if it does not.
+
 ## The contracts are CANDIDATE-FROZEN, not frozen
 
 **Frozen** is a claim about testing, not about whether anyone has edited a file. Today

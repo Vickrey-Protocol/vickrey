@@ -570,6 +570,25 @@ scripts/deploy.sh mainnet <sncast-account>
 
 6. **Only then attempt the pool leg**, dry-run first. This is the part nobody has run.
 
+## Where this actually stands — Sat 29 Aug, 14:43 UTC
+
+**Nothing is declared. Neither account is funded.** 2d 9h to the deadline, and today is
+the hard-latest declare date this document has named since Monday.
+
+The plan below is intact and none of it has been exercised. What follows is the
+compressed version, and the decision points are real rather than cautionary.
+
+| If funding lands | Then |
+|---|---|
+| **This afternoon** | Sepolia freeze pass (~90 min, free faucet) → mainnet declare → pool leg → judged auction → video. The original plan, compressed |
+| **Tonight or Sunday morning** | **Skip Sepolia.** Declare straight to mainnet. The evidence for the contracts is then 70 unit tests plus `verify-pool-shapes` against the live pool — weaker than a Sepolia pass and much better than nothing. Rule 1 still holds: pool leg first |
+| **Not by Sunday 12:00 UTC** | No path to a scoreable entry. Submit what exists — contracts, public rail, docs — with the README stating plainly that the mainnet transactions were never made. See [fallback.md](fallback.md), Tier D |
+
+**The minimum that scores** is smaller than the full plan and worth stating on its own:
+declare, deploy, create one auction, shield once, and route **three `place_bid` calls
+through the pool**. That is ~72 STRK and about three hours of work. It needs neither the
+five-bidder auction nor the dashboard nor a settled result.
+
 ## The declare date
 
 Deadline **Mon 31 Aug 2026, 23:59 UTC** — submissions close, and whatever the repo
