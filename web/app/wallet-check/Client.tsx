@@ -37,7 +37,7 @@ const chainName = (id: string | null) => {
 };
 
 export default function Client() {
-  const { connection, connect, connecting, error } = useWallet();
+  const { connection, connect, connecting, error, disconnect } = useWallet();
   const [detected, setDetected] = useState<string[]>([]);
   const [versions, setVersions] = useState<string[] | null>(null);
   const [pool, setPool] = useState<Check[]>([]);
@@ -204,6 +204,11 @@ export default function Client() {
               {connection.walletName}
             </p>
             <p className="note mono" style={{ wordBreak: "break-all" }}>{connection.address}</p>
+            <div className="row" style={{ gap: ".6rem", marginTop: ".8rem" }}>
+              <button onClick={() => { setBalProbe(null); setWalletChain(null); disconnect(); }}>
+                Test a different wallet
+              </button>
+            </div>
             <p className="note" style={{ marginTop: ".5rem" }}>
               Also detected but not connected:{" "}
               {detected.filter((d) => d !== connection.walletName).join(", ") || "none"}. Every

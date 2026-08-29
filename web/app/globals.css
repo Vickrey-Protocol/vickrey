@@ -929,3 +929,20 @@ button.primary:hover::before { opacity: .9; animation: spinEdge 2.4s linear infi
   font-family: var(--font-mono); font-size: .66rem; font-weight: 500;
   letter-spacing: .04em; text-transform: uppercase; color: var(--ink-2);
 }
+
+/* ── wallet picker ────────────────────────────────────────────────────────
+   Three extensions on one machine is normal, and which one holds the
+   shielded balance decides whether the pool leg works. Picking silently is
+   the wrong default even when it guesses right. */
+.picker-veil {
+  position: fixed; inset: 0; z-index: 50;
+  display: grid; place-items: center; padding: 1.2rem;
+  background: rgba(4, 9, 9, .72); backdrop-filter: blur(6px);
+}
+.picker {
+  inline-size: min(26rem, 100%);
+  padding: 1.3rem 1.4rem;
+  border: 1px solid var(--line-lit); border-radius: 16px;
+  background: #0C1917; box-shadow: 0 24px 70px rgba(0, 0, 0, .55);
+}
+.picker .rail { inline-size: 100%; }
