@@ -117,8 +117,14 @@ await expectRefusal("abandon inside the grace period",
 console.log(`\n    waiting out the grace…`);
 while (Math.floor(Date.now() / 1000) < sealedAt + WINDOW + 5) await new Promise((r) => setTimeout(r, 5000));
 
-const lotBefore = BigInt((await provider.callContract({ contractAddress: STRK, entrypoint: "balanceOf", calldata: [me.address] }))[0]);
+/* Measure the **auction contract's** balance across the abandon call, not our own.
+   Gas is paid in STRK out of the same account that receives the lot and bond, so a
+   before/after on our own balance nets negative and reports a false failure: the first
+   run of this script charged 0.34 STRK in fees to return 0.002 of lot and bond. The
+   contract's balance moves only because of the auction. */
+const heldBefore = BigInt((await provider.callContract({ contractAddress: STRK, entrypoint: "balanceOf", calldata: [AUCTION] }))[0]);
 await send("abandon", [{ contractAddress: AUCTION, entrypoint: "abandon", calldata: [num.toHex(id)] }]);
+const heldAfter = BigInt((await provider.callContract({ contractAddress: STRK, entrypoint: "balanceOf", calldata: [AUCTION] }))[0]);
 const status = Number(BigInt((await read("get_state", [num.toHex(id)]))[0]));
 record("abandon cancels the auction", status === 5, `status = ${status} (5 = Cancelled)`);
 
@@ -131,9 +137,9 @@ for (const b of bids) {
 }
 record("every bidder refunded the full cap", true, `${refunded} wei across ${bids.length} bids`);
 
-const lotAfter = BigInt((await provider.callContract({ contractAddress: STRK, entrypoint: "balanceOf", calldata: [me.address] }))[0]);
-record("lot and bond returned to the seller", lotAfter > lotBefore,
-  `balance moved by ${lotAfter - lotBefore} wei`);
+const released = heldBefore - heldAfter;
+record("lot and bond released by the contract at abandon", released === LOT + BOND,
+  `contract released ${released} wei; lot + bond = ${LOT + BOND}`);
 
 // ── a cancelled auction cannot be abandoned again ────────────────────────────
 await expectRefusal("abandon is not repeatable",

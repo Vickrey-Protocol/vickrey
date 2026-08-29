@@ -64,15 +64,18 @@ cast() { sncast --account "$ACCOUNT" "$@" --url "$RPC"; }
 field() { sed -n "s/^$1: *\(0x[0-9a-fA-F]*\).*/\1/p" | head -1; }
 
 # ── preflight: never spend on a chain we have not confirmed ───────────────────
+# sncast declares the RELEASE artifact, so that is what must be built and what the
+# idempotency check below must hash. Building dev here and checking dev there is how
+# a class gets declared twice.
 say "Building"
-scarb build
+scarb -P release build
 
 # The money check needs to know which declares are still outstanding, and that is a
 # question about the built artifacts — so the build comes first. It is free.
 SKIP=""
 for pair in \
-  "declare SealedBidAuction|target/dev/auction_SealedBidAuction.contract_class.json" \
-  "declare AuctionAnonymizer|target/dev/anonymizer_AuctionAnonymizer.contract_class.json"
+  "declare SealedBidAuction|target/release/auction_SealedBidAuction.contract_class.json" \
+  "declare AuctionAnonymizer|target/release/anonymizer_AuctionAnonymizer.contract_class.json"
 do
   step="${pair%%|*}"; art="${pair##*|}"
   if [ "$(node scripts/lib/class-status.mjs "$RPC" "$art" | cut -d' ' -f1)" = declared ]; then
@@ -108,11 +111,11 @@ declare_class() {                        # sets DECLARED
 }
 
 declare_class SealedBidAuction \
-  target/dev/auction_SealedBidAuction.contract_class.json SealedBidAuction auction
+  target/release/auction_SealedBidAuction.contract_class.json SealedBidAuction auction
 AUCTION_CLASS="$DECLARED"
 
 declare_class AuctionAnonymizer \
-  target/dev/anonymizer_AuctionAnonymizer.contract_class.json AuctionAnonymizer anonymizer
+  target/release/anonymizer_AuctionAnonymizer.contract_class.json AuctionAnonymizer anonymizer
 ANON_CLASS="$DECLARED"
 
 say "Deploying SealedBidAuction"

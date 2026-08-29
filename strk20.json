@@ -23,11 +23,11 @@
   },
   "contracts": {
     "SealedBidAuction": {
-      "class_hash": "0x20d49d80102828aff85ad1c00589c520c90ad2157456b08f9ccc063669ff1d9",
+      "class_hash": "0x19abab9ba38af44a3a9dd2393bfa012dc708eb9003d8225deb4d6b4587c699a",
       "source": "packages/auction/src/auction.cairo"
     },
     "AuctionAnonymizer": {
-      "class_hash": "0x5f0d799a36e9a70d30a3d626c588b06c0b5b8c1b8e0db0bedb6ff4ce7ec6212",
+      "class_hash": "0x112814b7d151b1499d65e8afffae67cc23e47cc5684229a6a2576aeb58b0f84",
       "source": "packages/anonymizer/src/auction_anonymizer.cairo",
       "constructor": [
         "privacy_pool",
@@ -37,15 +37,25 @@
   },
   "build": {
     "cairo": "2.14.0",
-    "scarb_profile": "dev",
+    "scarb_profile": "release",
     "starknet_foundry": "0.53.0",
-    "note": "The dev profile is what ships. See docs/mainnet.md - the release profile's smaller Sierra does not reduce the declare bound, and the dev build is the one verified byte-for-byte against the rehearsed Sepolia deployment.",
-    "tests": "64 passing (57 auction + 7 anonymizer): snforge test",
+    "note": "The RELEASE artifact is what ships, because that is what `sncast declare` builds \u2014 verified by clearing target/ and watching which directory it populates. An earlier note here said dev, which was wrong: the dev class hash is never declared by anything.",
+    "tests": "70 passing (61 auction + 9 anonymizer): snforge test",
     "scarb": "2.14.0",
     "sierra": "1.7.0"
   },
   "trust_statement": "What is assured: the winner and the clearing price are established by hash-preimage proofs verified on-chain over a bid set the contract froze before any bid could be opened, so the auctioneer cannot alter the outcome, exclude a bid, or misreport the price without failing a proof or being slashed in the dispute window. What is not: after sealing, the auctioneer learns every bid amount - it can never publish them, prove a false outcome, or spend anyone's funds, but it knows them; and the number of bids, their timing, and the uniform escrow amount are public on-chain.",
   "rehearsals": [
+    {
+      "network": "sepolia",
+      "run": 3,
+      "date": "2026-08-29",
+      "note": "The candidate build, declared and deployed on Sepolia. Freeze gates 5 and 6a verified against it.",
+      "SealedBidAuction": "0x00a9b781351f83ac43613e05f4bb1f49dabff307f750b691af9933e23e4d0639",
+      "AuctionAnonymizer": "0x065c8eb2b8d318065dd2742a27f0b557266a0455bd9ce7d80ae0d85a62d40334",
+      "abandon_verified": "6/6 \u2014 scripts/verify-abandon.mjs",
+      "events_verified": "5/5 \u2014 scripts/verify-events.mjs, tx 0x1b9d71e1a5355b39f06c336a16b28f36b19862b9b8077d145282b2b10eeb9cb"
+    },
     {
       "network": "sepolia",
       "run": 2,

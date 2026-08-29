@@ -12,6 +12,12 @@
  * Re-running a deploy after a partial failure is the normal case, not the exotic
  * one: a run that dies between the two declares should pick up where it stopped
  * rather than paying for the first one twice.
+ *
+ * **Point this at `target/release`.** `sncast declare` builds with Scarb's release
+ * profile — verified by clearing `target/` and watching which directory it populates —
+ * so the release artifact is what actually lands on chain. Checking the dev artifact
+ * computes a hash that will never be declared, reports "absent" for a class that is
+ * already there, and re-declares it. On mainnet that is 38 STRK paid twice.
  */
 import { readFileSync } from "node:fs";
 import { hash } from "starknet";

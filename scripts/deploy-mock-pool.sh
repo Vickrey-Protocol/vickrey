@@ -31,24 +31,33 @@ cast() { sncast --account "$ACCOUNT" "$@" --url "$RPC"; }
 field() { sed -n "s/^$1: *\(0x[0-9a-fA-F]*\).*/\1/p" | head -1; }
 say() { printf '\n\033[1m%s\033[0m\n' "$*"; }
 
-say "Building"; scarb build
+say "Building"; scarb -P release build
 
+# Declares if needed, then WAITS for the class to actually be on chain. sncast returns
+# as soon as the transaction is accepted for processing, and deploying against a class
+# the sequencer has not finished declaring fails with "is not declared" — which reads
+# like a bug in the declare rather than the race it is.
 declare_class() {
-  local name="$1" pkg="$2" artifact="$3" status
+  local name="$1" pkg="$2" artifact="$3" status hash
   status="$(node scripts/lib/class-status.mjs "$RPC" "$artifact")"
-  if [ "${status%% *}" = declared ]; then echo "${status#* }"; return; fi
+  hash="${status#* }"
+  if [ "${status%% *}" = declared ]; then echo "$hash"; return; fi
   cast declare --contract-name "$name" --package "$pkg" >/dev/null 2>&1 || true
+  for _ in $(seq 1 40); do
+    [ "$(node scripts/lib/class-status.mjs "$RPC" "$artifact" | cut -d' ' -f1)" = declared ] && break
+    sleep 5
+  done
   node scripts/lib/class-status.mjs "$RPC" "$artifact" | cut -d' ' -f2
 }
 
 say "Declaring MockPrivacyPool"
 POOL_CLASS="$(declare_class MockPrivacyPool anonymizer \
-  target/dev/anonymizer_MockPrivacyPool.contract_class.json)"
+  target/release/anonymizer_MockPrivacyPool.contract_class.json)"
 echo "  class_hash = $POOL_CLASS"
 
 say "Declaring AuctionAnonymizer"
 ANON_CLASS="$(declare_class AuctionAnonymizer anonymizer \
-  target/dev/anonymizer_AuctionAnonymizer.contract_class.json)"
+  target/release/anonymizer_AuctionAnonymizer.contract_class.json)"
 echo "  class_hash = $ANON_CLASS"
 
 say "Deploying MockPrivacyPool"

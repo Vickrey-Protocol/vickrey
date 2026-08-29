@@ -279,172 +279,34 @@ auction's bid storage. Only the declare bounds are measured; the rest are the sa
 1.384 ratio applied to the measured figure, which is conservative for the small steps
 and exact where it matters.
 
-### The release profile does not help, and we are not using it
+### We ship the release build — and not by choice
 
-`Scarb.toml` carries `[profile.release.cairo] inlining-strategy = 75`, added after a
-sweep, on the theory that a smaller Sierra makes the largest one-off cost smaller. It
-does shrink the artifact:
+`sncast declare` **builds with Scarb's release profile.** Verified by deleting `target/`
+and watching which directory it repopulates: only `target/release`. So the release
+artifact is what lands on chain, whatever any script builds beforehand.
 
-| | dev | release |
+This document previously argued the opposite — that we ship dev because dev was the build
+verified on Sepolia. That was wrong twice over. The dev class hash **is never declared by
+anything**, and the Sepolia deployment it pointed at had itself been declared from
+release.
+
+It surfaced the way these things do: `deploy.sh` printed a class hash that did not match
+the one recorded as the candidate, on the declare that was supposed to be routine.
+
+| | dev | release (ships) |
 |---|---|---|
-| `SealedBidAuction` Sierra | 511,355 B | 387,276 B (−24%) |
-| `SealedBidAuction` CASM | 17,147 felts | 15,807 felts (−8%) |
-| `AuctionAnonymizer` CASM | 3,616 felts | 3,829 felts (**+6%**) |
+| `SealedBidAuction` Sierra | 8,173 | **7,454** |
+| declare cost | 38.64 | **35.18** |
+| must hold | 53.48 | **48.69** |
 
-**But the declare bound is identical either way — 1,437,474,240 l2 gas, measured both
-ways against the live node.** The saving does not exist where it was claimed, and
-inlining makes the anonymizer *larger*. An earlier version of this file said the declare
-figure was "after a 10% Sierra reduction"; that was wrong on both counts — the figure
-came from a dev build, and the reduction does not move the number that gates the spend.
+Release is the cheaper build, so the correction is worth 3.4 STRK — but the cost of the
+error would have been higher than that. `scripts/lib/class-status.mjs` hashed the dev
+artifact, so it reported "absent" for a class that was already declared, and a mainnet
+re-run would have **declared it a second time at 35 STRK.** That is precisely the
+double-pay the candidate/frozen distinction exists to prevent, arriving through a route
+nobody was watching.
 
-So we declare the **dev** build. It is the build whose class hashes are verified byte-for-byte
-against the contracts that ran the full Sepolia lifecycle, and switching to an unverified
-artifact to chase a saving that measurement says is zero is a bad trade on the single most
-expensive transaction in the project.
-
-## If STRK is not in the wallet's shield picker
-
-The protocol is not the constraint — ["Push to Private"](https://www.starknet.io/blog/push-to-private/)
-(15 July 2026) says any ERC-20 can be shielded, live on mainnet. Whether a given wallet
-*exposes* a given token is a separate question, and wallet UI trails protocol.
-
-If the picker lacks STRK, we denominate the judged auction in something it does have.
-
-**What does not change**
-
-- **The contracts.** `payment_token` and `lot_token` are `create_auction` parameters,
-  not constants. No redeclare, no redeploy, no change to the 44.53 STRK declare.
-- **The declare itself.** It can go ahead Wednesday regardless; this is decided at
-  auction-creation time, which is later.
-- **Gas and the pool fee**, both still paid in STRK. The deploy account's 90 STRK is
-  unaffected.
-- **The frontend**, now that it reads `decimals()` rather than assuming 18. Before that
-  fix a 250 USDC lot rendered as `0`, so this contingency is the reason it got fixed.
-
-**What does change**
-
-- The auction is created with `payment_token` set to the shieldable token, and bidders
-  need a shielded balance **of that token** rather than of STRK.
-- **We have to acquire some**, which is the real cost and the reason to check the
-  picker early.
-- Nominal amounts get re-picked for the token's decimals and unit value.
-
-**Preference order if STRK is absent**
-
-| | Why | Friction |
-|---|---|---|
-| **USDC** | named as supported in the July post, 6 decimals, easy to acquire on Starknet | low — a swap |
-| strkBTC | confirmed shieldable in Xverse by name | high — bridging BTC |
-
-So: if STRK is not listed, look for USDC before anything else.
-
-**The 60 STRK to the browser wallet is not wasted either way.** Gas and pool fees are
-denominated in STRK whatever the auction settles in, and 4 pool operations at 6 STRK is
-24 of it.
-
-## The deploying account
-
-A **dedicated deploy account** is the better shape, and it costs **0.07 STRK** — the
-account deployment itself, measured against mainnet. That is the entire price
-difference.
-
-What it buys: a key that only ever declares and deploys, holds exactly the run's cost,
-and can be discarded afterwards. A key that never had anything else in it is one you can
-afford to be relaxed about — and this repo is public.
-
-```
-scripts/new-mainnet-account.sh create     # prints an address to fund
-scripts/new-mainnet-account.sh deploy     # after the funds land
-scripts/deploy.sh mainnet vickrey-deploy
-```
-
-### The one complication, and it is real
-
-**A dedicated sncast account cannot do the pool leg.** Private-rail transactions are
-proved inside the wallet, and sncast has no prover. So the three qualifying pool
-transactions — the ones the submission rule actually counts — must come from a browser
-wallet with STRK20 support, whatever we do here.
-
-That is not a cost of choosing a dedicated account; it is true either way. It does mean
-funding two places:
-
-| | Needs | Send | For |
-|---|---|---|---|
-| `vickrey-deploy` (sncast) | 46.6 spent, **61.6 held** | **90** | Both declares, both deploys, and the script-driven auction on the public rail |
-| Your own wallet (browser) | ~25 | **60** | Shield once, three qualifying pool transactions, gas — plus room for sponsored bids |
-
-The account deployment must be funded *before* it can be deployed: the deployment pays
-its own fee out of the account, so an empty one cannot bootstrap itself.
-
-Everything else is unchanged. `deploy.sh` does not care which account it is handed, and
-the read-only preflight still refuses to spend if the balance is under the bound.
-
-## Operating `abandon` — read before listing anything judges will see
-
-`abandon` is permissionless by design: the people with funds trapped in a sealed auction
-are the bidders, so requiring the absent auctioneer's cooperation to escape their
-absence would be no escape at all. That openness has an operational cost, and it is not
-a bug — it is a parameter you have to set deliberately.
-
-**The grace period counts from `sealed_at_time`** — the block timestamp `seal` stamped —
-plus the auction's own `dispute_window`. Not from the bid deadline, not from listing,
-not from a settle attempt. Those diverge whenever sealing is late, and sealing is
-permissionless, so it fires whenever somebody gets round to it.
-
-```
-abandonable  ⟺  status == Sealed  ∧  now ≥ sealed_at_time + dispute_window
-```
-
-**The exposed window is `seal` → `settle`, and nothing wider.** An Open auction has no
-outstanding auctioneer obligation, so there is nothing to time out. A Settled one has
-moved past it. Both are refused.
-
-### The consequence for a demo
-
-With the 180-second demo preset, an auction that sits Sealed for three minutes can be
-cancelled by anyone. Nobody is robbed — every bidder is refunded in full and the lot
-goes home — but the auction judges were looking at is gone.
-
-The obvious fix is a long `dispute_window`, and it works. It also has a cost worth
-seeing before you reach for it: **the same parameter sets how long `finalize` must
-wait.** A 24-hour window buys 24 hours of abandon protection and imposes a 24-hour delay
-before the auction can resolve. You cannot have a fast demo and a long grace from one
-number, because it is one number.
-
-### So: finalize it, don't fence it
-
-**A Finalized auction can never be abandoned, whatever its dispute window.** That is the
-escape hatch, and it is strictly better than a long window because it does not trade
-anything away.
-
-### The operator rule, both halves
-
-Only a **Sealed** auction is abandonable. So there are exactly two ways to be safe, and
-an auction left over a judging window has to satisfy one of them:
-
-**1. Past it — the judged auction reaches Finalized before judging opens.**
-Finalized is permanently immune, whatever the dispute window. This is the one that
-matters, because it is the auction judges will actually open. A short window helps here
-rather than hurting: it gets you to Finalized sooner.
-
-**2. Short of it — anything left biddable has a bid deadline beyond 4 Sept.**
-An Open auction cannot be abandoned: there is no outstanding auctioneer obligation to
-time out, so the state is unreachable. Push the deadline past the judging period and the
-auction never reaches Sealed unattended, so the grace period never starts counting.
-
-| Auction | Rule |
-|---|---|
-| The judged demo | Finalized before judging opens |
-| Anything left biddable during judging | `bid_deadline` **after 4 Sept 2026** |
-| A real auction, any value | 24h+ `dispute_window` — it is also the only time a wrong settlement can be challenged |
-
-**The gap between the two is the whole risk**, and it is narrow and specific: an auction
-whose bid deadline passes mid-judging, gets sealed by anyone (`seal` is permissionless),
-and then sits Sealed with no auctioneer watching. It is not a long-window problem and a
-long window is not the fix — the fix is to be on one side of Sealed or the other.
-
-Concretely, before judging opens: every auction is either Finalized, or has a deadline
-past 4 Sept. Nothing in between.
+Both `deploy.sh` and `class-status.mjs` now build and hash `target/release`.
 
 ## What to fund, itemised
 
@@ -547,14 +409,14 @@ scripts/deploy.sh mainnet <sncast-account>
    The class hashes are already known and are in `strk20.json`:
 
    ```
-   SealedBidAuction    0x20d49d80102828aff85ad1c00589c520c90ad2157456b08f9ccc063669ff1d9
-   AuctionAnonymizer   0x5f0d799a36e9a70d30a3d626c588b06c0b5b8c1b8e0db0bedb6ff4ce7ec6212
+   SealedBidAuction    0x19abab9ba38af44a3a9dd2393bfa012dc708eb9003d8225deb4d6b4587c699a
+   AuctionAnonymizer   0x112814b7d151b1499d65e8afffae67cc23e47cc5684229a6a2576aeb58b0f84
    ```
 
    **If the declare prints something different, stop.** It means the build is not the
    one that was rehearsed, and the contracts on mainnet would be untested code.
 
-   Note it builds with the **dev** profile, not `-P release`. That is deliberate — see
+   It builds with `-P release`, because that is what sncast declares — see
    "The release profile does not help" above.
 
 3. **If it dies partway, just run it again.** It skips whatever is already declared, so

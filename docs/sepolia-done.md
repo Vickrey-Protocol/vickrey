@@ -1,6 +1,23 @@
 # Sepolia definition of done
 
-> ## STATUS — Sat 29 Aug, 14:43 UTC · 2d 9h to the deadline
+> ## STATUS — Sat 29 Aug, ~16:00 UTC · §5 and §6a GREEN
+>
+> Sepolia funded (3157 STRK). Candidate declared and deployed there. **Two of the three
+> freeze gates pass.** §1 is the browser lifecycle and is the remaining one.
+>
+> | Gate | Result |
+> |---|---|
+> | **§5 abandon** | **PASS 6/6** — `scripts/verify-abandon.mjs` |
+> | **§6a Routed + BidPlaced** | **PASS 5/5** — tx `0x1b9d71e1…0eeb9cb` |
+> | §1 full lifecycle in a browser | outstanding — needs a human |
+>
+> Candidate on Sepolia:
+> `SealedBidAuction 0x00a9b781…4d0639` · `AuctionAnonymizer 0x065c8eb2…2d40334`
+>
+> **No Cairo change was required.** The freeze holds so far on the contracts themselves;
+> both failures found were in tooling.
+>
+> ## Earlier status — Sat 29 Aug, 14:43 UTC
 >
 > **Neither account was ever funded, and nothing is deployed on mainnet.** This has been
 > the sole blocker since Monday. No line below has moved because none of them can.
