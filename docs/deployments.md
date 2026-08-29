@@ -57,7 +57,7 @@ deliberately malformed controls fail on shape. See PHASE0.md.
 
 ## Hosting
 
-Live at **https://vickrey-ten.vercel.app** — Vercel, project root `web/`, npm
+Live at **https://vickrey.0xo.in** — Vercel, project root `web/`, npm
 workspaces so the sibling `client` package is reachable at build time.
 
 Network is entirely env-driven, so pointing the site at mainnet is three variables and

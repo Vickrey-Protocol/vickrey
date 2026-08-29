@@ -48,7 +48,7 @@ jobs:
         with: { node-version: "24" }
       - run: node scripts/check-links.mjs
         env:
-          SITE: https://vickrey-ten.vercel.app
+          SITE: https://vickrey.0xo.in
 
   deployed:
     # Four commits once sat on main while the live URL served an older build, because
@@ -68,4 +68,4 @@ jobs:
         with: { node-version: "24" }
       - run: node scripts/check-deployed.mjs
         env:
-          SITE: https://vickrey-ten.vercel.app
+          SITE: https://vickrey.0xo.in

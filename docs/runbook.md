@@ -136,7 +136,7 @@ scripts/deploy-web.sh
 
 **5a. Confirm the wallet can still do it, free:**
 
-Open `https://vickrey-ten.vercel.app/wallet-check`, connect the wallet you tested on
+Open `https://vickrey.0xo.in/wallet-check`, connect the wallet you tested on
 Sepolia.
 
 - **Expect:** "Wallet is on the same network as this page" = **pass**, all three STRK20
@@ -174,7 +174,7 @@ First create an auction the qualifying bids can go into, with a **long bid deadl
 past 4 Sept, so it can never sit Sealed and unattended during judging (the `abandon`
 operator rule in [mainnet.md](mainnet.md)).
 
-Use the site: `https://vickrey-ten.vercel.app/app/create`, connect, walk the five steps.
+Use the site: `https://vickrey.0xo.in/app/create`, connect, walk the five steps.
 At **Timing** choose a bid deadline past 4 Sept and the **Suggested** 24h dispute window.
 Note the auction id it gives you.
 

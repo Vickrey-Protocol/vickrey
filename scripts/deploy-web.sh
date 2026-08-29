@@ -18,7 +18,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 COMMIT="$(git rev-parse HEAD)"
-SITE="${SITE:-https://vickrey-ten.vercel.app}"
+SITE="${SITE:-https://vickrey.0xo.in}"
 
 # Deploying a dirty tree produces a live site that matches no commit anywhere, which is
 # worse than being stale — at least stale is findable.

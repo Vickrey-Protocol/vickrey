@@ -16,7 +16,7 @@
  */
 import { execSync } from "node:child_process";
 
-const SITE = process.argv[2] ?? process.env.SITE ?? "https://vickrey-ten.vercel.app";
+const SITE = process.argv[2] ?? process.env.SITE ?? "https://vickrey.0xo.in";
 const head = execSync("git rev-parse HEAD").toString().trim();
 
 const fail = (msg) => { console.error(`\n  ${msg}\n`); process.exit(1); };

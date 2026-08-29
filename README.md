@@ -2,8 +2,8 @@
 
 **Sealed-bid auctions on STRK20 where the losing bids are never published.**
 
-**[Open the live auctions](https://vickrey-ten.vercel.app)** &nbsp;·&nbsp;
-**[How it works, in full](https://vickrey-ten.vercel.app/docs)** — the six properties,
+**[Open the live auctions](https://vickrey.0xo.in)** &nbsp;·&nbsp;
+**[How it works, in full](https://vickrey.0xo.in/docs)** — the six properties,
 the hash-chain construction, and what the STRK20 integration does and does not reveal.
 
 A Vickrey auction is the theoretically optimal auction: the highest bidder wins and
@@ -44,7 +44,7 @@ The long form, including everything this does *not* protect against, is in
 **Nothing is on mainnet yet, and mainnet is the deliverable.** There is a full Sepolia
 rehearsal — contracts deployed and a complete ten-transaction auction run, see
 [docs/deployments.md](docs/deployments.md) — and the site is hosted at
-**https://vickrey-ten.vercel.app**, currently pointed at that rehearsal. The mainnet
+**https://vickrey.0xo.in**, currently pointed at that rehearsal. The mainnet
 fields in [strk20.json](strk20.json) stay empty until they are real.
 
 Mainnet cost is measured rather than estimated: [docs/mainnet.md](docs/mainnet.md).

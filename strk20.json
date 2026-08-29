@@ -1,6 +1,6 @@
 {
   "$comment": "Top-level field names and TYPES follow the sprint's strk20.json spec exactly: `transactions` and `contracts` are arrays, not objects. An earlier version had `contracts` as an object keyed by contract name, which the hub would not have read \u2014 and the transaction check depends on it, because a qualifying hash must have run through a contract listed there. Fields that cannot be true yet are omitted rather than left empty, per 'add each field when you have it'; `pending` says what unblocks each one.",
-  "demo_url": "https://vickrey-ten.vercel.app",
+  "demo_url": "https://vickrey.0xo.in",
   "name": "Vickrey",
   "tagline": "Sealed-bid auctions where the losing bids are never published",
   "description": "A Vickrey (second-price) auction on Starknet where no bid is ever revealed - not the losers', not the winner's. Bidders commit to a price level with two Poseidon hash chains that let the contract verify 'my bid is at least X' and 'my bid is at most X' without learning the bid. Settlement proves the Vickrey outcome from N+1 such witnesses: the winner is at or above the clearing level, the runner-up is exactly at it, everyone else is at or below. Funds move through the STRK20 privacy pool, so the bidder's identity is unlinked from the bid as well.",

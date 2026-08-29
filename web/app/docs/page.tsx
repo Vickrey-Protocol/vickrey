@@ -4,7 +4,9 @@ import { Thermometer } from "@/components/docs/Thermometer";
 import { TrustStatement } from "@/components/TrustStatement";
 
 export const metadata = {
-  title: "How it works — Vickrey",
+  title: "How it works",
+  alternates: { canonical: "/docs" },
+  openGraph: { url: "/docs", title: "How Vickrey works" },
   description:
     "What a Vickrey auction is, why sealing bids on a public chain is hard, and the hash-chain construction that settles one without ever publishing a bid.",
 };
