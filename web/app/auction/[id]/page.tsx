@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { readAuction, readBids, toWire } from "@/lib/chain";
 import { isDeployed } from "@/lib/config";
-import AuctionPageClient from "./AuctionPageClient";
+import AuctionPageClient, { type WireBid } from "./AuctionPageClient";
 
 /**
  * Public auction detail. **No wallet.**
@@ -19,29 +19,33 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   if (!/^\d+$/.test(id)) notFound();
   if (!isDeployed()) return <AuctionPageClient id={id} initial={null} initialBids={[]} />;
 
+  let auction = null;
+  let bids: WireBid[] = [];
+  let unreachable = false;
+
   try {
-    const auction = await readAuction(BigInt(id));
-    if (!auction) notFound();
-    const bids = await readBids(BigInt(id), auction.bidCount);
-    return (
-      <AuctionPageClient
-        id={id}
-        initial={toWire(auction)}
-        initialBids={bids.map((b) => ({
-          index: b.index,
-          claimCommitment: b.claimCommitment.toString(),
-          upAnchor: b.upAnchor.toString(),
-          downAnchor: b.downAnchor.toString(),
-        }))}
-      />
-    );
-  } catch (e) {
+    auction = await readAuction(BigInt(id));
+    if (auction) {
+      bids = (await readBids(BigInt(id), auction.bidCount)).map((b) => ({
+        index: b.index,
+        claimCommitment: b.claimCommitment.toString(),
+        upAnchor: b.upAnchor.toString(),
+        downAnchor: b.downAnchor.toString(),
+      }));
+    }
+  } catch {
     /* "No such auction" and "could not reach the chain" are different facts and must not
-       render the same. The contract answers the first with AUCTION_NOT_FOUND, so that
-       becomes a real 404; anything else is a read failure the client states honestly and
-       retries. Conflating them left /auction/999999 saying "Reading auction #999999…"
-       forever — a loading state that could never finish. */
-    if (String((e as Error)?.message ?? e).includes("AUCTION_NOT_FOUND")) notFound();
-    return <AuctionPageClient id={id} initial={null} initialBids={[]} />;
+       render the same. readAuction returns null for the first and throws for the second,
+       so reaching here means the chain is unreachable — the client says so and retries. */
+    unreachable = true;
   }
+
+  /* notFound() signals by *throwing*, so it must sit outside the try above. Calling it
+     inside meant the catch swallowed Next's own control-flow error and rendered the
+     loading state instead — /auction/999999 said "Reading auction #999999…" forever,
+     and the 404 never escaped. */
+  if (!auction && !unreachable) notFound();
+  if (!auction) return <AuctionPageClient id={id} initial={null} initialBids={[]} />;
+
+  return <AuctionPageClient id={id} initial={toWire(auction)} initialBids={bids} />;
 }
