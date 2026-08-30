@@ -10,7 +10,7 @@
   "contract_details": {
     "_comment": "Our own record. The spec's `contracts` is a flat array of deployed addresses; this keeps the class hashes and sources that array has no room for.",
     "SealedBidAuction": {
-      "class_hash": "0x19abab9ba38af44a3a9dd2393bfa012dc708eb9003d8225deb4d6b4587c699a",
+      "class_hash": "0x2cf4e3d00a71c2b7019a9b021309ba442b2e0e1e6b51d162a6faf1b183d9923",
       "source": "packages/auction/src/auction.cairo"
     },
     "AuctionAnonymizer": {
@@ -40,7 +40,7 @@
     "scarb_profile": "release",
     "starknet_foundry": "0.53.0",
     "note": "The RELEASE artifact is what ships, because that is what `sncast declare` builds \u2014 verified by clearing target/ and watching which directory it populates. An earlier note here said dev, which was wrong: the dev class hash is never declared by anything.",
-    "tests": "70 passing (61 auction + 9 anonymizer): snforge test",
+    "tests": "75 passing (66 auction + 9 anonymizer): snforge test",
     "scarb": "2.14.0",
     "sierra": "1.7.0"
   },
@@ -48,19 +48,20 @@
   "freeze": {
     "_comment": "Contracts are CANDIDATE-FROZEN until the on-chain gates pass on Sepolia against the declared candidate. Mainnet declares only after that, because declaring twice pays twice.",
     "state": "candidate-frozen",
-    "gate_abandon": "PASS 6/6 \u2014 scripts/verify-abandon.mjs, Sepolia",
-    "gate_events": "PASS 5/5 \u2014 scripts/verify-events.mjs, Sepolia",
+    "gate_abandon": "PASS 6/6 \u2014 scripts/verify-abandon.mjs, Sepolia, against the bond fix",
+    "gate_events": "PASS 5/5 \u2014 scripts/verify-events.mjs, tx 0x1c5fb345\u2026fd0b27a",
     "gate_browser_lifecycle": "outstanding \u2014 needs a human with a wallet extension",
-    "cairo_changes_required_so_far": 0
+    "cairo_changes_required_so_far": 1,
+    "change_log": "One change since the first candidate: abandon forfeits the auctioneer's bond to the bidders instead of returning it to the seller, and the bond is bounded to [tick, cap]. Found by audit, not by testing \u2014 the earlier build let a seller who was also the auctioneer discard a disappointing outcome for the cost of gas. See docs/proposal-bond.md."
   },
   "rehearsals": [
     {
       "network": "sepolia",
       "run": 3,
       "date": "2026-08-29",
-      "note": "The candidate build, declared and deployed on Sepolia. Freeze gates 5 and 6a verified against it.",
-      "SealedBidAuction": "0x00a9b781351f83ac43613e05f4bb1f49dabff307f750b691af9933e23e4d0639",
-      "AuctionAnonymizer": "0x065c8eb2b8d318065dd2742a27f0b557266a0455bd9ce7d80ae0d85a62d40334",
+      "note": "The candidate build including the bond fix, declared and deployed on Sepolia. Freeze gates 5 and 6a verified against it, plus two full lifecycles (18-decimal and 6-decimal).",
+      "SealedBidAuction": "0x0496dde31ec488f340fd21e4533206a8b0d36becd314728b8c212dcbf48c30d9",
+      "AuctionAnonymizer": "0x06dfbdabc0c44c97c3227b8b5a829db9f0eb60e52c07dea13de02a049893f758",
       "abandon_verified": "6/6 \u2014 scripts/verify-abandon.mjs",
       "events_verified": "5/5 \u2014 scripts/verify-events.mjs, tx 0x1b9d71e1a5355b39f06c336a16b28f36b19862b9b8077d145282b2b10eeb9cb",
       "six_decimal_auction": {

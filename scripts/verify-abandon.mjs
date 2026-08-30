@@ -129,17 +129,28 @@ const status = Number(BigInt((await read("get_state", [num.toHex(id)]))[0]));
 record("abandon cancels the auction", status === 5, `status = ${status} (5 = Cancelled)`);
 
 // ── everyone is made whole ───────────────────────────────────────────────────
-let refunded = 0n;
+/* Read what actually came back rather than asserting the arithmetic we expect: each
+   bidder should get their escrow plus an equal share of the forfeited bond. */
+const share = BOND / BigInt(bids.length);
+let allRight = true;
 for (const b of bids) {
+  const before = BigInt((await provider.callContract({ contractAddress: STRK, entrypoint: "balanceOf", calldata: [AUCTION] }))[0]);
   await send(`claim_refund #${b.index}`, [{ contractAddress: AUCTION, entrypoint: "claim_refund",
     calldata: CallData.compile([num.toHex(id), num.toHex(b.index), num.toHex(b.claimSecret), me.address]) }]);
-  refunded += CAP;
+  const after = BigInt((await provider.callContract({ contractAddress: STRK, entrypoint: "balanceOf", calldata: [AUCTION] }))[0]);
+  const paid = before - after;
+  if (paid !== CAP + share) allRight = false;
+  console.log(`      paid ${paid} wei  (cap ${CAP} + bond share ${share})`);
 }
-record("every bidder refunded the full cap", true, `${refunded} wei across ${bids.length} bids`);
+record("each bidder gets their escrow plus a share of the forfeited bond", allRight,
+  `expected ${CAP + share} wei each across ${bids.length} bids`);
 
 const released = heldBefore - heldAfter;
-record("lot and bond released by the contract at abandon", released === LOT + BOND,
-  `contract released ${released} wei; lot + bond = ${LOT + BOND}`);
+/* Only the lot leaves at abandon. The bond stays behind and is paid to the bidders
+   through claim_refund — returning it to the seller was the defect this closed. */
+record("only the lot is released at abandon; the bond stays for the bidders",
+  released === LOT,
+  `contract released ${released} wei (lot ${LOT}); bond ${BOND} retained for bidders`);
 
 // ── a cancelled auction cannot be abandoned again ────────────────────────────
 await expectRefusal("abandon is not repeatable",

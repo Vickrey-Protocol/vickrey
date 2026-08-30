@@ -107,6 +107,19 @@ declare_class() {                        # sets DECLARED
   got="$(cast declare --contract-name "$name" --package "$pkg" | field 'Class Hash')"
   [ -n "$got" ] || { echo "declare produced no class hash" >&2; exit 1; }
   echo "  class_hash = $got"
+
+  # sncast returns once the declare is accepted for processing, not once the class is
+  # queryable. Deploying against it too early fails with "is not declared", which reads
+  # like a broken declare rather than the race it is.
+  printf '  waiting for the class to be queryable'
+  for _ in $(seq 1 40); do
+    [ "$(node scripts/lib/class-status.mjs "$RPC" "$artifact" | cut -d' ' -f1)" = declared ] && break
+    printf '.'; sleep 5
+  done
+  echo
+  [ "$(node scripts/lib/class-status.mjs "$RPC" "$artifact" | cut -d' ' -f1)" = declared ] || {
+    echo "  class never became queryable — re-run, the declare itself succeeded" >&2; exit 1; }
+
   DECLARED="$got"
 }
 

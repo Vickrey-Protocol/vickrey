@@ -41,8 +41,8 @@ node scripts/pool-status.mjs 0x04c475d32f7929507ad3d4691f8e263528355eca074e43b8a
 
 - **Expect:** `public STRK  120.00` or more.
 - **If it reads 0.00:** the funding has not landed. Nothing below will work. Wait.
-- **Why 120 and not 90:** after the happy path you keep ~51 STRK. An auction redeclare
-  needs **48.69 held**. At 90 you would keep ~21 and be stranded mid-recovery.
+- **Why 120 and not 90:** after the happy path you keep ~47 STRK. An auction redeclare
+  needs **53.7 held**. At 90 you would keep ~17 and be stranded mid-recovery.
 
 ---
 
@@ -67,13 +67,13 @@ This builds `-P release`, runs 70 tests, checks the chain and the balance, then 
 and deploys. It refuses before spending if anything is wrong.
 
 - **Expect, in order:** `Building` · `Tests: 70 passed` · `Preflight` showing chain
-  `0x534e5f4d41494e`, `pool class matches`, and a balance **above** the bound ·
+  `0x534e5f4d41494e`, `pool class matches`, and a balance **above** the bound (**66.08 STRK**) ·
   two `Declaring` blocks · two `Deploying` blocks · `Verifying on chain` with three
   matches · `Wrote deployments.mainnet.json`.
 
 - **Expect these exact class hashes:**
   ```
-  SealedBidAuction    0x19abab9ba38af44a3a9dd2393bfa012dc708eb9003d8225deb4d6b4587c699a
+  SealedBidAuction    0x2cf4e3d00a71c2b7019a9b021309ba442b2e0e1e6b51d162a6faf1b183d9923
   AuctionAnonymizer   0x112814b7d151b1499d65e8afffae67cc23e47cc5684229a6a2576aeb58b0f84
   ```
   **If a class hash differs, STOP.** The build is not the candidate that passed the

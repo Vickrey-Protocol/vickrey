@@ -140,15 +140,15 @@
   },
   "pool_txs_for_submission": 4,
   "mainnet_estimates": {
-    "_comment": "Re-measured 29 Aug against the RELEASE artifact, which is what sncast declares. Earlier figures here priced the dev build, which never lands on chain.",
+    "_comment": "Re-measured 30 Aug after the bond fix (abandon forfeits to bidders, bond bounded). Against the RELEASE artifact, which is what sncast declares.",
     "block": 13757721,
     "l2_gas_price_fri": 30677268112,
     "declare_SealedBidAuction": {
-      "strk": 35.18,
-      "class_hash": "0x19abab9ba38af44a3a9dd2393bfa012dc708eb9003d8225deb4d6b4587c699a"
+      "strk": 38.77,
+      "class_hash": "0x2cf4e3d00a71c2b7019a9b021309ba442b2e0e1e6b51d162a6faf1b183d9923"
     },
     "declare_AuctionAnonymizer": {
-      "strk": 8.39,
+      "strk": 8.98,
       "class_hash": "0x112814b7d151b1499d65e8afffae67cc23e47cc5684229a6a2576aeb58b0f84"
     },
     "deploy_account_oz": {
@@ -158,7 +158,7 @@
     "pool_fee_read_live_strk": 6,
     "sncast_bound_multiplier": 1.384,
     "sncast_bound_note": "sncast demanded 1,437,474,240 l2 gas for a class whose Sepolia receipt charged 1,038,760,640 - a 1.384x margin. Applied to the mainnet estimates that projects to ~48.0 and ~10.5 STRK that must be held, against ~42.3 spent.",
-    "declares_total_strk": 43.57,
-    "must_hold_strk": 60.3
+    "declares_total_strk": 47.75,
+    "must_hold_strk": 66.08
   }
 }

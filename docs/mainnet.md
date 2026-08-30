@@ -116,8 +116,8 @@ moves underneath you and the failure reads as a nonce bug rather than a race.
 
 | Step | l2 gas | **Node estimate** |
 |---|---|---|
-| declare `SealedBidAuction` | 1,194,422,944 | **36.64 STRK** |
-| declare `AuctionAnonymizer` | 257,127,200 | **7.89 STRK** |
+| declare `SealedBidAuction` | — | **38.77 STRK** |
+| declare `AuctionAnonymizer` | — | **8.98 STRK** |
 | deploy an OZ account | — | not needed — a funded account exists |
 | deploy both contracts | ~3.6M | ~0.12 STRK |
 | full auction lifecycle, 9 tx | ~55.0M | ~1.84 STRK |
@@ -142,7 +142,7 @@ the network difference.
 | declare `SealedBidAuction` | 36.64 | **~50.7** |
 | declare `AuctionAnonymizer` | 7.89 | ~10.9 |
 | deploys | 0.13 | ~0.2 |
-| **contracts up** | **~44.7** | **~61.6** |
+| **contracts up** | **~47.9** | **~66.1** |
 
 ### The submission total
 
@@ -409,7 +409,7 @@ scripts/deploy.sh mainnet <sncast-account>
    The class hashes are already known and are in `strk20.json`:
 
    ```
-   SealedBidAuction    0x19abab9ba38af44a3a9dd2393bfa012dc708eb9003d8225deb4d6b4587c699a
+   SealedBidAuction    0x2cf4e3d00a71c2b7019a9b021309ba442b2e0e1e6b51d162a6faf1b183d9923
    AuctionAnonymizer   0x112814b7d151b1499d65e8afffae67cc23e47cc5684229a6a2576aeb58b0f84
    ```
 
