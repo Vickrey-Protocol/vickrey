@@ -309,6 +309,40 @@ down_anchor = step^(P−1−ℓ)    a depth-(P−1−t) preimage proves  ℓ ≤
               obstruction, not on a lost connection.
             </p>
 
+            <h3>Forfeited escrow stays in the contract, deliberately</h3>
+            <p>
+              Read the contract and you will find money that can never come out. A bid
+              whose anchors match no rung — which <code>place_bid</code> cannot detect,
+              because it is handed two hashes and never a level — is marked forfeited at
+              settlement, and its escrow then sits there permanently. No claim path
+              releases it: <code>claim_refund</code> refuses a forfeited bid,{" "}
+              <code>redeem_forfeit</code> needs a witness that cannot exist for a bogus
+              anchor, and <code>finalize</code> never sweeps it.
+            </p>
+            <p>
+              That looks like a bug. It is what keeps a different one closed.
+            </p>
+            <p className="lede">
+              Marking a bid forfeited requires <b>no proof at all</b> — the auctioneer
+              simply declares it, and the dispute window is what checks them. So if
+              forfeited escrow were paid out to the seller, an auctioneer who is also the
+              seller would <b>profit from forfeiting everybody</b>. The obvious fix funds
+              the attack.
+            </p>
+            <p>
+              Stranding it removes the incentive completely: a forfeit pays nobody, so
+              there is nothing to gain by declaring one. The bidder who is actually harmed
+              — someone honest who went offline — is not the one stranded, because they
+              can produce the loser-side proof late and{" "}
+              <code>redeem_forfeit</code> returns their escrow in full. What is stranded
+              is only the escrow of a bid that was malformed on purpose, by the person who
+              malformed it.
+            </p>
+            <p className="note">
+              Four end-to-end tests cover this, and a conservation test asserts the
+              contract holds nothing at all once an ordinary auction has been claimed out.
+            </p>
+
             <h3>The auctioneer cannot drop a rival&rsquo;s bid</h3>
             <p>
               The auctioneer learns every level after sealing. The obvious attack is to

@@ -36,6 +36,30 @@ These are not style preferences. Each one is here because skipping it cost somet
    limit.** A May guide saying only strkBTC is shieldable was quoted here as a caution
    after STRK20 had shipped in June and July's "Push to Private" had stated any ERC-20.
    Stale sources produce false blockers, which waste as much time as false confidence.
+7. **Ask what the current behaviour is protecting before you change it.** The obvious fix
+   to an apparent bug can open a worse hole than the one it closes.
+
+   Forfeited escrow stays in this contract forever and no path releases it. That reads as
+   a leak, and the obvious repair is to sweep it to the seller. Marking a bid forfeited
+   requires **no proof** — the auctioneer declares it — so paying that escrow to the
+   seller would let an auctioneer who is also the seller profit from forfeiting everyone.
+   The apparent bug is what makes the forfeit power safe to hold.
+
+   So the question to answer first is never "how do I fix this", it is "what breaks if I
+   do". Where the answer is load-bearing, say so in the docs: a reader who finds money
+   locked in a contract will assume a defect unless told otherwise.
+8. **A path covered by consequence is not covered.** Assert the contract's own holdings,
+   not only that the calls which follow succeed.
+
+   Every `pull` in this contract was exercised by tests that would have failed if the
+   pull had not happened — a claim later on would have come up short. That is coverage of
+   the *entry*, and it left every *exit* invisible: two defects reached the write-up, and
+   both were about where money went on the way out.
+
+   `a_full_lifecycle_conserves_value` is the shape that catches them. It asserts what the
+   contract holds at each stage and that it holds **nothing** once an ordinary auction
+   has been claimed out. Prefer one invariant over a checklist of paths — the checklist
+   only covers what somebody thought to list.
 
 ## Before you push
 
