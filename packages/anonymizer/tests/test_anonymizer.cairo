@@ -95,6 +95,13 @@ fn setup() -> Rig {
     lot.approve(auction_addr, LOT.into());
     stop_cheat_caller_address(lot.contract_address);
 
+    // The bond is now bounded below, so the seller has to actually hold and approve it.
+    // With a zero bond `create_auction` skipped the pull entirely and never needed this.
+    send(pay, bank(), seller(), TICK);
+    start_cheat_caller_address(pay.contract_address, seller());
+    pay.approve(auction_addr, TICK.into());
+    stop_cheat_caller_address(pay.contract_address);
+
     let config = AuctionConfig {
         seller: seller(),
         auctioneer: auctioneer(),
@@ -107,7 +114,7 @@ fn setup() -> Rig {
         num_levels: LEVELS,
         bid_deadline: DEADLINE,
         dispute_window: WINDOW,
-        auctioneer_bond: 0,
+        auctioneer_bond: TICK,   // the floor: one price step at stake
         terms_hash: 'LOT',
     };
     start_cheat_caller_address(auction_addr, seller());
@@ -152,7 +159,12 @@ fn a_bid_placed_through_the_pool_credits_no_note_and_parks_the_collateral() {
     bid(rig, 'A', 'SA', 12);
 
     assert!(rig.auction.get_state(rig.id).bid_count == 1);
-    assert!(rig.pay.balance_of(rig.auction.contract_address) == CAP.into(), "collateral parked");
+    // The auction holds the bidder's collateral and the seller's bond, which is now
+    // bounded below and so always present.
+    assert!(
+        rig.pay.balance_of(rig.auction.contract_address) == (CAP + TICK).into(),
+        "collateral parked",
+    );
     assert!(rig.pay.balance_of(rig.helper.contract_address) == 0, "helper holds nothing after");
 }
 

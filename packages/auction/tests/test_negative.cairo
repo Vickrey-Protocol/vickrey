@@ -10,7 +10,7 @@ use snforge_std::{start_cheat_block_timestamp_global, start_cheat_caller_address
 use auction::erc20::IERC20DispatcherTrait;
 use core::num::traits::Zero;
 use super::common::{
-    BOND, DEADLINE, LOT, LEVELS, WINDOW, finalize, payout, place, pool, proof_above, proof_below,
+    BOND, CAP, DEADLINE, LOT, LEVELS, WINDOW, finalize, payout, place, pool, proof_above, proof_below,
     balance, proof_exactly, proof_forfeit, seal, seller, settle, setup, setup_with,
     setup_with_auctioneer,
 };
@@ -363,11 +363,14 @@ fn an_auctioneer_who_never_settles_can_be_timed_out() {
     start_cheat_block_timestamp_global(DEADLINE + WINDOW + 1);
     env.auction.abandon(env.id);
 
-    // Everyone gets their collateral back, and the seller gets the lot and bond.
+    // Everyone gets their collateral back plus a share of the forfeited bond, and the
+    // seller gets the lot. The bond no longer goes home — see
+    // `abandon_forfeits_the_bond_to_the_bidders`.
+    let share = BOND / 2;
     let got_a = env.auction.claim_refund(env.id, a.index, 'A', payout());
     let got_b = env.auction.claim_refund(env.id, b.index, 'B', payout());
-    assert!(got_a == escrow, "A's escrow did not come back");
-    assert!(got_b == escrow, "B's escrow did not come back");
+    assert!(got_a == escrow + share, "A's escrow did not come back");
+    assert!(got_b == escrow + share, "B's escrow did not come back");
     assert!(env.lot.balance_of(seller()) == LOT.into(), "the lot did not go home");
 }
 
@@ -464,76 +467,94 @@ fn abandon_is_not_repeatable() {
     env.auction.abandon(env.id);
 }
 
-// ---- the auctioneer's bond: what it does and does not answer for -----------------
+// ---- the auctioneer's bond ------------------------------------------------------
 
-/// **The contract enforces no floor on the bond.** A zero bond lists fine.
+/// A bond below one price step is rejected at listing.
 ///
-/// Documenting it rather than asserting it is wrong: whether there should be a floor is
-/// a design question, and the answer is not obviously yes for a permissionless
-/// contract. What is not acceptable is the property being undocumented, because the
-/// write-up tells bidders the auctioneer has money at risk.
+/// Zero used to be accepted, which left nothing at stake in a settlement bidders are
+/// asked to trust. One tick is the smallest amount that makes moving the outcome by a
+/// single level cost something.
 #[test]
-fn an_auction_with_a_zero_bond_is_accepted() {
-    let env = setup_with(AuctionKind::Vickrey, LEVELS, 0);
-    let a = place(env, 'A', 'SA', 5);
-    seal(env);
-    settle(env, 0, a.index, array![proof_above(env, a, 0)]);
-    finalize(env);
-    // Runs to completion with nothing staked on the outcome being honest.
-    assert!(env.auction.get_state(env.id).status == Status::Finalized, "should finalize");
+#[should_panic(expected: 'BOND_BELOW_ONE_TICK')]
+fn a_bond_below_one_tick_is_rejected() {
+    setup_with(AuctionKind::Vickrey, LEVELS, 0);
 }
 
-/// **`abandon` returns the bond; it does not slash it.**
+/// A bond above the uniform collateral is rejected at listing.
 ///
-/// The bond answers for a *dishonest settlement*, and abandonment is the absence of a
-/// settlement. But that means the bond is not a deterrent against walking away, which
-/// is the cheaper attack — see below.
+/// `abandon` pays the bond to the bidders, so an unbounded bond would let a bidder's
+/// share exceed the collateral they staked — at which point the auction failing is worth
+/// more to them than it succeeding.
 #[test]
-fn abandon_returns_the_bond_rather_than_slashing_it() {
+#[should_panic(expected: 'BOND_ABOVE_COLLATERAL')]
+fn a_bond_above_the_collateral_cap_is_rejected() {
+    setup_with(AuctionKind::Vickrey, LEVELS, CAP + 1);
+}
+
+/// **`abandon` forfeits the bond to the bidders.**
+///
+/// It used to be returned to the seller, which is where the defect lived.
+#[test]
+fn abandon_forfeits_the_bond_to_the_bidders() {
     let env = setup(AuctionKind::Vickrey);
-    place(env, 'A', 'SA', 5);
+    let a = place(env, 'A', 'SA', 5);
+    let b = place(env, 'B', 'SB', 2);
     seal(env);
 
-    let before = balance(env.pay, seller());
+    let seller_before = balance(env.pay, seller());
     start_cheat_block_timestamp_global(DEADLINE + WINDOW + 1);
     env.auction.abandon(env.id);
 
-    assert!(balance(env.pay, seller()) == before + BOND, "bond did not come back to the seller");
+    assert!(balance(env.pay, seller()) == seller_before, "the bond must not go home");
+
+    // Each bidder receives their own escrow plus an equal share of the forfeited bond.
+    let share = BOND / 2;
+    assert!(
+        env.auction.claim_refund(env.id, a.index, 'A', payout()) == CAP + share,
+        "bidder A: escrow plus a share of the bond",
+    );
+    assert!(
+        env.auction.claim_refund(env.id, b.index, 'B', payout()) == CAP + share,
+        "bidder B: escrow plus a share of the bond",
+    );
 }
 
-/// **The attack the bond does not price.**
+/// **The attack this closes.**
 ///
-/// The bond is pulled from the *seller* at listing and returned to the *seller* on
-/// abandon. When one address is both — the ordinary case, and what every script here
-/// does — an auctioneer can seal, collect the seeds, compute the outcome off-chain, and
-/// abandon if the clearing price disappoints. Lot back, bond back, bidders refunded,
-/// and the auction re-runs.
+/// The bond is pulled from the seller at listing. It used to be returned to the seller on
+/// abandon, so where one address was both seller and auctioneer, an auctioneer could
+/// seal, collect the seeds, compute the outcome off-chain, and abandon if the clearing
+/// price disappointed — lot back, bond back, re-list, cost of gas only.
 ///
-/// Cost: gas. Not the bond, at any size.
-///
-/// That is strictly cheaper than excluding a bid, which requires submitting a false
-/// settlement that a disputer can slash. Discarding the whole outcome requires no false
-/// proof at all, so nothing is there to dispute.
+/// That was strictly cheaper than excluding a bid, which needs a false settlement a
+/// disputer can slash. Discarding needs no false proof, so nothing exists to dispute.
 #[test]
-fn an_auctioneer_who_is_the_seller_can_discard_an_outcome_for_free() {
-    // One address as both seller and auctioneer.
+fn an_auctioneer_who_is_the_seller_cannot_discard_an_outcome_for_free() {
     let env = setup_with_auctioneer(AuctionKind::Vickrey, seller());
     place(env, 'A', 'SA', 7);
     place(env, 'B', 'SB', 2);
     seal(env);
 
-    // Seeds are now in the auctioneer's hands and the outcome is computable off-chain.
-    // Suppose the clearing price disappoints.
-    let before = balance(env.pay, seller());
+    let pay_before = balance(env.pay, seller());
     let lot_before = balance(env.lot, seller());
-
     start_cheat_block_timestamp_global(DEADLINE + WINDOW + 1);
     env.auction.abandon(env.id);
 
-    assert!(balance(env.pay, seller()) == before + BOND, "bond returned in full");
-    assert!(balance(env.lot, seller()) == lot_before + LOT, "lot returned in full");
+    // The lot comes home — nothing was sold — but the bond does not.
+    assert!(balance(env.lot, seller()) == lot_before + LOT, "lot returns");
     assert!(
-        env.auction.get_state(env.id).status == Status::Cancelled,
-        "auction discarded, free to re-run",
+        balance(env.pay, seller()) == pay_before,
+        "discarding the outcome must now cost the bond",
     );
+}
+
+/// Nobody bid, so nobody was harmed and the bond goes home.
+#[test]
+fn abandoning_an_auction_with_no_bids_returns_the_bond() {
+    let env = setup(AuctionKind::Vickrey);
+    seal(env);
+    let before = balance(env.pay, seller());
+    start_cheat_block_timestamp_global(DEADLINE + WINDOW + 1);
+    env.auction.abandon(env.id);
+    assert!(balance(env.pay, seller()) == before + BOND, "no bidders, bond returns");
 }

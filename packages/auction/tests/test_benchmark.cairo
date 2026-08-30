@@ -4,7 +4,7 @@
 
 use auction::interface::ISealedBidAuctionDispatcherTrait;
 use auction::types::{AuctionKind, DispositionProof};
-use super::common::{place, proof_above, proof_below, proof_exactly, seal, settle, setup_with};
+use super::common::{TICK, place, proof_above, proof_below, proof_exactly, seal, settle, setup_with};
 
 const P: u16 = 256;
 
@@ -12,7 +12,7 @@ const P: u16 = 256;
 /// `AtOrBelow`. This is the worst realistic shape for the demo auction.
 #[test]
 fn settle_ten_bids_on_a_256_level_ladder() {
-    let env = setup_with(AuctionKind::Vickrey, P, 0);
+    let env = setup_with(AuctionKind::Vickrey, P, TICK);
 
     let winner = place(env, 'A', 'SA', 200);
     let runner = place(env, 'B', 'SB', 150);
@@ -41,7 +41,7 @@ fn settle_ten_bids_on_a_256_level_ladder() {
 /// the settlement cost on its own.
 #[test]
 fn baseline_ten_bids_without_settling() {
-    let env = setup_with(AuctionKind::Vickrey, P, 0);
+    let env = setup_with(AuctionKind::Vickrey, P, TICK);
     place(env, 'A', 'SA', 200);
     place(env, 'B', 'SB', 150);
     place(env, 'C0', 'S0', 10);
@@ -60,7 +60,7 @@ fn baseline_ten_bids_without_settling() {
 /// so a clearing price at the bottom of the ladder is the worst case.
 #[test]
 fn settle_ten_bids_at_the_worst_case_clearing_level() {
-    let env = setup_with(AuctionKind::Vickrey, P, 0);
+    let env = setup_with(AuctionKind::Vickrey, P, TICK);
 
     let winner = place(env, 'A', 'SA', 255);
     let runner = place(env, 'B', 'SB', 0);

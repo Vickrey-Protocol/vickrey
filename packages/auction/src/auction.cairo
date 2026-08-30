@@ -28,6 +28,12 @@ pub mod SealedBidAuction {
 
     #[storage]
     struct Storage {
+        /// Bond forfeited by `abandon`, waiting to be paid out through `claim_refund`.
+        ///
+        /// A separate map rather than a field on `AuctionState`, because clients read
+        /// that struct positionally and adding a member would shift every index after
+        /// it. Zero for every auction that did not end in abandonment.
+        bond_pot: Map<u64, u128>,
         next_id: u64,
         configs: Map<u64, AuctionConfig>,
         states: Map<u64, AuctionState>,
@@ -156,11 +162,20 @@ pub mod SealedBidAuction {
             assert(config.bid_deadline > get_block_timestamp(), errors::BAD_DEADLINE);
             // Nobody could ever settle it, and `abandon` would be the only way out.
             assert(config.auctioneer.is_non_zero(), errors::ZERO_AUCTIONEER);
+            // A bond of zero leaves nothing at stake in a settlement bidders are asked
+            // to trust. One tick is the smallest amount that makes moving the outcome by
+            // a single level cost something.
+            assert(config.auctioneer_bond >= config.tick, errors::BOND_TOO_SMALL);
 
             let seller = get_caller_address();
             let stored = AuctionConfig { seller, ..config };
             // Reject a ladder whose top price would overflow u128 before anyone can bid.
             let top = cap_price(stored);
+            // `abandon` pays the bond to the bidders, so an unbounded bond would let a
+            // bidder's share exceed the collateral they staked — at which point the
+            // auction failing is worth more to them than it succeeding. Capping it at the
+            // uniform collateral keeps a share strictly below one bidder's own stake.
+            assert(stored.auctioneer_bond <= top, errors::BOND_TOO_LARGE);
 
             let id = self.next_id.read();
             self.next_id.write(id + 1);
@@ -540,10 +555,21 @@ pub mod SealedBidAuction {
             // `claim_refund`, which accepts Cancelled and pays out on the claim secret.
             push(config.lot_token, config.seller, config.lot_amount);
             if config.auctioneer_bond.is_non_zero() {
-                // Returned, not slashed. The bond answers for a dishonest settlement,
-                // and there was no settlement; the seller posted it, and the seller has
-                // already lost the sale.
-                push(config.payment_token, config.seller, config.auctioneer_bond);
+                if state.bid_count == 0 {
+                    // Nobody turned up, so nobody was harmed. The bond goes home.
+                    push(config.payment_token, config.seller, config.auctioneer_bond);
+                } else {
+                    // Forfeited to the bidders, claimed pro-rata through `claim_refund`.
+                    //
+                    // Returning it to the seller was the defect: the bond is pulled from
+                    // the seller at listing, so where one address is both seller and
+                    // auctioneer, abandoning cost nothing. That made discarding an
+                    // outcome cheaper than the exclusion attack the bond was built for —
+                    // seal, read the result off-chain, walk away if the price disappoints,
+                    // re-list. Now walking away costs the bond, whoever the seller is, and
+                    // it is paid to the people who locked capital for a full cycle.
+                    self.bond_pot.entry(auction_id).write(config.auctioneer_bond);
+                }
             }
 
             self.emit(Abandoned { auction_id, bid_count: state.bid_count });
@@ -569,7 +595,15 @@ pub mod SealedBidAuction {
             if state.status == Status::Finalized {
                 assert(bid.disposition != Disposition::Forfeit, errors::IS_FORFEIT);
             }
-            let amount = self.take(auction_id, bid_index, ref bid, claim_secret);
+            let escrow = self.take(auction_id, bid_index, ref bid, claim_secret);
+            // Integer division truncates, so a few wei of a forfeited bond can remain in
+            // the contract. Splitting the remainder would need a designated recipient and
+            // a tie-break; dust is the cheaper answer and it is nobody's to claim.
+            let share = match self.bond_pot.entry(auction_id).read() {
+                0 => 0_u128,
+                pot => pot / state.bid_count.into(),
+            };
+            let amount = escrow + share;
             push(config.payment_token, recipient, amount);
             self.emit(RefundClaimed { auction_id, bid_index, amount });
             amount
@@ -604,7 +638,15 @@ pub mod SealedBidAuction {
                 errors::BAD_PROOF_BELOW,
             );
 
-            let amount = self.take(auction_id, bid_index, ref bid, claim_secret);
+            let escrow = self.take(auction_id, bid_index, ref bid, claim_secret);
+            // Integer division truncates, so a few wei of a forfeited bond can remain in
+            // the contract. Splitting the remainder would need a designated recipient and
+            // a tie-break; dust is the cheaper answer and it is nobody's to claim.
+            let share = match self.bond_pot.entry(auction_id).read() {
+                0 => 0_u128,
+                pot => pot / state.bid_count.into(),
+            };
+            let amount = escrow + share;
             push(config.payment_token, recipient, amount);
             self.emit(RefundClaimed { auction_id, bid_index, amount });
             amount
