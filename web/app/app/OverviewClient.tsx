@@ -50,7 +50,7 @@ export default function OverviewClient() {
     (connection && sameAddress(connection.address, a.auctioneer)));
 
   return (
-    <DashShell title="Overview" actionsDue={d.actions.length} ownsAuctions={d.ownsAuctions}>
+    <DashShell title="Overview" actions={d.actions} ownsAuctions={d.ownsAuctions}>
       {/* ── Band 1 ─────────────────────────────────────────────────────────────── */}
       <section>
         <h2 className="section" style={{ marginTop: 0 }}>Action required</h2>

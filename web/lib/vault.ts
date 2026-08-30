@@ -90,3 +90,75 @@ export function importBids(json: string) {
   if (!Array.isArray(parsed)) throw new Error("expected a list of stored bids");
   write(parsed);
 }
+
+/* ── export state ──────────────────────────────────────────────────────────── */
+
+/**
+ * Whether the secrets in this browser have been backed up, and whether that backup is
+ * still current.
+ *
+ * This record lives in the same `localStorage` as the secrets it describes, so clearing
+ * site data destroys both at once — and nothing can be done about that. Every other
+ * origin-scoped store goes in the same sweep, and the only thing that would survive is a
+ * server, which is exactly what this design refuses: a server that knew you held bids
+ * could link you to auctions.
+ *
+ * So it must never read as a safety guarantee. It is a statement about what is in this
+ * browser right now, which stays true in every state including immediately after a wipe,
+ * when the answer is "nothing" and the empty state says so.
+ *
+ * It records the *set* exported rather than a flag, because the state that actually
+ * costs money is not "never exported" — it is having exported once, bid again, and
+ * believed yourself covered. A boolean cannot see that; a set can.
+ */
+const EXPORT_KEY = "vickrey.bids.exported.v1";
+
+interface ExportRecord {
+  /** Epoch millis of the last export. */
+  at: number;
+  /** `auctionId:index` for each bid in that export. Not secret material. */
+  keys: string[];
+}
+
+const bidKey = (b: StoredBid) => `${b.auctionId}:${b.index}`;
+
+const readExport = (): ExportRecord | null => {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(EXPORT_KEY);
+    if (!raw) return null;
+    const rec = JSON.parse(raw) as ExportRecord;
+    return Array.isArray(rec?.keys) && typeof rec?.at === "number" ? rec : null;
+  } catch {
+    return null;
+  }
+};
+
+export function markExported() {
+  try {
+    const rec: ExportRecord = { at: Date.now(), keys: read().map(bidKey) };
+    window.localStorage.setItem(EXPORT_KEY, JSON.stringify(rec));
+  } catch {
+    /* private browsing, quota, blocked site data — the export itself still happened */
+  }
+}
+
+export interface ExportStatus {
+  held: number;
+  /** Epoch millis, or null if this browser has never exported. */
+  lastExport: number | null;
+  /** Bids held that were not in the last export. */
+  unbacked: number;
+}
+
+export function exportStatus(): ExportStatus {
+  const held = read();
+  const rec = readExport();
+  if (!rec) return { held: held.length, lastExport: null, unbacked: held.length };
+  const covered = new Set(rec.keys);
+  return {
+    held: held.length,
+    lastExport: rec.at,
+    unbacked: held.filter((b) => !covered.has(bidKey(b))).length,
+  };
+}

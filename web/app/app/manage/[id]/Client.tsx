@@ -53,7 +53,7 @@ export default function Client({ id }: { id: string }) {
   const isAuctioneer = !!(connection && auction && sameAddress(connection.address, auction.auctioneer));
 
   return (
-    <DashShell title={`Auction #${id}`} actionsDue={d.actions.length} ownsAuctions={d.ownsAuctions}>
+    <DashShell title={`Auction #${id}`} actions={d.actions} ownsAuctions={d.ownsAuctions}>
       <p className="note" style={{ marginBottom: ".8rem" }}>
         <Link href="/app/manage">← All your auctions</Link>
       </p>

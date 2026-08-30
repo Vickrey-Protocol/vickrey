@@ -207,8 +207,15 @@ detected with `walletV6.supportedWalletApi` and a version compare — never by p
 this app has no reason to see. Every bid is dry-run through
 `strk20PrepareInvoke(actions, true)` before submission. The pool fee is read live from
 `get_fee_amount` and shown separately from the collateral, because the collateral comes
-back and the fee does not. This app never asks for a viewing key and never sees private
-state.
+back and the fee does not.
+
+**No viewing key ever reaches this app.** The wallet holds it and uses it on your behalf
+— `strk20PrepareInvoke` is answered with the key on the wallet's side of the boundary,
+which is how the private rail works without one being handed over. The single private
+figure this app can see is your shielded balance, and only if you press the button that
+asks for it: the wallet prompts, the answer is one whole-account number, it is never
+scoped to an auction, it is never sent anywhere, and it is gone on reload. Nothing reads
+it unprompted.
 
 *(The self-custody Privacy SDK route is not publicly installable —
 `@starkware-libs/starknet-privacy-sdk` is not on npm. The Wallet API is the only route

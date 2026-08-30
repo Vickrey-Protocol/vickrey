@@ -9,6 +9,7 @@ import {
   type AuctionTerms,
   type DispositionProof,
   type PublicBid,
+  type Disposition,
   poolFee as readPoolFee,
   type Status,
 } from "@vickrey/client";
@@ -174,6 +175,40 @@ export async function readBids(id: bigint, count: number): Promise<PublicBid[]> 
     });
   }
   return out;
+}
+
+/**
+ * The parts of a bid the *bidder* needs and the anchors do not carry.
+ *
+ * `get_bid` returns the whole `Bid` struct, of which `readBids` above keeps only the
+ * three commitment felts — everything a spectator is entitled to. The claim screen needs
+ * two more, because which collect call will succeed depends entirely on them:
+ * `claim_refund` refuses a forfeited bid on a finalized auction, and `redeem_forfeit`
+ * refuses anything else. Offering both and letting the user find out is how you get a
+ * revert on the screen whose whole job is releasing their money.
+ *
+ * Layout, in felts: claim_commitment, up_anchor, down_anchor, escrow (u128, one felt),
+ * disposition, claimed.
+ */
+export interface BidState {
+  index: number;
+  escrow: bigint;
+  disposition: Disposition;
+  claimed: boolean;
+}
+
+export async function readBidState(id: bigint, index: number): Promise<BidState> {
+  const r = await provider().callContract({
+    contractAddress: config.auctionAddress,
+    entrypoint: "get_bid",
+    calldata: [id.toString(), String(index)],
+  });
+  return {
+    index,
+    escrow: n(r[3]!),
+    disposition: Number(n(r[4]!)) as Disposition,
+    claimed: n(r[5]!) !== 0n,
+  };
 }
 
 export async function readAuctionCount(): Promise<number> {

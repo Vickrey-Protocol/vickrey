@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { config, shortAddr } from "@/lib/config";
 import { useWallet } from "@/components/WalletProvider";
 import { WalletMenu } from "@/components/WalletMenu";
-import { Balances } from "@/components/Balances";
+import { Notifications } from "@/components/Notifications";
+import { bidderActions, type DueAction } from "@/lib/actions";
 
 /**
  * The dashboard chrome: fixed sidebar, topbar, content.
@@ -16,15 +16,21 @@ import { Balances } from "@/components/Balances";
  * see every auction and every proof.
  */
 export function DashShell({
-  title, actionsDue = 0, ownsAuctions = false, children,
+  title, actions = [], ownsAuctions = false, children,
 }: {
   title: string;
-  actionsDue?: number;
+  /**
+   * The whole queue rather than a count. The bell needs every field to render an entry,
+   * and the sidebar badge needs to filter by role — it hung off "My bids" while counting
+   * the auctioneer's work too, so an address holding no bids could read "My bids 2".
+   */
+  actions?: DueAction[];
   ownsAuctions?: boolean;
   children: React.ReactNode;
 }) {
-  const { connection, connect, connecting, reconnecting, disconnect, error } = useWallet();
+  const { connection, connect, connecting, reconnecting, error } = useWallet();
   const path = usePathname();
+  const myBids = bidderActions(actions).length;
   const on = (href: string) => path === href || (href !== "/app" && path.startsWith(href));
 
   /* Wait for the silent reconnect before deciding this is a logged-out visitor —
@@ -80,8 +86,10 @@ export function DashShell({
           <Link href="/app/auctions" className={on("/app/auctions") ? "here" : ""}>Auctions</Link>
           <Link href="/app/bids" className={on("/app/bids") ? "here" : ""}>
             My bids
-            {/* The most important element in the sidebar: what will cost you money. */}
-            {actionsDue > 0 && <span className="due">{actionsDue}</span>}
+            {/* Bid-side only. Counting the auctioneer's steps here put a number on a
+                noun it did not describe, and the page underneath then correctly showed
+                no bids — two true statements that read as a contradiction. */}
+            {myBids > 0 && <span className="due">{myBids}</span>}
           </Link>
           <Link href="/app/create" className={on("/app/create") ? "here" : ""}>Create auction</Link>
 
@@ -100,29 +108,17 @@ export function DashShell({
           <a href="https://github.com/Vickrey-Protocol/vickrey" target="_blank" rel="noreferrer">GitHub</a>
         </nav>
 
-        <div className="dash-foot">
-          <span className="badge">{config.label}</span>
-          <WalletMenu compact />
-          {!connection.strk20 && (
-            <p className="note" style={{ marginTop: ".5rem" }}>
-              This wallet reports no STRK20 support. Public-rail bidding still works; the
-              private rail needs a pool-capable wallet.
-            </p>
-          )}
-        </div>
       </aside>
 
       <div className="dash-main">
         <header className="dash-top">
           <h1 className="dash-title">{title}</h1>
-          <div className="row" style={{ gap: ".9rem" }}>
-            <Balances />
-            {actionsDue > 0 && (
-              <Link href="/app" className="pill open" style={{ textDecoration: "none" }}>
-                {actionsDue} need{actionsDue === 1 ? "s" : ""} you
-              </Link>
-            )}
-            <span className="badge">{config.label}</span>
+          {/* Obligations, then account. Both belong to the session rather than to the
+              page, and both were previously somewhere else: the count was a pill that
+              navigated to a list, and the account sat under the sidebar navigation. */}
+          <div className="dash-controls">
+            <Notifications actions={actions} />
+            <WalletMenu />
           </div>
         </header>
         <div className="dash-body">{children}</div>

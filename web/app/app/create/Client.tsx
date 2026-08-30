@@ -144,7 +144,7 @@ export default function Client() {
 
   if (done) {
     return (
-      <DashShell title="Create auction" actionsDue={d.actions.length} ownsAuctions={d.ownsAuctions}>
+      <DashShell title="Create auction" actions={d.actions} ownsAuctions={d.ownsAuctions}>
         <div className="panel accent">
           <p className="eyebrow">Submitted</p>
           <h2 className="display" style={{ fontSize: "var(--step-2)", marginTop: ".3rem" }}>
@@ -161,7 +161,7 @@ export default function Client() {
   }
 
   return (
-    <DashShell title="Create auction" actionsDue={d.actions.length} ownsAuctions={d.ownsAuctions}>
+    <DashShell title="Create auction" actions={d.actions} ownsAuctions={d.ownsAuctions}>
       <div className="row" style={{ gap: ".4rem", marginBottom: "1.4rem", flexWrap: "wrap" }}>
         {STEPS.map((s, i) => (
           <button key={s} className={i === step ? "primary" : ""} onClick={() => setStep(i)}>

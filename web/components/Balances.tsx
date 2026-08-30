@@ -6,18 +6,18 @@ import { STRK_DECIMALS, config, formatUnits } from "@/lib/config";
 import { useWallet } from "@/components/WalletProvider";
 
 /**
- * What the connected wallet can spend, and one thing this app will never show.
+ * What the connected wallet can spend in the open.
  *
- * The public balance is a plain ERC-20 read and answers the question a bidder actually
- * has: can I cover the escrow and the fee. The **shielded** balance is deliberately
- * absent — reading it requires a viewing key, and asking for one would give this app
- * sight of private state it has no business seeing. That is the same reason capability
- * is detected with a version compare rather than by probing `strk20Balances`.
+ * A plain ERC-20 `balanceOf`, answering the question a bidder actually has: can I cover
+ * the escrow and the fee on the public rail. It needs no permission and discloses
+ * nothing — this balance is already public on chain.
  *
- * So the gap is labelled rather than left blank. A missing number with no explanation
- * reads as broken; a missing number with a reason reads as the product working.
+ * Its shielded counterpart is not here. That one is a disclosure, so it is opt-in and
+ * lives beside the button that asks for it, in the wallet panel. The two used to sit
+ * together in the topbar under a `@media (max-width: 720px) { display: none }`, which
+ * meant a phone showed no balance at all.
  */
-export function Balances() {
+export function PublicBalance() {
   const { connection } = useWallet();
   const [strk, setStrk] = useState<bigint | null>(null);
   const [failed, setFailed] = useState(false);
@@ -48,26 +48,10 @@ export function Balances() {
   if (!connection) return null;
 
   return (
-    <div className="bal">
-      <span className="bal-item">
-        <span className="bal-lab">Public</span>
-        <span className="bal-num">
-          {failed ? "unavailable" : strk === null ? "…" : `${formatUnits(strk, STRK_DECIMALS, 2)} STRK`}
-        </span>
-      </span>
-      {/* The reason used to live in a `title`, which does not exist on touch — and this
-          is one of the better things the product has to say about itself. It is on screen
-          now, and expandable rather than truncated. */}
-      <details className="bal-item bal-shielded">
-        <summary>
-          <span className="bal-lab">Shielded</span>
-          <span className="bal-num undisclosed">not requested ⓘ</span>
-        </summary>
-        <p className="note">
-          Reading a shielded balance needs a viewing key. This app never asks for one, so
-          it cannot see your private balance — and neither can anyone reading this page.
-        </p>
-      </details>
-    </div>
+    <p className="acct-bal-num">
+      {failed ? <span className="undisclosed">unavailable</span>
+        : strk === null ? "…"
+        : `${formatUnits(strk, STRK_DECIMALS, 2)} STRK`}
+    </p>
   );
 }

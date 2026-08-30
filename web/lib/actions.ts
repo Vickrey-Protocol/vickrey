@@ -3,17 +3,26 @@
  *
  * This protocol has time-gated steps a bidder can silently fail: a seed that arrives
  * after the auctioneer has settled, a dispute window that closes leaving a wrong outcome
- * final, a refund nobody claims. None of those produce an error — they just go quiet,
- * and one of them is the only way to actually lose money here.
+ * final, a refund nobody claims. None of those produce an error — they just go quiet.
  *
- * Which makes the *consequence* copy load-bearing, and it was wrong. `send-seed` said a
- * seed not sent forfeits your collateral. `redeem_forfeit` exists precisely so that it
- * does not — "going offline costs a delay, not the money", in the contract's own words.
- * A bidder who read the old text would conclude the money was gone and never come back
- * for it, which is a worse outcome than the one it warned about.
+ * Deriving them in one place means the dashboard, the sidebar badge and the notification
+ * bell cannot disagree about whether something is due.
  *
- * Deriving them in one place means the dashboard, the sidebar badge and the topbar
- * counter cannot disagree about whether something is due.
+ * Two rules hold this file together, and both were learned by breaking them.
+ *
+ * **Everything listed here must be callable right now.** `seal` reverts before the bid
+ * deadline, `finalize` reverts until the dispute window has closed, `dispute` reverts
+ * once it has. All three were listed the moment the status matched, so the queue offered
+ * steps the chain would reject — and a queue that does that teaches the user to ignore
+ * it, which is the one thing it cannot afford.
+ *
+ * **The consequence is content, not decoration.** `send-seed` said a seed not sent
+ * forfeits your collateral; `redeem_forfeit` exists precisely so that it does not —
+ * "going offline costs a delay, not the money", in the contract's own comment. A bidder
+ * who read that would conclude the money was gone and never come back for it. So
+ * `consequence` is its own field rather than a clause inside `detail`: what a step *does*
+ * and what it costs to *miss* are different questions, and only one of them is why
+ * anybody reads this list.
  *
  * Deadlines are seconds since epoch, absolute. Rendering decides how to say it; R4
  * requires both a countdown and the UTC time, and a helper that returned only one of
@@ -28,15 +37,26 @@ export type ActionKind =
   | "send-seed" | "claim-refund" | "claim-lot" | "dispute"
   | "seal" | "settle" | "finalize" | "abandon";
 
+/**
+ * `hard` — the chain refuses the call once `deadline` passes.
+ * `bound` — the window can close sooner than `deadline`; it is an outer limit, not a
+ *   cutoff. Saying "closes in 58m" about one of these would be a promise nothing keeps.
+ */
+export type DeadlineKind = "hard" | "bound";
+
 export interface DueAction {
   kind: ActionKind;
   auctionId: bigint;
   title: string;
+  /** What the step does. */
   detail: string;
+  /** What it costs to miss it. Never a euphemism, and never worse than the truth. */
+  consequence: string;
   cta: string;
   href: string;
   /** Absolute, seconds since epoch. Null when the step has no deadline of its own. */
   deadline: number | null;
+  deadlineKind: DeadlineKind;
   role: "bidder" | "auctioneer";
 }
 
@@ -44,7 +64,7 @@ export function actionsFor(
   auctions: AuctionView[],
   mine: StoredBid[],
   address: string | null,
-  /** Seconds since epoch. Only `abandon` needs it — it appears once a grace has expired. */
+  /** Seconds since epoch. Every window gate below is measured against it. */
   now: number = Math.floor(Date.now() / 1000),
 ): DueAction[] {
   if (!address) return [];
@@ -58,34 +78,37 @@ export function actionsFor(
     const isAuctioneer = sameAddress(address, a.auctioneer);
     const bidHref = `/auction/${id}`;
     const manageHref = `/app/manage/${id}`;
+    /* The auctioneer's outer limit. `abandon` becomes callable here, so it bounds the
+       bidder's seed window too — after it the auction can be cancelled out from under
+       both of them. */
+    const settleBy = a.sealedAtTime > 0 ? a.sealedAtTime + a.disputeWindow : null;
 
     if (iBid && a.status === Status.Sealed) {
       const unsent = bids.filter((b) => b.revealedAt === undefined);
       if (unsent.length) {
         out.push({
           kind: "send-seed", auctionId: id, role: "bidder",
-          title: `Send your seed — Auction #${id}`,
-          detail:
-            (unsent.length === 1
-              ? "Sends the seed that lets the auctioneer prove where your bid sits, "
-              : `${unsent.length} bids still need a seed. Each one lets the auctioneer `
-                + "prove where that bid sits, ")
-            + "without revealing it — a bound, never the amount. Send it before they "
-            + "settle, which they may do at any moment. Missing it does not burn your "
-            + "escrow: the bid is marked forfeited, and you take it back in full after "
-            + "finalize with Redeem forfeit. If your bid was above the clearing price, "
-            + "dispute instead — that voids the settlement and pays you the auctioneer's "
-            + "bond, and it is the one window here that really does shut.",
+          title: unsent.length === 1
+            ? `Send your seed — Auction #${id}`
+            : `Send ${unsent.length} seeds — Auction #${id}`,
+          detail: unsent.length === 1
+            ? "Hands the auctioneer the seed that lets them prove where your bid sits "
+              + "without opening it — a bound, never the amount."
+            : `${unsent.length} of your bids still need a seed. Each one lets the `
+              + "auctioneer prove where that bid sits without opening it.",
+          consequence:
+            "The auctioneer settles without you and the bid is marked forfeited. That is "
+            + "recoverable, not lost: at or below the clearing price you take the whole "
+            + "escrow back after finalize with Redeem forfeit; above it you dispute "
+            + "instead, which voids the settlement and pays you the auctioneer's bond.",
           cta: "Send seed", href: bidHref,
-          /* `dispute_deadline` is written by `settle`, so during `Sealed` — which is the
-             only status this action fires in — it is still 0, and `|| null` turned the
-             tightest window in the protocol into "No deadline" and sorted it last.
+          /* `dispute_deadline` is written by `settle`, so during `Sealed` — the only
+             status this fires in — it is still 0, and the old `|| null` turned the
+             tightest window in the protocol into "No deadline", which sorts last.
 
              There is no on-chain deadline for the bidder: the auctioneer settles when
-             they like. But the auctioneer's own window has an outer bound, because past
-             `sealed_at + dispute_window` anyone can `abandon`. That bound is the honest
-             deadline to show, so long as it is not read as a cutoff the chain enforces. */
-          deadline: a.sealedAtTime > 0 ? a.sealedAtTime + a.disputeWindow : null,
+             they like. `bound` says exactly that. */
+          deadline: settleBy, deadlineKind: "bound",
         });
       }
     }
@@ -98,7 +121,9 @@ export function actionsFor(
           title: `Claim your lot — Auction #${id}`,
           detail: "You won. This transfers the lot to you and is final — the auction is "
             + "already settled, so nothing about your bid becomes public by claiming it.",
-          cta: "Claim lot", href: bidHref, deadline: null,
+          consequence: "Nothing expires. The lot waits in the contract until you take it, "
+            + "but only this browser's claim secret can release it.",
+          cta: "Claim lot", href: bidHref, deadline: null, deadlineKind: "hard",
         });
       }
       if (!won) {
@@ -107,19 +132,26 @@ export function actionsFor(
           title: `Claim your refund — Auction #${id}`,
           detail: "You did not win, so your whole escrow comes back — the uniform cap, not "
             + "the amount you bid. Claiming reveals nothing; your bid stays sealed.",
-          cta: "Claim refund", href: bidHref, deadline: null,
+          consequence: "Nothing expires. The escrow waits in the contract until you claim "
+            + "it, but only this browser's claim secret can release it.",
+          cta: "Claim refund", href: bidHref, deadline: null, deadlineKind: "hard",
         });
       }
     }
 
-    if (iBid && a.status === Status.Settled) {
+    /* `dispute` reverts once the deadline passes, and the status stays `Settled` until
+       someone finalizes — so status alone would keep offering a call that cannot land. */
+    if (iBid && a.status === Status.Settled && now < a.disputeDeadline) {
       out.push({
         kind: "dispute", auctionId: id, role: "bidder",
         title: `Check the result — Auction #${id}`,
         detail: "The dispute window is open. If your bid was above the price the auctioneer "
-          + "claimed, proving it now voids the settlement and pays you their bond. This is "
-          + "the only time that is possible — after it closes the outcome is final.",
-        cta: "Review", href: bidHref, deadline: a.disputeDeadline,
+          + "claimed, proving it now voids the settlement and pays you their bond.",
+        consequence: "The outcome becomes final and cannot be challenged again. This is the "
+          + "only window in the protocol that shuts on the bidder, and the only one where "
+          + "being late actually costs you the money.",
+        cta: "Review", href: bidHref,
+        deadline: a.disputeDeadline, deadlineKind: "hard",
       });
     }
 
@@ -128,27 +160,33 @@ export function actionsFor(
        appears only once the grace has actually expired, so it is never a button that
        merely refuses. */
     if (a.status === Status.Sealed && (iBid || isAuctioneer)
-        && a.sealedAtTime > 0 && now >= a.sealedAtTime + a.disputeWindow) {
+        && settleBy !== null && now >= settleBy) {
       out.push({
         kind: "abandon", auctionId: id, role: iBid ? "bidder" : "auctioneer",
         title: `Auction #${id} was never settled`,
         detail: "The auctioneer's time to settle has run out. Anyone can cancel it now: "
           + "every bidder is refunded in full and takes an equal share of the forfeited "
-          + "bond, and the lot goes back to the seller. It cannot be undone.",
-        cta: "Abandon", href: bidHref, deadline: null,
+          + "bond, and the lot goes back to the seller.",
+        consequence: "Nothing gets worse and nothing expires — the auction simply stays "
+          + "stuck, with everyone's escrow in it, until somebody does this.",
+        cta: "Abandon", href: bidHref, deadline: null, deadlineKind: "hard",
       });
     }
 
     if (isAuctioneer) {
-      if (a.status === Status.Open && a.bidDeadline > 0) {
+      /* `seal` reverts before the bid deadline. Listing it from the moment the auction
+         opened offered a button that could only fail for the whole bidding period. */
+      if (a.status === Status.Open && a.bidDeadline > 0 && now >= a.bidDeadline) {
         out.push({
           kind: "seal", auctionId: id, role: "auctioneer",
           title: `Seal Auction #${id}`,
-          detail: "Freezes the bid set so no further bids can be added, and stamps the block "
-            + "— before any seed can be sent and so before anyone can read an amount. That "
-            + "ordering is what stops a bid being dropped after its value is known. It also "
-            + "starts your clock to settle.",
-          cta: "Seal", href: manageHref, deadline: a.bidDeadline,
+          detail: "Freezes the bid set and stamps the block — before any seed can be sent, "
+            + "so before anyone can read an amount. That ordering is what stops a bid being "
+            + "dropped once its value is known.",
+          consequence: "Bidding has closed but the set is not frozen, so no seed can be "
+            + "sent and nothing can settle. No clock runs and nobody else can move it: "
+            + "every bidder's escrow stays locked in the contract until you seal.",
+          cta: "Seal", href: manageHref, deadline: null, deadlineKind: "hard",
         });
       }
       if (a.status === Status.Sealed) {
@@ -156,19 +194,27 @@ export function actionsFor(
           kind: "settle", auctionId: id, role: "auctioneer",
           title: `Settle Auction #${id}`,
           detail: "Submits one witness per bid plus a second for the runner-up, proving the "
-            + "clearing price without opening a single bid. It moves no money — it opens the "
-            + "dispute window, and puts your bond at risk if the outcome is wrong.",
-          cta: "Settle", href: manageHref, deadline: null,
+            + "clearing price without opening a single bid. It moves no money — it opens "
+            + "the dispute window, and puts your bond at risk if the outcome is wrong.",
+          consequence: "Past this, anyone can abandon the auction. It cancels, every bidder "
+            + "is refunded, the lot returns to the seller, and your bond is split among the "
+            + "bidders — so missing it costs you the bond and the sale together.",
+          cta: "Settle", href: manageHref,
+          /* The auctioneer's own clock, and it is enforced: `abandon` becomes callable
+             at exactly this moment. It was showing as no deadline at all. */
+          deadline: settleBy, deadlineKind: "hard",
         });
       }
-      if (a.status === Status.Settled) {
+      /* `finalize` reverts until the dispute window has closed. */
+      if (a.status === Status.Settled && now >= a.disputeDeadline) {
         out.push({
           kind: "finalize", auctionId: id, role: "auctioneer",
           title: `Finalize Auction #${id}`,
-          detail: "The dispute window has closed clean, so this releases the funds: the "
-            + "clearing price and your bond to the seller, the lot to the winner. Final and "
-            + "irreversible.",
-          cta: "Finalize", href: manageHref, deadline: a.disputeDeadline,
+          detail: "The dispute window closed clean, so this releases the funds: the clearing "
+            + "price and your bond to the seller, the lot to the winner.",
+          consequence: "Nothing expires, but nobody is paid until you do it — the proceeds, "
+            + "your bond and the winner's lot all stay in the contract.",
+          cta: "Finalize", href: manageHref, deadline: null, deadlineKind: "hard",
         });
       }
     }
@@ -188,5 +234,11 @@ export function actionsFor(
 export const isUrgent = (a: DueAction, now: number) =>
   a.deadline !== null && a.deadline > now && a.deadline - now < 3600;
 
-/** Only actions the user can still act on before a window shuts. */
-export const openActions = (list: DueAction[]) => list.length;
+/**
+ * The sidebar badge sat on "My bids" but counted every action including the auctioneer's,
+ * so an address with no bids at all could read "My bids 2". Splitting the count is what
+ * lets a label mean what it says.
+ */
+export const bidderActions = (list: DueAction[]) => list.filter((a) => a.role === "bidder");
+export const auctioneerActions = (list: DueAction[]) =>
+  list.filter((a) => a.role === "auctioneer");

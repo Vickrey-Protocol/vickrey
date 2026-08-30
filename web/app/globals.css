@@ -852,7 +852,6 @@ button.primary:hover::before { opacity: .9; animation: spinEdge 2.4s linear infi
   font-variant-numeric: tabular-nums;
 }
 
-.dash-foot { display: flex; flex-direction: column; gap: .5rem; }
 .chip {
   align-self: flex-start; padding: .35rem .6rem; border-radius: 999px;
   border: 1px solid var(--line); background: var(--glass-2);
@@ -1102,22 +1101,6 @@ ul.tight li { font-size: var(--s--1); color: var(--ink-2); line-height: 1.5; }
   .docs-nav > summary { display: none; }
 }
 
-/* ── balances ─────────────────────────────────────────────────────────────
-   Two figures, one of which is deliberately absent. The shielded balance
-   needs a viewing key this app never asks for, so the gap is labelled: a
-   missing number without a reason reads as broken. */
-.bal { display: flex; gap: 1.1rem; align-items: center; }
-.bal-item { display: flex; flex-direction: column; line-height: 1.2; }
-.bal-lab {
-  font-size: .66rem; letter-spacing: .09em; text-transform: uppercase; color: var(--muted);
-}
-.bal-num {
-  font-family: var(--font-mono); font-size: var(--s--1); color: var(--ink);
-  font-variant-numeric: tabular-nums;
-}
-.bal-num.undisclosed { font-size: .78rem; }
-@media (max-width: 720px) { .bal { display: none; } }
-
 /* ── small screens ────────────────────────────────────────────────────────
    Judges open things on phones. The gaps below were found by walking the
    breakpoints rather than by assuming the grids collapse cleanly. */
@@ -1201,20 +1184,6 @@ button.primary small,
 button.primary b,
 button.primary strong { color: inherit; }
 
-/* The shielded-balance note. It was a `title` attribute, which is hover-only and so
-   invisible on touch — the wrong place for a claim this good. */
-.bal-shielded > summary { list-style: none; cursor: pointer; display: flex;
-  flex-direction: column; line-height: 1.2; }
-.bal-shielded > summary::-webkit-details-marker { display: none; }
-.bal-shielded[open] {
-  position: relative;
-}
-.bal-shielded[open] > p {
-  position: absolute; inset-inline-end: 0; inset-block-start: calc(100% + .6rem);
-  inline-size: min(24rem, 78vw); z-index: 20;
-  padding: .8rem .95rem; border: 1px solid var(--line-lit); border-radius: 12px;
-  background: #0C1917; box-shadow: 0 18px 48px rgba(0, 0, 0, .5);
-}
 
 /* ─────────────────────────────────────────────────────────────────────────
    Phone
@@ -1287,4 +1256,266 @@ button.primary strong { color: inherit; }
 
   /* Bodoni at a narrow measure: let long words break rather than push the line out. */
   .display, .hero-body p, h1, h2 { overflow-wrap: anywhere; hyphens: auto; }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Topbar controls: obligations, then account.
+
+   Both belong to the session rather than to the page, so both live in the bar
+   that persists across pages. The account panel had been at the bottom of the
+   sidebar under the navigation, and the obligation count was a pill that
+   navigated to a list rather than opening one.
+
+   The two standalone `Sepolia (rehearsal)` chips are gone with them. A chip
+   naming the build's own target is decoration; whether the *wallet* agrees is
+   the question, and that needs both halves together — which is the network row
+   inside the account panel.
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* Announced but not drawn. Used for the obligation count, which has to reach a
+   screen reader when it changes without the reader having gone looking for the
+   bell. Clip rather than `display: none`, which is not announced at all. */
+.sr-only {
+  position: absolute; inline-size: 1px; block-size: 1px;
+  margin: -1px; padding: 0; overflow: hidden;
+  clip-path: inset(50%); white-space: nowrap; border: 0;
+}
+
+.dash-controls { display: flex; align-items: center; gap: .6rem; }
+
+.bell-wrap, .acct-wrap { position: relative; display: inline-flex; }
+
+.bell {
+  position: relative;
+  display: inline-flex; align-items: center; justify-content: center;
+  inline-size: 2.5rem; block-size: 2.5rem; padding: 0;
+  border: 1px solid var(--line); border-radius: 10px;
+  background: var(--glass); color: var(--ink-2);
+}
+.bell:hover, .bell.on { color: var(--ink); border-color: var(--line-lit); background: var(--glass-2); }
+
+/* Sits on the rim rather than inside, so the count never crowds the glyph. */
+.bell-count {
+  position: absolute; inset-block-start: -.34rem; inset-inline-end: -.34rem;
+  min-inline-size: 1.15rem; padding: .05rem .28rem;
+  border-radius: 999px; border: 2px solid #0A1514;
+  background: var(--muted); color: #06100F;
+  font-size: .68rem; font-weight: 700; line-height: 1.25;
+  font-variant-numeric: tabular-nums; text-align: center;
+}
+/* Colour is the second signal, never the only one — the group heading in the
+   panel says "Closing within the hour" in words. */
+.bell-count.urgent { background: var(--seal); color: #fff; }
+
+.acct {
+  display: inline-flex; align-items: center; gap: .5rem;
+  padding: .5rem .7rem;
+  border: 1px solid var(--line); border-radius: 10px;
+  background: var(--glass); color: var(--ink);
+}
+.acct:hover, .acct.on { border-color: var(--line-lit); background: var(--glass-2); }
+.acct-addr { font-family: var(--font-mono), ui-monospace, Menlo, monospace; font-size: .82rem; }
+.acct-caret { opacity: .6; font-size: .7rem; }
+.acct-dot {
+  inline-size: .5rem; block-size: .5rem; border-radius: 50%;
+  background: var(--good); flex: none;
+}
+.acct-dot.bad { background: var(--seal); }
+
+/* ── the panels both controls open ──────────────────────────────────────── */
+
+.sheet-veil { position: fixed; inset: 0; z-index: 40; background: rgba(4, 10, 9, .5); }
+
+/* Rendered at the document root, so its coordinates come from the anchor rather
+   than from the DOM — see components/Popover.tsx for why it cannot live inside
+   the topbar. */
+.sheet {
+  position: fixed;
+  inset-block-start: var(--pop-top, 4rem); inset-inline-end: var(--pop-right, 1rem);
+  z-index: 41;
+  inline-size: min(27rem, calc(100vw - 2rem));
+  max-block-size: min(34rem, calc(100vh - 6rem));
+  display: flex; flex-direction: column;
+  border: 1px solid var(--line-lit); border-radius: 16px;
+  background: #0C1917; box-shadow: 0 24px 70px rgba(0, 0, 0, .55);
+}
+.sheet:focus { outline: none; }
+
+.sheet-top {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem;
+  padding: 1rem 1.1rem .8rem;
+  border-block-end: 1px solid var(--line);
+}
+.sheet-count { margin: .25rem 0 0; font-size: var(--s-1); font-weight: 600; }
+.sheet-x {
+  padding: .1rem .5rem; border: 1px solid var(--line); border-radius: 8px;
+  background: none; color: var(--ink-2); font-size: 1.1rem; line-height: 1.4;
+}
+.sheet-body { overflow-y: auto; padding: .4rem 0 .6rem; }
+.sheet-empty { padding: 1rem 1.1rem; }
+.sheet-empty p + p { margin-top: .4rem; }
+
+.sheet-group { padding: .5rem 0 0; }
+.sheet-group h3 {
+  margin: .5rem 0 .3rem; padding: 0 1.1rem;
+  font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif; font-size: .7rem; font-weight: 600;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--muted);
+}
+.sheet-group.urgent h3 { color: var(--seal); }
+
+/* Each entry is one link. A card with a button inside gives two targets for one
+   intention, and on a phone the wrong one is always the easier to hit. */
+.note-item {
+  display: block; padding: .85rem 1.1rem;
+  border-block-start: 1px solid var(--line);
+  text-decoration: none; color: inherit;
+}
+.note-item:first-of-type { border-block-start: none; }
+.note-item:hover, .note-item:focus-visible { background: var(--glass); }
+.sheet-group.urgent .note-item { box-shadow: inset 2px 0 0 var(--seal); }
+
+.note-head { display: flex; gap: .5rem; align-items: baseline; }
+.note-role {
+  font-size: .66rem; letter-spacing: .09em; text-transform: uppercase;
+  color: var(--muted);
+}
+.note-auction { font-family: var(--font-mono), ui-monospace, Menlo, monospace; font-size: .72rem; color: var(--muted); }
+.note-title { margin: .25rem 0 0; font-weight: 600; font-size: var(--s-0); }
+.note-detail { margin: .3rem 0 0; font-size: var(--s--1); color: var(--ink-2); line-height: 1.5; }
+
+/* The consequence is the reason this panel exists, so it is set apart rather
+   than run on as another sentence of body copy. */
+.note-cost {
+  margin: .55rem 0 0; padding: .5rem .6rem;
+  border-inline-start: 2px solid var(--accent-edge);
+  background: var(--accent-dim); border-radius: 0 8px 8px 0;
+  font-size: var(--s--1); line-height: 1.5; color: var(--ink);
+}
+.note-cost-lab {
+  display: block; margin-block-end: .15rem;
+  font-size: .64rem; letter-spacing: .09em; text-transform: uppercase;
+  color: var(--seal); font-weight: 600;
+}
+
+.note-when {
+  display: flex; align-items: baseline; gap: .5rem; flex-wrap: wrap;
+  margin-block-start: .5rem;
+}
+.note-cta {
+  display: inline-block; margin-block-start: .45rem;
+  font-size: var(--s--1); color: var(--ink);
+  text-decoration: underline; text-decoration-color: var(--accent-edge);
+  text-underline-offset: .2em;
+}
+
+/* ── account panel ──────────────────────────────────────────────────────── */
+
+.acct-sheet { inline-size: min(24rem, calc(100vw - 2rem)); }
+.acct-full { margin: .3rem 0 0; font-size: .74rem; color: var(--ink-2); word-break: break-all; }
+.acct-body { overflow-y: auto; padding: .2rem 0 .9rem; }
+.acct-row { padding: .85rem 1.1rem; border-block-start: 1px solid var(--line); }
+.acct-row:first-child { border-block-start: none; }
+.acct-lab {
+  margin: 0 0 .4rem; font-size: .66rem; letter-spacing: .09em;
+  text-transform: uppercase; color: var(--muted);
+}
+.acct-net { display: flex; align-items: center; gap: .45rem; }
+
+.acct-bal { display: flex; gap: 1.6rem; }
+.acct-bal-lab { margin: 0; font-size: .7rem; color: var(--muted); }
+.acct-bal-num {
+  margin: .1rem 0 0; font-family: var(--font-mono), ui-monospace, Menlo, monospace; font-size: .95rem;
+  font-variant-numeric: tabular-nums;
+}
+.acct-bal-num .undisclosed { font-size: .82rem; }
+
+.acct-optin { margin-block-start: .7rem; }
+.acct-optin button { margin-block: .5rem; }
+.acct-optin .note + .note { margin-block-start: .35rem; }
+
+.acct-actions { display: flex; flex-direction: column; gap: .45rem; align-items: stretch; }
+.acct-actions a { font-size: var(--s--1); padding: .45rem 0; }
+.acct-out { border-color: var(--accent-edge); }
+.acct-foot { padding-inline: 1.1rem; margin-block-start: .7rem; }
+.acct-body > .note { padding-inline: 1.1rem; }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   The claim-secret vault.
+
+   The only unrecoverable thing on the dashboard, and it read as an ordinary
+   paragraph, so nobody exported. The weight is carried by the design: its own
+   register rather than the shared `.panel`, the count as the largest figure on
+   the page, the backup state stated as a fact, and one obvious action.
+
+   No fear language. A number and a date do the work.
+   ───────────────────────────────────────────────────────────────────────── */
+
+.vault {
+  display: grid; grid-template-columns: minmax(0, 15rem) minmax(0, 1fr);
+  border: 1px solid var(--accent-edge); border-radius: 14px;
+  background:
+    linear-gradient(180deg, var(--accent-dim), transparent 60%),
+    var(--hatch-bg);
+  overflow: hidden;
+}
+.vault-head {
+  padding: 1.2rem 1.3rem;
+  border-inline-end: 1px solid var(--line);
+  background: rgba(0, 0, 0, .16);
+}
+.vault-count { margin: .5rem 0 0; display: flex; flex-direction: column; }
+.vault-count b {
+  font-family: var(--font-display), Didot, Georgia, serif; font-size: var(--s-4); line-height: .95;
+  font-variant-numeric: tabular-nums;
+}
+.vault-count span { font-size: var(--s--1); color: var(--ink-2); margin-block-start: .2rem; }
+
+.vault-state {
+  margin: .9rem 0 0; padding: .3rem .55rem;
+  display: inline-block; border-radius: 999px;
+  font-size: .72rem; font-weight: 600; letter-spacing: .02em;
+}
+.vault-state.warn { background: var(--accent-dim); color: var(--ember); border: 1px solid var(--accent-edge); }
+.vault-state.ok { background: rgba(127, 206, 151, .12); color: var(--good); border: 1px solid rgba(127, 206, 151, .3); }
+
+.vault-body { padding: 1.2rem 1.3rem; }
+.vault-say { margin: 0; max-inline-size: 52ch; }
+.vault-do { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin-block-start: 1.1rem; }
+.vault-export { padding: .7rem 1.3rem; font-size: var(--s-0); }
+.vault-alt { display: flex; align-items: center; gap: .75rem; }
+/* Secondary by rank, not by disabling — both remain real controls. */
+.vault-alt button, .vault-import {
+  background: none; border: none; padding: .3rem 0; color: var(--ink-2);
+  font-size: var(--s--1); cursor: pointer;
+  text-decoration: underline; text-decoration-color: var(--line-lit);
+  text-underline-offset: .2em;
+}
+.vault-alt button:hover, .vault-import:hover { color: var(--ink); }
+.vault-alt button:disabled { opacity: .45; cursor: not-allowed; text-decoration: none; }
+.vault-foot { margin-block-start: 1rem; }
+
+@media (max-width: 52rem) {
+  .vault { grid-template-columns: 1fr; }
+  .vault-head { border-inline-end: none; border-block-end: 1px solid var(--line); }
+}
+
+/* ── narrow ─────────────────────────────────────────────────────────────── */
+
+@media (max-width: 30rem) {
+  /* Anchored popovers do not fit beside a 390px viewport, so both become sheets
+     off the bottom edge — the same content, reachable by thumb. */
+  .sheet {
+    /* Ignores the anchor entirely: a 390px viewport has no room beside a button,
+       and the bottom edge is where a thumb already is. */
+    inset: auto 0 0 0;
+    inline-size: 100%; max-block-size: 82vh;
+    border-radius: 16px 16px 0 0; border-inline: none; border-block-end: none;
+  }
+  .acct-sheet { inline-size: 100%; }
+  .bell, .acct { min-block-size: 44px; }
+  .acct { min-inline-size: 44px; }
+  .sheet-x { min-inline-size: 44px; min-block-size: 44px; }
+  .note-item { padding-block: 1rem; }
+  .vault-do { align-items: stretch; flex-direction: column; }
+  .vault-export { inline-size: 100%; }
 }

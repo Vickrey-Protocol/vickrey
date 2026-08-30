@@ -24,11 +24,11 @@ import type { WalletWithStarknetFeatures } from "@starknet-io/get-starknet-walle
  * Nothing here auto-connects. A page load must never pop a wallet prompt: a judge
  * opening the site to check a claim has not asked to be asked.
  */
-const CHAIN_ID = {
+export const CHAIN_ID = {
   mainnet: "0x534e5f4d41494e",
   sepolia: "0x534e5f5345504f4c4941",
 } as const;
-const chainName = (id: string | null) => {
+export const chainName = (id: string | null) => {
   if (!id) return "unknown";
   try { return shortString.decodeShortString(id); } catch { return id; }
 };
@@ -63,6 +63,16 @@ interface WalletState {
    * so the check belongs here rather than on whichever form happened to find it.
    */
   ensureChain: () => Promise<boolean>;
+  /** The chain id the wallet reports, or null if it will not say. */
+  walletChain: string | null;
+  /** Asks the wallet to move to the network this build reads. */
+  switchChain: () => Promise<void>;
+  switching: boolean;
+  /** Shielded STRK, once the user has asked for it. Null until then, and after reload. */
+  shielded: bigint | null;
+  shieldedPending: boolean;
+  shieldedErr: string | null;
+  requestShielded: () => Promise<void>;
 }
 
 const Ctx = createContext<WalletState | null>(null);
@@ -91,6 +101,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
    */
   const [wrongChain, setWrongChain] = useState<string | null>(null);
   const [switching, setSwitching] = useState(false);
+  const [walletChain, setWalletChain] = useState<string | null>(null);
+  /* Session-only, deliberately: see `requestShielded`. */
+  const [shielded, setShielded] = useState<bigint | null>(null);
+  const [shieldedPending, setShieldedPending] = useState(false);
+  const [shieldedErr, setShieldedErr] = useState<string | null>(null);
   const goToRef = useRef<string | null>(null);
 
   /* One silent attempt on mount. Failure is not an error state — the connect button is
@@ -124,9 +139,51 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     try {
       const found = await availableWallets();
       const w = found.find((x) => x.name === connection?.walletName) ?? found[0];
-      return w ? await walletV6.requestChainId(w as never) : null;
-    } catch { return null; }
+      const id = w ? await walletV6.requestChainId(w as never) : null;
+      setWalletChain(id);
+      return id;
+    } catch { setWalletChain(null); return null; }
   }, [connection?.walletName]);
+
+  /* Read once on connect and after a switch. The wrong-chain banner is dismissible, so
+     it cannot double as "which network is the wallet on" for the wallet menu. */
+  useEffect(() => { if (connection) void readChain(); }, [connection, readChain]);
+
+  /**
+   * The account's shielded balance, and the one number this app asks the wallet for.
+   *
+   * `wallet_strk20Balances` is answered by the wallet using the viewing key it already
+   * holds; the key itself never crosses the boundary, and the wallet gates the call
+   * behind its own consent prompt (`USER_REFUSED_OP` is in the method's error set). So
+   * this does not make the app a viewing-key holder. It does disclose one figure to this
+   * page — whole-account, never scoped to an auction — which is why nothing here runs
+   * unless the user presses the button.
+   *
+   * Session-only on purpose: it lives in React state and nowhere else, so a reload puts
+   * the account back to undisclosed. Persisting the preference would quietly turn a
+   * decision made once into a disclosure repeated on every visit.
+   */
+  const requestShielded = useCallback(async () => {
+    if (!connection) return;
+    setShieldedErr(null);
+    setShieldedPending(true);
+    try {
+      const entries = await connection.account.strk20Balances([config.strkAddress]);
+      const hit = entries.find((e) => BigInt(e.token) === BigInt(config.strkAddress))
+        ?? entries[0];
+      setShielded(hit ? BigInt(hit.balance) : 0n);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      /* Same shape-versus-state rule the wallet probe applies: NOT_REGISTERED is the
+         pool answering, not a wallet that cannot do this. It means no shielded presence
+         yet, which the first shield creates. */
+      setShieldedErr(/not[_ ]?registered/i.test(msg)
+        ? "This account has no shielded presence yet — your first shield creates it."
+        : msg);
+    } finally {
+      setShieldedPending(false);
+    }
+  }, [connection]);
 
   const ensureChain = useCallback(async () => {
     if (!connection) return false;
@@ -190,13 +247,23 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     setConnection(null);
     setError(null);
     setWrongChain(null);
+    setWalletChain(null);
+    // A balance disclosed by one account must not survive into the next.
+    setShielded(null);
+    setShieldedErr(null);
     // Persisted, so a reload does not sign them straight back in.
     forgetWallet();
   }, []);
 
   const value = useMemo(
-    () => ({ connection, error, connecting, reconnecting, connect, disconnect, ensureChain }),
-    [connection, error, connecting, reconnecting, connect, disconnect, ensureChain],
+    () => ({
+      connection, error, connecting, reconnecting, connect, disconnect, ensureChain,
+      walletChain, switchChain, switching,
+      shielded, shieldedPending, shieldedErr, requestShielded,
+    }),
+    [connection, error, connecting, reconnecting, connect, disconnect, ensureChain,
+     walletChain, switchChain, switching,
+     shielded, shieldedPending, shieldedErr, requestShielded],
   );
   return (
     <Ctx.Provider value={value}>

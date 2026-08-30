@@ -25,7 +25,7 @@ export default function Client() {
     : "—";
 
   return (
-    <DashShell title="Manage" actionsDue={d.actions.length} ownsAuctions={d.ownsAuctions}>
+    <DashShell title="Manage" actions={d.actions} ownsAuctions={d.ownsAuctions}>
       {owned.length === 0 ? (
         <div className="panel">
           <p><b>You have not created an auction.</b></p>

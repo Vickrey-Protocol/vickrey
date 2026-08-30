@@ -16,7 +16,7 @@ export default function Client() {
   const d = useDashData();
 
   return (
-    <DashShell title="Auctions" actionsDue={d.actions.length} ownsAuctions={d.ownsAuctions}>
+    <DashShell title="Auctions" actions={d.actions} ownsAuctions={d.ownsAuctions}>
       {d.loading ? (
         <div className="panel skel" style={{ blockSize: "12rem" }} aria-hidden="true" />
       ) : d.error ? (

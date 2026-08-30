@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CallData, num } from "starknet";
 import {
   AuctionOperation,
   type ClaimOperation,
+  Disposition,
   claimActions,
   createBid,
   disputeWitness,
@@ -12,7 +13,7 @@ import {
   redeemWitness,
   Status,
 } from "@vickrey/client";
-import type { AuctionView } from "@/lib/chain";
+import { readBidState, type AuctionView, type BidState } from "@/lib/chain";
 import {
   STRK_DECIMALS, config, countdown, formatUnits, hasAnonymizer, priceAt, utcDate,
 } from "@/lib/config";
@@ -421,6 +422,28 @@ export function DisputePanel({
 
 /* ── collect ─────────────────────────────────────────────────────────── */
 
+/**
+ * Which of the two collect calls this bid can actually make.
+ *
+ * The contract is strict in both directions and the screen used to offer both buttons
+ * side by side, so one of them always reverted. On the screen whose entire job is
+ * releasing the user's escrow, a revert reads as "the money is gone".
+ *
+ *   `claim_refund`   Finalized or Cancelled; on Finalized it refuses a forfeited bid.
+ *   `redeem_forfeit` Finalized only, and only a forfeited bid.
+ *
+ * A cancelled auction refunds everyone including forfeits — no settlement ever
+ * established who forfeited — so `claim_refund` is right there whatever the disposition.
+ */
+export const isForfeit = (st: BidState, status: Status) =>
+  status === Status.Finalized && st.disposition === Disposition.Forfeit;
+
+export const collectOp = (st: BidState, status: Status): ClaimOperation =>
+  isForfeit(st, status) ? AuctionOperation.RedeemForfeit : AuctionOperation.ClaimRefund;
+
+const collectLabel = (st: BidState, status: Status) =>
+  isForfeit(st, status) ? "Redeem forfeit" : "Refund or surplus";
+
 export function ClaimPanel({
   auction, bids, connection,
 }: {
@@ -432,7 +455,29 @@ export function ClaimPanel({
   const canPrivate = !!connection?.strk20 && hasAnonymizer();
   const [rail, setRail] = useState<Rail>("public");
 
+  /* `undefined` = still reading, `null` = the read failed. Distinguishing them matters:
+     one is a spinner and the other has to fall back to offering both calls. */
+  const [state, setState] = useState<Record<number, BidState | null | undefined>>({});
+
   const final = auction.status === Status.Finalized || auction.status === Status.Cancelled;
+
+  /* Which collect call will succeed is a property of the bid's disposition, which the
+     anchors do not carry, so it has to be read. Hooks cannot sit behind the early
+     return below, hence the guard inside rather than around. */
+  useEffect(() => {
+    if (!final || bids.length === 0) return;
+    let live = true;
+    void Promise.all(bids.map(async (b) => {
+      try {
+        const st = await readBidState(BigInt(b.auctionId), b.index);
+        if (live) setState((s) => ({ ...s, [b.index]: st }));
+      } catch {
+        if (live) setState((s) => ({ ...s, [b.index]: null }));
+      }
+    }));
+    return () => { live = false; };
+  }, [final, auction.terms.auctionId, bids.length]);
+
   if (!final || bids.length === 0) return null;
 
   async function run(operation: ClaimOperation, stored: StoredBid) {
@@ -508,23 +553,53 @@ export function ClaimPanel({
         unlinked as well.
       </p>
       <div className="stack" style={{ gap: ".5rem", marginTop: ".8rem" }}>
-        {bids.map((b) => (
-          <div className="row" key={b.index}>
-            <span className="note">Bid #{b.index}</span>
-            <button onClick={() => run(AuctionOperation.ClaimRefund, b)}>
-              Refund or surplus
-            </button>
-            <button onClick={() => run(AuctionOperation.RedeemForfeit, b)}>
-              Redeem forfeit
-            </button>
-            {b.index === auction.winnerIndex && auction.status === Status.Finalized && (
-              <button className="primary" onClick={() => run(AuctionOperation.ClaimLot, b)}>
-                Claim the lot
-              </button>
-            )}
-          </div>
-        ))}
+        {bids.map((b) => {
+          const st = state[b.index];
+          const won = b.index === auction.winnerIndex && auction.status === Status.Finalized;
+          return (
+            <div className="row" key={b.index}>
+              <span className="note">Bid #{b.index}</span>
+              {st === undefined ? (
+                <span className="note">reading the chain…</span>
+              ) : st === null ? (
+                /* The read failed. Both buttons come back rather than none: an unreadable
+                   chain is a reason to stop guessing, not a reason to lock the user out
+                   of their own escrow. */
+                <>
+                  <button onClick={() => run(AuctionOperation.ClaimRefund, b)}>
+                    Refund or surplus
+                  </button>
+                  <button onClick={() => run(AuctionOperation.RedeemForfeit, b)}>
+                    Redeem forfeit
+                  </button>
+                  <span className="note">Could not read this bid, so both are offered.</span>
+                </>
+              ) : st.claimed ? (
+                <span className="note">Already collected.</span>
+              ) : (
+                <>
+                  <button className={won ? "" : "primary"}
+                          onClick={() => run(collectOp(st, auction.status), b)}>
+                    {collectLabel(st, auction.status)}
+                  </button>
+                  {won && (
+                    <button className="primary" onClick={() => run(AuctionOperation.ClaimLot, b)}>
+                      Claim the lot
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          );
+        })}
       </div>
+      {Object.values(state).some((s) => s?.disposition === Disposition.Forfeit) && (
+        <p className="note" style={{ marginTop: ".8rem" }}>
+          A bid marked <b>forfeited</b> is one the auctioneer settled without a seed from
+          you. Redeeming serves the loser-side proof yourself and returns the escrow in
+          full — late, not lost.
+        </p>
+      )}
       {msg && <p className="ok mono">{msg}</p>}
       {err && <p className="err">{err}</p>}
     </div>
