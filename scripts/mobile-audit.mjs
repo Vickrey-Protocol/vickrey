@@ -60,8 +60,13 @@ for (const path of PAGES) {
         if (ox === "auto" || ox === "scroll") { scrollableAncestor = true; break; }
       }
       const tooWide = !scrollableAncestor && (r.right > vw + 1 || r.left < -1);
+      /* "Content is wider than its box" is not by itself a problem: a full-width child
+         at a non-zero offset, or an absolutely-positioned label beside an 8px brace,
+         both report it while sitting comfortably on screen. What matters is whether the
+         content actually reaches past the viewport, so that is what is measured. */
       const spills = el.scrollWidth > el.clientWidth + 1 &&
-        getComputedStyle(el).overflowX === "visible";
+        getComputedStyle(el).overflowX === "visible" &&
+        r.left + el.scrollWidth > vw + 1;
       if (tooWide || spills) offenders.push({ el, r, why: tooWide ? "wider than viewport" : "content spills" });
     }
     /* Outermost only — a wide parent makes every descendant look wide. */

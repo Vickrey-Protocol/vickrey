@@ -17,7 +17,8 @@
     "contracts:build": "scarb build",
     "contracts:test": "snforge test",
     "check:links": "node scripts/check-links.mjs",
-    "check:reachability": "node scripts/check-reachability.mjs"
+    "check:reachability": "node scripts/check-reachability.mjs",
+    "check:mobile": "node scripts/mobile-audit.mjs"
   },
   "engines": {
     "node": ">=22"
