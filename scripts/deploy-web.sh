@@ -47,4 +47,10 @@ for i in $(seq 1 20); do
   sleep 6
 done
 
-node scripts/check-deployed.mjs "$SITE"
+# GRACE_MIN=0, deliberately. The grace window exists so the *scheduled* check does not
+# cry wolf during the minutes between a push and a deploy. Here there is no such window:
+# the deploy has just run and the alias wait above has already finished, so any drift at
+# all is this deploy having failed. With the default 30-minute grace a failed deploy
+# reported "ahead of live by 1 min — not stale yet" and exited 0, which turned the one
+# assertion that proves a deploy landed into a message that it had not yet.
+GRACE_MIN=0 node scripts/check-deployed.mjs "$SITE"
