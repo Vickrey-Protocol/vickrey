@@ -1,5 +1,5 @@
 /**
- * Walks every page at a phone viewport and reports what actually breaks.
+ * Walks every page at each narrow breakpoint and reports what actually breaks.
  *
  *   node scripts/mobile-audit.mjs [baseUrl]
  *
@@ -9,6 +9,15 @@
  *   - information that exists only in a `title`, which does not exist on touch
  *
  * Driving the installed Chrome through puppeteer-core rather than downloading one.
+ *
+ * It checks four widths, because one is not a layout: the bands have different rules and
+ * a single 390px pass says nothing about the tablet. 1024 is included precisely because
+ * nothing is supposed to change there — it is the control, and a target that fails only
+ * at 1024 means a narrow rule has leaked into the desktop.
+ *
+ * What it still cannot see is whether a layout looks *squeezed*. It reported ten clean
+ * pages while the masthead was three stacked rows with the links crammed into a strip.
+ * Numbers confirm; they do not judge. Look at the screenshots.
  */
 import puppeteer from "puppeteer-core";
 
@@ -16,7 +25,15 @@ const BASE = process.argv[2] ?? "https://vickrey.0xo.in";
 const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const PAGES = ["/", "/auctions", "/auction/3", "/docs", "/wallet-check",
                "/app", "/app/create", "/app/auctions", "/app/bids", "/app/manage"];
-const VIEWPORT = { width: 390, height: 844, deviceScaleFactor: 2, isMobile: true, hasTouch: true };
+const BANDS = [
+  { name: "S ", width: 375, height: 812, touch: true },
+  { name: "M ", width: 414, height: 896, touch: true },
+  { name: "L ", width: 768, height: 1024, touch: true },
+  /* Not a touch band. It is here as a control: nothing may overflow, and no narrow
+     rule may leak in. Measuring 44px targets against a mouse would report the
+     signed-off desktop as broken on every page, every run. */
+  { name: "XL", width: 1024, height: 900, touch: false },
+];
 
 const browser = await puppeteer.launch({
   executablePath: CHROME, headless: "new",
@@ -24,6 +41,12 @@ const browser = await puppeteer.launch({
 });
 
 let problems = 0;
+for (const band of BANDS) {
+console.log(`\n\u2500\u2500 ${band.name.trim()}  ${band.width}px \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500`);
+const VIEWPORT = {
+  width: band.width, height: band.height, deviceScaleFactor: 2,
+  isMobile: band.touch, hasTouch: band.touch,
+};
 for (const path of PAGES) {
   const page = await browser.newPage();
   await page.setViewport(VIEWPORT);
@@ -94,17 +117,19 @@ for (const path of PAGES) {
     return out;
   }, VIEWPORT.width);
 
-  const bad = report.docWidth > VIEWPORT.width || report.overflow.length || report.small.length || report.hover.length;
+  const bad = report.docWidth > VIEWPORT.width || report.overflow.length || report.hover.length
+    || (band.touch && report.small.length);
   if (bad) problems++;
   console.log(`\n${path}${bad ? "" : "   clean"}`);
   if (report.docWidth > VIEWPORT.width)
     console.log(`  DOC WIDTH ${report.docWidth}px > ${VIEWPORT.width}px viewport`);
   for (const o of report.overflow)
     console.log(`  overflow   ${o.sel}\n               ${o.why}, right ${o.right}px, scroll ${o.scroll} vs client ${o.client}`);
-  for (const s of report.small) console.log(`  target     ${s.sel}  ${s.w}x${s.h}px`);
+  if (band.touch) for (const s of report.small) console.log(`  target     ${s.sel}  ${s.w}x${s.h}px`);
   for (const h of report.hover) console.log(`  hover-only ${h.sel}  title="${h.title}…"`);
   await page.close();
 }
+}
 
 await browser.close();
-console.log(`\n${problems} of ${PAGES.length} pages have problems`);
+console.log(`\n${problems} of ${PAGES.length * BANDS.length} page/width combinations have problems`);

@@ -596,28 +596,28 @@ td.undisclosed { color: var(--muted); font-style: italic; }
   border-block-end: 1px solid transparent;
 }
 .nav a:hover { color: var(--ink); border-block-end-color: var(--accent-edge); }
-/* The nav used to be display:none below 60rem, which left a phone with no navigation
-   at all — no auctions, no docs, no FAQ, and nothing to replace it. It now moves to its
-   own wrapping row under the wordmark. A row rather than a hamburger because it needs
-   no JavaScript, like the rest of the chrome. */
-@media (max-width: 60rem) {
-  .masthead { flex-wrap: wrap; row-gap: .6rem; }
-  .nav {
-    /* Back into the flow. On wide screens the nav is absolutely centred on the page, so
-       `order` and `flex` had no effect on it here and it sat on top of the wordmark and
-       the wallet button instead of below them. An out-of-flow element cannot be moved by
-       flex properties, which is easy to write and invisible until something overlaps. */
-    position: static; transform: none; left: auto;
-    /* `flex: 1 0 100%` resolved to a basis of 100% *plus* the row's own offset and
-       pushed the masthead 16px wider than its box. A plain full-width item on its own
-       line does the same job without the arithmetic. */
-    order: 3; flex: none; inline-size: 100%;
-    flex-wrap: wrap; gap: .35rem .9rem;
-    padding-block-start: .55rem;
-    border-block-start: 1px solid var(--line);
+/* The nav had been `display: none` below 60rem, which left a phone with no navigation
+   at all; it was then given its own wrapping row, which is what produced a three-row
+   masthead and an inline strip of five links too close together to aim at. Below 768px
+   it moves into a slide-in panel and the bar keeps one row.
+
+   768–1023px keeps the full inline nav deliberately. Measured, the five links come to
+   about 300px, the wordmark 110 and the wallet button 140 — roughly 550px of the 768
+   available, so a hamburger there would hide navigation that fits, behind a tap, to no
+   end. See the dashboard block for why *its* navigation goes the other way at the same
+   width. */
+@media (max-width: 47.99rem) {
+  .nav { display: none; }
+  .masthead-wallet { display: none; }
+  .masthead {
+    flex-wrap: nowrap;
+    gap: .5rem;
+    padding-block: .9rem;
   }
-  /* Comfortable to hit with a thumb: 44px is the accessibility floor. */
-  .nav a { padding-block: .5rem; min-block-size: 2.05rem; display: inline-flex; align-items: center; }
+}
+@media (min-width: 48rem) {
+  /* The panel and its button exist only below the breakpoint. */
+  .masthead-burger { display: none; }
 }
 
 /* ── FAQ ────────────────────────────────────────────────────────────── */
@@ -893,17 +893,32 @@ button.primary:hover::before { opacity: .9; animation: spinEdge 2.4s linear infi
   border: 1px dashed var(--line-lit); color: var(--ink-2);
 }
 
-@media (max-width: 900px) {
+/* The dashboard sidebar collapses at 1024px, where the public nav does not, and the
+   difference is deliberate. The public nav is five short links that sit inline. The
+   sidebar is eight, in three labelled groups, with a count badge — laid out in a row it
+   loses the grouping that gives it meaning and becomes the cramped strip this replaces.
+   And a 240px rail out of 768 leaves 528px for tables that already scroll.
+
+   `.dash-side` is the element that goes; `.dash-burger` brings the same links back as a
+   panel, from one definition in DashShell so the two cannot drift. */
+@media (max-width: 63.99rem) {
   .dash { grid-template-columns: 1fr; }
-  .dash-side {
-    position: static; block-size: auto; flex-direction: row; flex-wrap: wrap;
-    align-items: center; gap: .8rem;
-    border-inline-end: 0; border-block-end: 1px solid var(--line);
+  .dash-side { display: none; }
+  .dash-top { padding-inline: 1.1rem; }
+  .dash-title {
+    /* Between a burger, a bell and an address there is not much room; truncating beats
+       wrapping the bar to a second row. */
+    min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
-  .dash-nav { flex-direction: row; flex-wrap: wrap; flex: 1 1 100%; }
-  .dash-nav hr, .dash-group { display: none; }
+
+  /* The queue reads top to bottom: what it is, then when. Right-aligned deadlines put
+     the clock at the end of a line whose length depends on the title. */
   .act { grid-template-columns: 1fr; gap: .7rem; }
-  .act-when { align-items: flex-start; text-align: start; }
+  .act-when { align-items: flex-start; text-align: start; flex-direction: row; gap: .6rem; }
+  .act .primary { justify-self: start; }
+}
+@media (min-width: 64rem) {
+  .dash-burger { display: none; }
 }
 
 /* ── rail chooser ─────────────────────────────────────────────────────────
@@ -1188,12 +1203,9 @@ button.primary strong { color: inherit; }
    reported, and it is the check that says whether they worked.
    ───────────────────────────────────────────────────────────────────────── */
 @media (max-width: 30rem) {
-  /* ── the masthead spilled its row by 16px ── */
-  .masthead { gap: .55rem; }
-  .masthead .badge {
-    font-size: .62rem; letter-spacing: .06em;
-    max-inline-size: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  }
+  /* The masthead is one row here — wordmark and the button that opens the panel — so
+     the rules that kept a wrapped three-row version from spilling are gone with the
+     network chip they were written for. */
 
   /* ── the ladder's brace labels ──
      They are absolutely positioned beside a 8px-wide brace with `nowrap`, so at 390px
@@ -1207,29 +1219,7 @@ button.primary strong { color: inherit; }
   /* The scale column is 3rem of digits nobody can read at this size anyway. */
   .scale { inline-size: 2.4rem; font-size: .6rem; padding-inline-end: .35rem; }
 
-  /* ── touch targets ──
-     44px is the floor. Applied to the controls the audit measured at 15–42px, and
-     nowhere else: a link inside a sentence must not become a 44px block. */
-  .nav a, .docs-toc a, .foot-grid a {
-    min-block-size: 44px; display: inline-flex; align-items: center;
-  }
-  button, .primary, summary, select, input[type="file"] + *, .rail {
-    min-block-size: 44px;
-  }
-  .wordmark { min-block-size: 44px; display: inline-flex; align-items: center; }
-
-  /* A standalone link that acts as a control gets the same floor. Ones inside prose
-     are left alone — a link mid-sentence must not become a 44px block. */
-  .spread > a, .row > a, .stack > a { min-block-size: 44px; display: inline-flex;
-    align-items: center; }
-  /* The docs list every contract and document as a link; those are navigation, not
-     prose, so they get the floor too. */
-  ul.tight li { min-block-size: 44px; display: flex; align-items: center; }
-  /* The tappable thing is the link, not the row around it. */
-  ul.tight li > a { min-block-size: 44px; display: inline-flex; align-items: center; }
-  /* Standalone back-links sit alone on a line and are navigation. */
-  p > a[href^="/"]:only-child { min-block-size: 44px; display: inline-flex; align-items: center; }
-
+  
   /* ── tables ──
      They live in .scroller and do scroll, but a table that silently extends past the
      edge reads as broken. The shadow says there is more to the right. */
@@ -1307,7 +1297,7 @@ button.primary strong { color: inherit; }
   background: var(--glass); color: var(--ink);
 }
 .acct:hover, .acct.on { border-color: var(--line-lit); background: var(--glass-2); }
-.acct-addr { font-family: var(--font-mono), ui-monospace, Menlo, monospace; font-size: .82rem; }
+.acct-addr { font-family: var(--font-mono), ui-monospace, Menlo, monospace; font-size: .82rem; white-space: nowrap; }
 .acct-caret { opacity: .6; font-size: .7rem; }
 .acct-dot {
   inline-size: .5rem; block-size: .5rem; border-radius: 50%;
@@ -1505,10 +1495,181 @@ button.primary strong { color: inherit; }
     border-radius: 16px 16px 0 0; border-inline: none; border-block-end: none;
   }
   .acct-sheet { inline-size: 100%; }
-  .bell, .acct { min-block-size: 44px; }
-  .acct { min-inline-size: 44px; }
-  .sheet-x { min-inline-size: 44px; min-block-size: 44px; }
   .note-item { padding-block: 1rem; }
   .vault-do { align-items: stretch; flex-direction: column; }
   .vault-export { inline-size: 100%; }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   The navigation panel, and the button that opens it.
+
+   Four breakpoints, and only three of them may change anything:
+
+     S    360–430px   phones
+     M    431–767px   large phones, small tablets portrait
+     L    768–1023px  tablets — public nav inline, dashboard panelled
+     XL   1024px+     desktop, untouched
+
+   Everything below is inside a max-width query, so XL sees none of it.
+   ───────────────────────────────────────────────────────────────────────── */
+
+.burger {
+  display: inline-flex; align-items: center; justify-content: center;
+  inline-size: 44px; block-size: 44px; padding: 0; flex: none;
+  border: 1px solid var(--line); border-radius: 10px;
+  background: var(--glass); color: var(--ink);
+}
+.burger:hover { border-color: var(--line-lit); background: var(--glass-2); }
+.burger-box {
+  position: relative; display: block; inline-size: 18px; block-size: 12px;
+}
+.burger-box i {
+  position: absolute; inset-inline: 0; block-size: 1.5px; border-radius: 2px;
+  background: currentColor;
+  transition: transform .18s ease, opacity .12s ease, top .18s ease;
+}
+.burger-box i:nth-child(1) { top: 0; }
+.burger-box i:nth-child(2) { top: 5.25px; }
+.burger-box i:nth-child(3) { top: 10.5px; }
+/* The shape carries the state, so the control does not rely on colour. */
+.burger-box.x i:nth-child(1) { top: 5.25px; transform: rotate(45deg); }
+.burger-box.x i:nth-child(2) { opacity: 0; }
+.burger-box.x i:nth-child(3) { top: 5.25px; transform: rotate(-45deg); }
+
+@media (prefers-reduced-motion: reduce) {
+  .burger-box i { transition: none; }
+  .navsheet { animation: none !important; }
+}
+
+.navsheet-veil {
+  position: fixed; inset: 0; z-index: 60;
+  background: rgba(4, 10, 9, .62);
+  backdrop-filter: blur(2px);
+}
+
+.navsheet {
+  position: fixed; inset-block: 0; inset-inline-end: 0; z-index: 61;
+  inline-size: min(20rem, 86vw);
+  display: flex; flex-direction: column;
+  border-inline-start: 1px solid var(--line-lit);
+  background: #0C1917;
+  box-shadow: -24px 0 70px rgba(0, 0, 0, .55);
+  animation: navsheet-in .2s ease;
+}
+.navsheet:focus { outline: none; }
+@keyframes navsheet-in { from { transform: translateX(100%); } to { transform: none; } }
+
+.navsheet-top {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 1rem; padding: 1rem 1.1rem;
+  border-block-end: 1px solid var(--line);
+}
+.navsheet-body {
+  overflow-y: auto; padding: 1rem 1.1rem 1.4rem;
+  display: flex; flex-direction: column; gap: 1.2rem;
+  /* Clears the home indicator on a phone without adding a gap on anything else. */
+  padding-block-end: max(1.4rem, env(safe-area-inset-bottom));
+}
+
+/* Full-width rows: the whole line is the target, not the word. */
+.navsheet-nav { display: flex; flex-direction: column; gap: .1rem; }
+.navsheet-nav a {
+  display: flex; align-items: center; gap: .5rem;
+  min-block-size: 48px; padding: .4rem .55rem;
+  margin-inline: -.55rem;
+  border-radius: 10px; border-block-end: none;
+  font-size: var(--s-0); color: var(--ink-2); text-decoration: none;
+}
+.navsheet-nav a:hover, .navsheet-nav a:focus-visible {
+  background: var(--glass); color: var(--ink);
+}
+.navsheet-nav a.here { color: var(--ink); background: var(--accent-dim); }
+.navsheet-nav hr { border: 0; border-block-start: 1px solid var(--line); margin: .5rem 0; }
+.navsheet-nav .dash-group {
+  margin: .4rem 0 .1rem; padding-inline: 0;
+  font-size: .66rem; letter-spacing: .09em; text-transform: uppercase; color: var(--muted);
+}
+
+.navsheet-wallet {
+  display: flex; flex-direction: column; gap: .6rem; align-items: stretch;
+  padding-block-start: 1rem; border-block-start: 1px solid var(--line);
+}
+.navsheet-wallet .primary { inline-size: 100%; min-block-size: 48px; }
+.navsheet-wallet .acct-wrap, .navsheet-wallet .acct { inline-size: 100%; }
+.navsheet-wallet .note { text-align: center; }
+
+/* ── S: 360–430px ────────────────────────────────────────────────────────
+   The only band where horizontal room is genuinely scarce. Everything here
+   buys width back; nothing here changes the arrangement, which S and M
+   share. */
+@media (max-width: 26.875rem) {
+  .navsheet { inline-size: min(19rem, 90vw); }
+  .dash-controls { gap: .4rem; }
+  .dash-top { padding-inline: .85rem; gap: .55rem; }
+  .dash-title { font-size: var(--s-1); }
+  /* Between a burger, a title, a bell and an address there is not enough room, and the
+     address is the least load-bearing of them — the dot still says "connected", the
+     caret still says "opens", and the panel behind it leads with the full address. It
+     was also the only one that wrapped, which turned the bar into two rows. */
+  .acct-addr { display: none; }
+  .acct { inline-size: 44px; justify-content: center; padding-inline: 0; }
+  .acct-caret { display: none; }
+}
+
+/* ── the bid ladder under a finger ───────────────────────────────────────
+   Central interactive object, and its rows were 20px tall: visible, not
+   usable. Only the pickable ladder grows — the settled one is a diagram and
+   its proportions are the point.
+
+   This runs to 1023px rather than stopping at the phone breakpoints, because
+   a tablet is a touch device and the finger is the same size on it. The
+   boundary that matters here is pointer, not width. */
+@media (max-width: 63.99rem) {
+  .ladder-wrap.pickable { --rung: 2.75rem; }
+  .ladder-wrap.pickable .scale { font-size: .72rem; }
+  /* `.ann` keeps `line-height: var(--rung)`, which is exactly what centres its single
+     line in a taller row — it does not need help. An earlier attempt gave it
+     `display: flex; align-items: center`, and in a flex container `align-items` sets the
+     *static position of absolutely-positioned children too*: the brace is 8 rows tall
+     inside a one-row box, so centring hoisted it 154px up, out of the ladder and across
+     the card above it. The line looked like a stray border until it was measured. */
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Touch targets: 44px, everywhere a finger might be.
+
+   This lived under `max-width: 30rem` and so stopped at 480px, which left the
+   768–1023px band — tablets, all of them touch — with 28px nav links and 19px
+   controls. The band was never checked because the audit only ever ran at one
+   phone width; running it at four is what surfaced this.
+
+   It ends at 1023px. Desktop is a mouse and is signed off.
+   ───────────────────────────────────────────────────────────────────────── */
+@media (max-width: 63.99rem) {
+/* ── touch targets ──
+     44px is the floor. Applied to the controls the audit measured at 15–42px, and
+     nowhere else: a link inside a sentence must not become a 44px block. */
+  .nav a, .docs-toc a, .foot-grid a {
+    min-block-size: 44px; display: inline-flex; align-items: center;
+  }
+  button, .primary, summary, select, input[type="file"] + *, .rail {
+    min-block-size: 44px;
+  }
+  .wordmark { min-block-size: 44px; display: inline-flex; align-items: center; }
+
+  /* A standalone link that acts as a control gets the same floor. Ones inside prose
+     are left alone — a link mid-sentence must not become a 44px block. */
+  .spread > a, .row > a, .stack > a { min-block-size: 44px; display: inline-flex;
+    align-items: center; }
+  /* The docs list every contract and document as a link; those are navigation, not
+     prose, so they get the floor too. */
+  ul.tight li { min-block-size: 44px; display: flex; align-items: center; }
+  /* The tappable thing is the link, not the row around it. */
+  ul.tight li > a { min-block-size: 44px; display: inline-flex; align-items: center; }
+  /* Standalone back-links sit alone on a line and are navigation. */
+  p > a[href^="/"]:only-child { min-block-size: 44px; display: inline-flex; align-items: center; }
+  .bell, .acct { min-block-size: 44px; }
+  .acct { min-inline-size: 44px; }
+  .sheet-x { min-inline-size: 44px; min-block-size: 44px; }
+  .burger { min-block-size: 44px; min-inline-size: 44px; }
 }

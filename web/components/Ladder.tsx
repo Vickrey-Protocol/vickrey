@@ -75,7 +75,12 @@ export function Ladder({
   const bandFor = (level: number) => bands.find((b) => level <= b.from && level >= b.to);
 
   return (
-    <div className={compact ? "ladder-wrap compact" : "ladder-wrap"}>
+    /* `pickable` marks the interactive ladder. A rung is 1.28rem tall, which is legible
+       as a diagram and far under the 44px a finger needs — but only the ladder you can
+       actually bid on should grow, since the one on a settled auction is a picture. */
+    <div className={[
+      "ladder-wrap", compact ? "compact" : "", onPick ? "pickable" : "",
+    ].filter(Boolean).join(" ")}>
       <div
         className="ladder"
         role="img"
