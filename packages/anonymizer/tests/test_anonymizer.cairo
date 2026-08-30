@@ -1,10 +1,10 @@
 //! End-to-end through a stand-in pool: bid, settle, and take everything back out as
 //! open notes. Proves the sandwich shape the real pool enforces.
 
+use anonymizer::auction_anonymizer::AuctionAnonymizer;
 use anonymizer::interface::{
     AuctionOperation, IAuctionAnonymizerDispatcher, IAuctionAnonymizerDispatcherTrait,
 };
-use anonymizer::auction_anonymizer::AuctionAnonymizer;
 use anonymizer::mocks::{IMockPrivacyPoolDispatcher, IMockPrivacyPoolDispatcherTrait};
 use auction::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
 use auction::interface::{ISealedBidAuctionDispatcher, ISealedBidAuctionDispatcherTrait};
@@ -114,7 +114,7 @@ fn setup() -> Rig {
         num_levels: LEVELS,
         bid_deadline: DEADLINE,
         dispute_window: WINDOW,
-        auctioneer_bond: TICK,   // the floor: one price step at stake
+        auctioneer_bond: TICK, // the floor: one price step at stake
         terms_hash: 'LOT',
     };
     start_cheat_caller_address(auction_addr, seller());

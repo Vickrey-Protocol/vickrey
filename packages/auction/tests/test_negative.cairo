@@ -3,15 +3,15 @@
 //! Each one is an attack this design has to refuse. If any of these starts passing,
 //! a security property has been lost.
 
+use auction::erc20::IERC20DispatcherTrait;
 use auction::interface::ISealedBidAuctionDispatcherTrait;
 use auction::ladder;
 use auction::types::{AuctionKind, Disposition, DispositionProof, NO_WINNER, ProofKind, Status};
-use snforge_std::{start_cheat_block_timestamp_global, start_cheat_caller_address};
-use auction::erc20::IERC20DispatcherTrait;
 use core::num::traits::Zero;
+use snforge_std::{start_cheat_block_timestamp_global, start_cheat_caller_address};
 use super::common::{
-    BOND, CAP, DEADLINE, LOT, LEVELS, WINDOW, place_raw, finalize, payout, place, pool, proof_above, proof_below,
-    balance, proof_exactly, proof_forfeit, seal, seller, settle, setup, setup_with,
+    BOND, CAP, DEADLINE, LEVELS, LOT, WINDOW, balance, finalize, payout, place, place_raw, pool,
+    proof_above, proof_below, proof_exactly, proof_forfeit, seal, seller, settle, setup, setup_with,
     setup_with_auctioneer,
 };
 
@@ -543,8 +543,7 @@ fn an_auctioneer_who_is_the_seller_cannot_discard_an_outcome_for_free() {
     // The lot comes home — nothing was sold — but the bond does not.
     assert!(balance(env.lot, seller()) == lot_before + LOT, "lot returns");
     assert!(
-        balance(env.pay, seller()) == pay_before,
-        "discarding the outcome must now cost the bond",
+        balance(env.pay, seller()) == pay_before, "discarding the outcome must now cost the bond",
     );
 }
 
@@ -582,10 +581,7 @@ fn an_undispositionable_bid_forfeits_and_its_escrow_is_stranded() {
     let bogus_index = place_raw(env, bogus_commit, 'NOT_AN_ANCHOR', 'NOR_THIS');
 
     seal(env);
-    settle(
-        env, 0, good.index,
-        array![proof_above(env, good, 0), proof_forfeit()],
-    );
+    settle(env, 0, good.index, array![proof_above(env, good, 0), proof_forfeit()]);
     finalize(env);
 
     let held_after_finalize = balance(env.pay, env.auction.contract_address);
@@ -640,8 +636,5 @@ fn a_bid_at_the_top_of_the_ladder_settles_normally() {
     settle(env, 5, top.index, array![proof_above(env, top, 5), proof_exactly(env, mid, 5)]);
     finalize(env);
     assert!(env.auction.get_state(env.id).clearing_level == 5, "second price is the runner-up's");
-    assert!(
-        env.auction.claim_lot(env.id, 'A', payout()) == LOT,
-        "the top bidder takes the lot",
-    );
+    assert!(env.auction.claim_lot(env.id, 'A', payout()) == LOT, "the top bidder takes the lot");
 }

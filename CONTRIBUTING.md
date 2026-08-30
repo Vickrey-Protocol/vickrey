@@ -82,6 +82,41 @@ These are not style preferences. Each one is here because skipping it cost somet
     conditions are the easiest place in this codebase to write something that is wrong and
     quiet. Compare explicitly.
 
+11. **Absence of an answer is not a negative answer.** Three states, not two: answered
+    yes, answered no, and has not answered yet. Code that collapses the third into the
+    second fails in the direction of *looking correct* — it produces a definite, plausible
+    outcome instead of an error, so nothing surfaces and nobody investigates.
+
+    This has now cost something six times, and it is always the same shape wearing
+    different clothes. `NOT_REGISTERED` from `strk20Balances` is the pool *answering* —
+    the wallet understood the call and routed it — and reading it as "this wallet cannot
+    do STRK20" would have abandoned a working strategy. Our encoded pool actions are
+    expected to fail on state, not on shape, and the two look alike from the outside.
+
+    The worst instance was the silent reconnect. Wallet discovery is an announcement
+    protocol: `getWallets()` returns whoever has replied *so far*, and on a cold reload
+    that is often nobody, because the extension is still starting while React is already
+    mounting. An empty list meant "nobody has answered yet" and was read as "no wallet
+    installed" — and the caller then ran `forgetWallet()`, erasing the remembered name.
+    A wallet that is merely locked returns nothing here too. So one unlucky reload
+    ended the session permanently, and the symptom was the exact screen the feature had
+    been built to prevent.
+
+    Two habits follow.
+
+    **Never take an irreversible action on a missing answer.** Forgetting, disabling,
+    marking unsupported, deleting — all of them need a real "no", not a silence. Waiting
+    and retrying costs nothing when the operation cannot prompt.
+
+    **Never substitute an arbitrary answer for a missing one.** The same reconnect code
+    fell back to `found[0]` when the named wallet was absent, so with several extensions
+    installed it would read the chain of a wallet the user had never connected and report
+    a network mismatch with no visible cause. A wrong answer is harder to diagnose than
+    no answer, because it looks like data.
+
+    Ask of every empty result: can I tell "no" from "not yet"? If not, treat it as "not
+    yet" and say so in the code, because that is the reading that stays recoverable.
+
 ## Before you push
 
 ```shell

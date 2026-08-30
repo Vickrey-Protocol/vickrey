@@ -13,10 +13,23 @@
  * This check is the part that does not depend on remembering.
  *
  * Exit 1 on drift, on an unknown commit, or on a route that should exist and does not.
+ *
+ * GRACE is what lets this run on every push instead of only on a timer. With manual
+ * deploys, "main is ahead of live" is the *normal* state for the minutes between pushing
+ * and deploying, so a check that fired on that would be red on nearly every push and
+ * trained away within a day — which is exactly what happened to the whole workflow it
+ * lives in, red for five days over test formatting, until a genuinely stale deploy could
+ * hide inside it.
+ *
+ * So the question it asks is not "is main ahead of live", it is "has main been ahead of
+ * live for longer than a deploy takes". That is measured on the *oldest* undeployed
+ * commit, not the newest: pushing a second commit must not reset the clock on the first
+ * one, or a steady stream of pushes hides the drift indefinitely.
  */
 import { execSync } from "node:child_process";
 
 const SITE = process.argv[2] ?? process.env.SITE ?? "https://vickrey.0xo.in";
+const GRACE_MIN = Number(process.env.GRACE_MIN ?? 30);
 const head = execSync("git rev-parse HEAD").toString().trim();
 
 const fail = (msg) => { console.error(`\n  ${msg}\n`); process.exit(1); };
@@ -42,14 +55,31 @@ if (info.commit === "unknown") {
     `Deploy with scripts/deploy-web.sh, which stamps it, or connect the git repo.`);
 }
 if (info.commit !== head) {
-  const behind = (() => {
-    try {
-      return execSync(`git log --oneline ${info.commit}..${head}`).toString().trim();
-    } catch { return "(the live commit is not in this clone — a different branch?)"; }
-  })();
-  fail(`STALE DEPLOY — the site is not serving HEAD.\n\n  Not live yet:\n` +
-    behind.split("\n").map((l) => `    ${l}`).join("\n") +
-    `\n\n  Run: scripts/deploy-web.sh`);
+  let behind, oldestAgeMin = Infinity;
+  try {
+    behind = execSync(`git log --oneline ${info.commit}..${head}`).toString().trim();
+    /* The oldest undeployed commit's author date. `git log` lists newest first, so the
+       last line is the one that has been waiting longest. */
+    const oldest = execSync(`git log --format=%ct ${info.commit}..${head}`)
+      .toString().trim().split("\n").filter(Boolean).pop();
+    if (oldest) oldestAgeMin = (Date.now() / 1000 - Number(oldest)) / 60;
+  } catch {
+    behind = "(the live commit is not in this clone — a different branch?)";
+    oldestAgeMin = Infinity;   // cannot date it, so do not excuse it
+  }
+
+  const list = behind.split("\n").map((l) => `    ${l}`).join("\n");
+
+  if (oldestAgeMin < GRACE_MIN) {
+    /* Ahead, but not yet late. Reported without failing, so a push shows the state
+       without teaching anyone to ignore a red mark. */
+    console.log(`\n  ahead of live by ${Math.round(oldestAgeMin)} min ` +
+      `(grace ${GRACE_MIN} min) — not stale yet:\n${list}\n\n  Deploy with scripts/deploy-web.sh`);
+    process.exit(0);
+  }
+
+  fail(`STALE DEPLOY — the site has not served HEAD for ${Math.round(oldestAgeMin)} minutes.` +
+    `\n\n  Not live yet:\n${list}\n\n  Run: scripts/deploy-web.sh`);
 }
 
 /* A matching commit still is not proof the routes are there — a build can succeed and

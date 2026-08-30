@@ -1,0 +1,39 @@
+name: Deploy freshness
+
+# Its own workflow, not a job inside CI, and that separation is the point.
+#
+# A stale deploy went unnoticed for four commits while this check existed and was
+# correct. Two things hid it. It ran every six hours, and the whole drift happened
+# inside one gap. And CI — the workflow it lived in — had failed on all sixty of its
+# last runs, five days straight, over formatting in a test file. A red mark that is
+# always red says nothing, so the one run that would have meant something was
+# indistinguishable from the noise around it.
+#
+# So: separate status, hourly rather than six-hourly, and on push. Running on push is
+# only safe because the check has a grace window — see scripts/check-deployed.mjs. It
+# asks whether main has been ahead of live for longer than a deploy takes, not whether
+# it is ahead, which would be red on every push and ignored inside a week.
+
+on:
+  push: { branches: [main] }
+  schedule:
+    - cron: "7 * * * *"
+  workflow_dispatch:
+
+# A push during a deploy would otherwise race the deploy it is checking.
+concurrency:
+  group: deploy-freshness
+  cancel-in-progress: true
+
+jobs:
+  freshness:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }   # the check dates the commits that are not live yet
+      - uses: actions/setup-node@v4
+        with: { node-version: "24" }
+      - run: node scripts/check-deployed.mjs
+        env:
+          SITE: https://vickrey.0xo.in
+          GRACE_MIN: "30"

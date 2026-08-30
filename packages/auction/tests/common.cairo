@@ -100,9 +100,7 @@ pub fn setup_with(kind: AuctionKind, num_levels: u16, bond: u128) -> Env {
     setup_full(kind, num_levels, bond, auctioneer())
 }
 
-fn setup_full(
-    kind: AuctionKind, num_levels: u16, bond: u128, who: ContractAddress,
-) -> Env {
+fn setup_full(kind: AuctionKind, num_levels: u16, bond: u128, who: ContractAddress) -> Env {
     setup_full_dec(kind, num_levels, bond, who, 18)
 }
 

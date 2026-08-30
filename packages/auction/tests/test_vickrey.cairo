@@ -214,7 +214,9 @@ fn an_auction_denominated_in_a_six_decimal_token_settles_identically() {
     seal(env);
 
     settle(
-        env, 9, a.index,
+        env,
+        9,
+        a.index,
         array![proof_above(env, a, 9), proof_exactly(env, b, 9), proof_below(env, c, 9)],
     );
     finalize(env);
@@ -248,11 +250,13 @@ fn a_full_lifecycle_conserves_value() {
     let env = setup(AuctionKind::Vickrey);
     let auction = env.auction.contract_address;
 
-    // ── in: the lot and the bond ────────────────────────────────────────────────
+    // ── in: the lot and the bond
+    // ────────────────────────────────────────────────
     assert!(balance(env.lot, auction) == LOT, "the contract holds the lot");
     assert!(balance(env.pay, auction) == BOND, "the contract holds the bond");
 
-    // ── in: one escrow per bid, at the cap, uniform ─────────────────────────────
+    // ── in: one escrow per bid, at the cap, uniform
+    // ─────────────────────────────
     let a = place(env, 'A', 'SA', 12);
     assert!(balance(env.pay, auction) == BOND + CAP, "one escrow in");
     let b = place(env, 'B', 'SB', 9);
@@ -262,7 +266,9 @@ fn a_full_lifecycle_conserves_value() {
 
     seal(env);
     settle(
-        env, 9, a.index,
+        env,
+        9,
+        a.index,
         array![proof_above(env, a, 9), proof_exactly(env, b, 9), proof_below(env, c, 9)],
     );
     let price = RESERVE + 9 * TICK;
@@ -274,7 +280,8 @@ fn a_full_lifecycle_conserves_value() {
     // Out: the clearing price and the bond to the seller. Everything else still held.
     assert!(balance(env.pay, auction) == CAP * 3 - price, "only price and bond have left");
 
-    // ── out: every claim, and then nothing is left ──────────────────────────────
+    // ── out: every claim, and then nothing is left
+    // ──────────────────────────────
     assert!(env.auction.claim_refund(env.id, c.index, 'C', payout()) == CAP, "loser whole");
     assert!(env.auction.claim_refund(env.id, b.index, 'B', payout()) == CAP, "runner-up whole");
     assert!(
