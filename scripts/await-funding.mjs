@@ -31,16 +31,19 @@ const balance = async (rpc, addr) => {
 };
 
 const MAX_MINUTES = Number(process.env.MINUTES ?? 55);
+/** Which account actually blocks the work. Everything else is only reported. */
+const WAIT_FOR = process.env.WAIT_FOR ?? "mainnet";
 for (let i = 0; i < MAX_MINUTES; i++) {
   const seen = [];
   for (const [net, rpc, addr, need] of ACCOUNTS) {
     try {
       const b = await balance(rpc, addr);
       seen.push(`${net} ${b.toFixed(2)}/${need}`);
-      /* Either account unblocks work now. Mainnet unblocks the entry itself, so it
-         counts as much as Sepolia — with two days left, whichever lands first is the
-         one to act on. */
-      if (b >= need) {
+      /* Only the account named as the trigger wakes this. Waking on "either" was a
+         mistake once Sepolia was funded: it sat permanently above its threshold, so the
+         watcher fired instantly and reported nothing new. A waiter that returns
+         immediately is worse than none, because it looks like an answer. */
+      if (net === WAIT_FOR && b >= need) {
         console.log(`\n${net.toUpperCase()} FUNDED: ${b.toFixed(2)} STRK.`);
         console.log(seen.join("   "));
         process.exit(0);
