@@ -17,6 +17,7 @@ import { STRK_DECIMALS, config, countdown, formatUnits, hasAnonymizer, priceAt }
 import { markRevealed, saveBid, toPrivateBid, type StoredBid } from "@/lib/vault";
 import type { Connection } from "@/lib/wallet";
 import { Ladder } from "./Ladder";
+import { useWallet } from "@/components/WalletProvider";
 
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
@@ -44,6 +45,7 @@ export function BidPanel({
   connection: Connection | null;
   onPlaced: () => void;
 }) {
+  const { ensureChain } = useWallet();
   const [level, setLevel] = useState<number | null>(null);
   const [rail, setRail] = useState<Rail>("public");
   const [busy, setBusy] = useState<string | null>(null);
@@ -56,6 +58,7 @@ export function BidPanel({
   async function submit() {
     if (!connection) return setError("Connect a wallet first.");
     if (level === null) return setError("Pick a level on the ladder.");
+    if (!(await ensureChain())) return;
     setError(null);
     try {
       const bid = createBid(auction.terms, level);
@@ -363,6 +366,7 @@ export function DisputePanel({
 }: {
   auction: AuctionView; bids: StoredBid[]; connection: Connection | null; now: number;
 }) {
+  const { ensureChain } = useWallet();
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
@@ -373,6 +377,7 @@ export function DisputePanel({
 
   async function dispute(stored: StoredBid) {
     if (!connection) return setErr("Connect a wallet first.");
+    if (!(await ensureChain())) return;
     setErr(null);
     try {
       const bid = toPrivateBid(stored);
@@ -419,6 +424,7 @@ export function ClaimPanel({
 }: {
   auction: AuctionView; bids: StoredBid[]; connection: Connection | null;
 }) {
+  const { ensureChain } = useWallet();
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
@@ -427,6 +433,7 @@ export function ClaimPanel({
 
   async function run(operation: ClaimOperation, stored: StoredBid) {
     if (!connection) return setErr("Connect a wallet first.");
+    if (!(await ensureChain())) return;
     setErr(null); setMsg(null);
     try {
       const bid = toPrivateBid(stored);

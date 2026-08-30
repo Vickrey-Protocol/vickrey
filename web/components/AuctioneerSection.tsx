@@ -13,6 +13,7 @@ import { settleCalldata, type AuctionView } from "@/lib/chain";
 import { config, countdown, formatUnits, utcDate } from "@/lib/config";
 import type { Connection } from "@/lib/wallet";
 import { SeedTracker } from "@/components/SeedTracker";
+import { useWallet } from "@/components/WalletProvider";
 
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
@@ -37,6 +38,7 @@ export function AuctioneerSection({
 }) {
   const [plan, setPlan] = useState<SettlementPlan | null>(null);
   const [problems, setProblems] = useState<string[]>([]);
+  const { ensureChain } = useWallet();
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [pasted, setPasted] = useState("");
@@ -49,6 +51,7 @@ export function AuctioneerSection({
   async function invoke(entrypoint: string, calldata: string[]) {
     if (!connection) return setErr("Connect a wallet first.");
     setErr(null); setMsg(null);
+    if (!(await ensureChain())) return;
     try {
       const res = await connection.account.execute({
         contractAddress: config.auctionAddress, entrypoint, calldata,

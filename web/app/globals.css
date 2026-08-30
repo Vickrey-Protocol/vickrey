@@ -1159,3 +1159,36 @@ html { overflow-x: clip; }
   border: 1px dashed var(--line-lit); background: var(--hatch-bg);
 }
 .seed-in { border-style: solid; border-color: var(--good); background: rgba(127, 206, 151, .08); }
+
+/* ── selects ──────────────────────────────────────────────────────────────
+   The native chevron sits hard against the border, and padding on the field
+   moves the text without moving it. Drawing our own gives it room. */
+select {
+  appearance: none; -webkit-appearance: none;
+  padding-inline-end: 2.1rem;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--ink-2) 50%),
+    linear-gradient(135deg, var(--ink-2) 50%, transparent 50%);
+  background-position:
+    calc(100% - 1.15rem) calc(50% + 1px),
+    calc(100% - 0.8rem)  calc(50% + 1px);
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
+}
+select:hover { background-color: rgba(0, 0, 0, .32); }
+
+/* ── text on a filled accent surface ──────────────────────────────────────
+   `button.primary` paints the ember gradient and sets a near-black label, but
+   a muted child re-asserts its own grey and becomes illegible on orange — the
+   dispute-window presets were unreadable exactly this way. Muted has to mean
+   "quieter than its surroundings", not one fixed grey, so it is re-stated
+   wherever the surface changes underneath it. */
+button.primary .note,
+button.primary .undisclosed,
+button.primary .rail-cost,
+button.primary small,
+.primary .dash-group {
+  color: rgba(23, 16, 14, .72);
+}
+button.primary b,
+button.primary strong { color: inherit; }

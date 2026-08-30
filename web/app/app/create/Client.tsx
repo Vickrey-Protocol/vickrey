@@ -42,7 +42,7 @@ const toUnits = (s: string | undefined, decimals: number): bigint => {
 };
 
 export default function Client() {
-  const { connection } = useWallet();
+  const { connection, ensureChain } = useWallet();
   const d = useDashData();
   const [step, setStep] = useState(0);
 
@@ -59,6 +59,7 @@ export default function Client() {
   /* Read from the token the moment it is entered. Everything the form computes —
      spacing, cap, escrow, the preview ladder — is denominated in these. */
   const [decimals, setDecimals] = useState(18);
+  const [symbol, setSymbol] = useState("");
   const [tokenErr, setTokenErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -74,6 +75,13 @@ export default function Client() {
         if (!live) return;
         const d = Number(BigInt(r[0]!));
         setDecimals(Number.isFinite(d) && d >= 0 && d <= 32 ? d : 18);
+        /* The preview draws prices, and a price without its unit is one of the things
+           this project keeps saying it will not render. */
+        try {
+          const sr = await p.callContract({ contractAddress: lotToken, entrypoint: "symbol", calldata: [] });
+          const raw = shortString.decodeShortString(sr[sr.length - 3] ?? sr[0]!);
+          if (/^[\x20-\x7e]{1,12}$/.test(raw)) setSymbol(raw);
+        } catch { setSymbol(""); }
         setTokenErr(null);
       } catch {
         if (live) setTokenErr("Could not read this token's decimals. Check the address.");
@@ -100,6 +108,8 @@ export default function Client() {
 
   const submit = async () => {
     if (!connection || derived.error || !derived.reserve) return;
+    // Blocks on a chain mismatch rather than letting the wallet throw after approval.
+    if (!(await ensureChain())) return;
     setBusy(true); setErr(null);
     try {
       const deadline = Math.floor(Date.now() / 1000) + closeIn;
@@ -317,13 +327,23 @@ export default function Client() {
 
         {/* The ladder as it is being built. Three numbers become a shape. */}
         <div className="panel">
-          <p className="eyebrow">Preview</p>
+          <div className="spread">
+            <p className="eyebrow" style={{ margin: 0 }}>Preview</p>
+            <span className="note">step 2 · Ladder</span>
+          </div>
           {derived.error ? (
             <p className="note" style={{ marginTop: ".6rem" }}>{derived.error}</p>
           ) : (
             <Ladder numLevels={levels} reservePrice={derived.reserve!} tick={derived.tick!}
-                    symbol="" decimals={decimals} bidCount={0} status={Status.Open} />
+                    symbol={symbol} decimals={decimals} bidCount={0} status={Status.Open} />
           )}
+          {/* It is live, but only three inputs feed it — and they are all on one step.
+              Without saying so it reads as frozen on the other four. */}
+          <p className="note" style={{ marginTop: ".8rem" }}>
+            {step === 1
+              ? "Redraws as you change the reserve, the top or the level count."
+              : "Shows the ladder from step 2. Nothing on this step changes it."}
+          </p>
         </div>
       </div>
     </DashShell>
