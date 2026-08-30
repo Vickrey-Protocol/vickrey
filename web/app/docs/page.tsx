@@ -328,15 +328,26 @@ down_anchor = step^(P−1−ℓ)    a depth-(P−1−t) preimage proves  ℓ ≤
               person with the motive to detect it, and it pays them to do so.
             </p>
             <p className="lede">
-              <b>What the bond does not cover.</b> It answers for a dishonest settlement,
-              not for walking away. The bond is taken from the seller at listing and
-              returned to the seller by <code>abandon</code>, so where one address is both
-              seller and auctioneer an auctioneer can seal, read the outcome off-chain,
-              abandon if the price disappoints, and re-list having lost only gas. Bidders
-              are always refunded in full, so this biases outcomes rather than stealing —
-              but it is cheaper than the attack the bond was built for, and the contract
-              enforces no minimum bond at all. Use a separate auctioneer address where the
-              outcome matters.
+              <b>And walking away costs the bond too.</b> <code>abandon</code> does not
+              return it to the seller — it forfeits it to the bidders, split evenly and
+              paid out with their escrow. So discarding an outcome you do not like is not
+              a cheaper alternative to excluding a bid; it costs the same stake.
+            </p>
+            <p>
+              The bond is bounded at both ends. At least one tick, so there is always
+              something at stake in a settlement bidders are asked to trust. At most the
+              uniform collateral, so a bidder&rsquo;s share of a forfeited bond can never
+              exceed what they staked themselves — otherwise the auction failing would be
+              worth more to them than it succeeding.
+            </p>
+            <p className="note">
+              <b>This was wrong until 30 August 2026.</b> The bond was returned to the
+              seller by <code>abandon</code>, and it is pulled from the seller at listing
+              — so where one address was both seller and auctioneer, discarding an outcome
+              cost only gas, and it was cheaper than the exclusion attack the bond existed
+              to deter. This page claimed a protection the contract did not provide. It
+              was found by auditing the exit paths rather than by a failing test, and the
+              tests that now cover it were written from the audit.
             </p>
           </section>
 

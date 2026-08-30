@@ -369,16 +369,19 @@ money. It opens a **dispute window**. A forfeited bidder who proves `ℓ ≥ ℓ
 the settlement and takes the auctioneer's bond. `finalize` releases funds only after
 the window closes clean.
 
-> **What the bond does not cover.** It answers for a *dishonest settlement*. It does not
-> answer for walking away: the bond is pulled from the seller at listing and returned to
-> the seller by `abandon`, so where one address is both seller and auctioneer — the
-> convenient default — an auctioneer can seal, read the outcome off-chain, abandon if the
-> price disappoints, and re-list having lost only gas. Bidders are always made whole, so
-> this biases outcomes rather than stealing, but it is cheaper than the exclusion attack
-> the bond was designed for. The contract also enforces **no minimum bond**; zero lists
-> fine. Covered by three tests in `test_negative.cairo`, with a fix proposed in
-> [docs/proposal-bond.md](docs/proposal-bond.md). Until it ships, use a **separate
-> auctioneer address** where the outcome matters.
+> **What the bond covers, and a correction.** The bond answers for a dishonest
+> settlement *and* for walking away. `abandon` forfeits it to the bidders, paid pro-rata
+> through `claim_refund`, and `create_auction` requires `tick ≤ bond ≤ cap`.
+>
+> It did not always. Until **30 Aug 2026** the bond was pulled from the seller and
+> *returned* to the seller by `abandon`, and no minimum was enforced — so where one
+> address was both seller and auctioneer, the auctioneer could seal, read the outcome
+> off-chain, abandon if the price disappointed, and re-list having lost only gas. That
+> was cheaper than the exclusion attack the bond was built for, and this file claimed a
+> protection stronger than the contract provided. Found by audit rather than by testing;
+> the fix, the reasoning and the rejected alternatives are in
+> [docs/proposal-bond.md](docs/proposal-bond.md), and three tests in `test_negative.cairo`
+> now assert that discarding an outcome costs the bond.
 
 ### What the chain sees
 
