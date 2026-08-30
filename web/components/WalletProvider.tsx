@@ -5,6 +5,7 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import { shortString, walletV6 } from "starknet";
+import { readWalletError } from "@vickrey/client";
 import { config } from "@/lib/config";
 import {
   availableWallets, connect as connectWallet, forgetWallet, reconnect, rememberWallet,
@@ -74,6 +75,8 @@ interface WalletState {
   shieldedPending: boolean;
   shieldedErr: string | null;
   requestShielded: () => Promise<void>;
+  /** What a real STRK20 call established. Never inferred from the version string. */
+  strk20Proof: "untested" | "working" | "failed";
 }
 
 const Ctx = createContext<WalletState | null>(null);
@@ -107,6 +110,16 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [shielded, setShielded] = useState<bigint | null>(null);
   const [shieldedPending, setShieldedPending] = useState(false);
   const [shieldedErr, setShieldedErr] = useState<string | null>(null);
+  /**
+   * What a *real* STRK20 call established, as opposed to what the wallet advertises.
+   *
+   *   untested — nobody has asked yet. Not a claim in either direction.
+   *   working  — a pool read completed, or the pool answered NOT_REGISTERED, which
+   *              proves the wallet routed it.
+   *   failed   — a real call came back with an error that is not about our request.
+   */
+  const [strk20Proof, setStrk20Proof] =
+    useState<"untested" | "working" | "failed">("untested");
   const goToRef = useRef<string | null>(null);
 
   /**
@@ -185,14 +198,22 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       const hit = entries.find((e) => BigInt(e.token) === BigInt(config.strkAddress))
         ?? entries[0];
       setShielded(hit ? BigInt(hit.balance) : 0n);
+      setStrk20Proof("working");
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      /* Same shape-versus-state rule the wallet probe applies: NOT_REGISTERED is the
-         pool answering, not a wallet that cannot do this. It means no shielded presence
-         yet, which the first shield creates. */
-      setShieldedErr(/not[_ ]?registered/i.test(msg)
-        ? "This account has no shielded presence yet — your first shield creates it."
-        : msg);
+      /* `String(e)` here was destroying the evidence: a JSON-RPC error is a plain object,
+         not an `Error`, so it stringified to "[object Object]" and the numeric code — the
+         only field the spec fills with information — never reached the screen. And the
+         spec's own message is "An error occurred (NAME)" for every error it defines, so
+         passing that through shows the user nothing either way. */
+      const err = readWalletError(e);
+      setShieldedErr(err.recognised
+        ? err.say
+        // Rule 11: unrecognised is not a licence to name it. Say so, and show the raw.
+        : `${err.say} Raw: ${err.raw}`);
+      /* NOT_REGISTERED and a refusal both mean the wallet understood and routed the
+         call — shape confirmed, state simply absent. Everything else is a failure of
+         the read itself. */
+      setStrk20Proof(err.code === 118 || err.code === 113 ? "working" : "failed");
     } finally {
       setShieldedPending(false);
     }
@@ -263,6 +284,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     // A balance disclosed by one account must not survive into the next.
     setShielded(null);
     setShieldedErr(null);
+    setStrk20Proof("untested");
     // Persisted, so a reload does not sign them straight back in.
     forgetWallet();
   }, []);
@@ -271,11 +293,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     () => ({
       connection, error, connecting, reconnecting, connect, disconnect, ensureChain,
       walletChain, switchChain, switching,
-      shielded, shieldedPending, shieldedErr, requestShielded,
+      shielded, shieldedPending, shieldedErr, requestShielded, strk20Proof,
     }),
     [connection, error, connecting, reconnecting, connect, disconnect, ensureChain,
      walletChain, switchChain, switching,
-     shielded, shieldedPending, shieldedErr, requestShielded],
+     shielded, shieldedPending, shieldedErr, requestShielded, strk20Proof],
   );
   return (
     <Ctx.Provider value={value}>

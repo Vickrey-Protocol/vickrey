@@ -56,7 +56,7 @@ export function BidPanel({
   const [placed, setPlaced] = useState<StoredBid | null>(null);
   const [ack, setAck] = useState(false);
 
-  const canPrivate = !!connection?.strk20 && hasAnonymizer();
+  const canPrivate = !!connection?.strk20Declared && hasAnonymizer();
 
   async function submit() {
     if (!connection) return setError("Connect a wallet first.");
@@ -184,8 +184,10 @@ export function BidPanel({
           <span className="note">
             {canPrivate
               ? "Also hides your address. Needs a shielded balance first."
-              : connection && !connection.strk20
-                ? "This wallet does not speak STRK20."
+              : connection && !connection.strk20Declared
+                /* What we know is what it advertises. Whether a pool call actually works
+                   is a different question and only a real call answers it. */
+                ? "This wallet does not advertise STRK20 support."
                 : "No anonymizer configured."}
           </span>
           <span className="rail-cost">
@@ -452,7 +454,7 @@ export function ClaimPanel({
   const { ensureChain } = useWallet();
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const canPrivate = !!connection?.strk20 && hasAnonymizer();
+  const canPrivate = !!connection?.strk20Declared && hasAnonymizer();
   const [rail, setRail] = useState<Rail>("public");
 
   /* `undefined` = still reading, `null` = the read failed. Distinguishing them matters:

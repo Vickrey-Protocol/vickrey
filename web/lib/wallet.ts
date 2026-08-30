@@ -19,8 +19,19 @@ import { config } from "./config";
 export interface Connection {
   account: WalletAccountV6;
   address: string;
-  /** Whether the wallet speaks Wallet API >= 0.10.3, which is what STRK20 needs. */
-  strk20: boolean;
+  /**
+   * SHAPE ONLY: the wallet *advertises* Wallet API >= 0.10.3.
+   *
+   * Named for what it measures, because as `strk20` it was read everywhere as "STRK20
+   * works with this wallet" — and a version string cannot know that. A wallet can
+   * advertise 0.10.3 and still have no working pool read on the network you are on,
+   * which is exactly what a real call turned up. Whether a read succeeds is *state*, it
+   * is only knowable by asking, and it lives in the provider as `strk20Proof`.
+   *
+   * Seventh instance of this confusion in this project, and the first one inside the
+   * flag that was supposed to encode the distinction.
+   */
+  strk20Declared: boolean;
   walletName: string;
 }
 
@@ -145,15 +156,18 @@ export async function connect(wallet?: WalletWithStarknetFeatures): Promise<Conn
 
   const account = await WalletAccountV6.connect(provider(), asV6Wallet(chosen));
 
-  let strk20 = false;
+  let strk20Declared = false;
   try {
     const versions = await walletV6.supportedWalletApi(asV6Wallet(chosen));
-    strk20 = versions.some((v) => compareVersions(v, "0.10.3") >= 0);
+    strk20Declared = versions.some((v) => compareVersions(v, "0.10.3") >= 0);
   } catch {
-    strk20 = false;
+    /* A wallet that will not list its versions has told us nothing, which is not the
+       same as telling us no — but it is the safe default for *offering* a rail, and the
+       user can still try it and see a real error. */
+    strk20Declared = false;
   }
 
-  return { account, address: account.address, strk20, walletName: chosen.name };
+  return { account, address: account.address, strk20Declared, walletName: chosen.name };
 }
 
 export const poolConfigured = () => config.poolAddress.length > 0;

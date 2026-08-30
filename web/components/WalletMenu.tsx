@@ -29,7 +29,7 @@ import { Popover } from "@/components/Popover";
  */
 export function WalletMenu() {
   const {
-    connection, disconnect, walletChain, switchChain, switching,
+    connection, disconnect, walletChain, switchChain, switching, strk20Proof,
   } = useWallet();
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -128,10 +128,19 @@ export function WalletMenu() {
                 Disconnecting is remembered — you will not be signed back in on reload.
                 Your claim secrets stay in this browser either way.
               </p>
-              {!connection.strk20 && (
+              {!connection.strk20Declared && (
                 <p className="note">
-                  This wallet reports no STRK20 support. Public-rail bidding still works;
-                  the private rail needs a pool-capable wallet.
+                  This wallet does not advertise STRK20 support. Public-rail bidding still
+                  works; the private rail needs a pool-capable wallet.
+                </p>
+              )}
+              {connection.strk20Declared && strk20Proof === "failed" && (
+                /* The distinction the flag could not make. The wallet advertises the
+                   interface and a real call to it failed, so saying "supported" here
+                   would repeat the mistake that produced the bare UNKNOWN_ERROR. */
+                <p className="note">
+                  This wallet advertises STRK20, but a real pool read on {config.label}{" "}
+                  did not work. Public-rail bidding is unaffected.
                 </p>
               )}
             </div>

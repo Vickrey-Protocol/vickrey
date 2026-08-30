@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { compareVersions, RpcProvider, shortString, walletV6 } from "starknet";
-import { classifyProbeError, probeAnswered, probeMissing } from "@vickrey/client";
+import { probeMissing, readWalletError } from "@vickrey/client";
 import { availableWallets } from "@/lib/wallet";
 import { STRK_DECIMALS, config, formatUnits } from "@/lib/config";
 import { PublicShell } from "@/components/PublicShell";
@@ -42,6 +42,7 @@ export default function Client() {
   const [versions, setVersions] = useState<string[] | null>(null);
   const [pool, setPool] = useState<Check[]>([]);
   const [balProbe, setBalProbe] = useState<Check | null>(null);
+  const [reachProbe, setReachProbe] = useState<Check | null>(null);
   const [probing, setProbing] = useState(false);
   /** The chain the *wallet* is on, which is not necessarily the one the site reads. */
   const [walletChain, setWalletChain] = useState<string | null>(null);
@@ -98,45 +99,96 @@ export default function Client() {
   }, [connection]);
 
   /**
-   * The decisive free test — and the classification is the whole point of it.
+   * Two calls, deliberately, because the difference between them is the bug this page
+   * shipped.
    *
-   * `strk20Balances` is the one STRK20 method that costs nothing, so it tells us
-   * whether the wallet has *implemented the interface*. That is a question about
-   * **shape**, and it must not be confused with **state**.
+   * The old probe invoked `strk20Balances` **with no arguments**. `tokens` is a required
+   * parameter, so that put `params: {}` on the wire — not a balance read at all. Any
+   * reply was recorded as "this wallet implements STRK20", and that is the claim the
+   * funding decision rested on. It established that the *method exists*, which is a
+   * different and much weaker fact.
    *
-   * An error like `NOT_REGISTERED` or `SUBCHANNEL_NOT_FOUND` is the pool answering. The
-   * wallet understood the call, routed it, and relayed a protocol reply — which is
-   * exactly what we are testing for. Only the account's pool state is missing, and
-   * that is what shielding creates.
+   * So the real read runs first and is the one that counts: a genuine token list, the
+   * exact call the app makes. The argumentless one is kept beneath it, labelled as a
+   * reachability check, because when the two disagree that disagreement is the finding —
+   * a wallet that routes the method but cannot complete a read on this network.
    *
-   * A real failure is narrower: the method is absent, or the wallet reports it
-   * unsupported, or nothing comes back at all.
-   *
-   * This is the same distinction `client/scripts/verify-pool-shapes.mjs` draws one
-   * layer down, where our encoded actions "fail on state, not on shape" against the
-   * live pool. Getting it backwards here would tell someone their wallet cannot do
-   * STRK20 when it can, and that is a conclusion worth 90 STRK.
+   * Both are free and neither signs anything.
    */
   const probeBalances = async () => {
     if (!connection) return;
     setProbing(true);
+    setBalProbe(null);
+    setReachProbe(null);
+    /* `strk20Balances` never touches our RPC — the wallet answers it, for whatever
+       network the *wallet* is on. Labelling the result with `config.label` would
+       therefore be wrong the moment the two differ, and it is exactly when they differ
+       that this page is being used. Read it fresh, at the moment of the call. */
+    let onNet = chainName(walletChain);
+    try {
+      const found = await availableWallets();
+      const w = found.find((x) => x.name === connection.walletName);
+      if (w) {
+        const id = await walletV6.requestChainId(w as never);
+        setWalletChain(id);
+        onNet = chainName(id);
+      }
+    } catch { /* keep whatever we last read; the label says "unknown" if we never did */ }
+
     try {
       const acct = connection.account as unknown as Record<string, unknown>;
       const fn = acct["strk20Balances"];
       if (typeof fn !== "function") {
         const v = probeMissing();
-        setBalProbe({ label: "strk20Balances", state: "fail", detail: v.reason });
+        setBalProbe({ label: "real read · strk20Balances([STRK])", state: "fail", detail: v.reason });
         return;
       }
-      await (fn as () => Promise<unknown>).call(acct);
-      const v = probeAnswered();
-      setBalProbe({
-        label: "strk20Balances", state: "pass",
-        detail: `${v.reason} No balance is shown here or sent anywhere.`,
-      });
-    } catch (e) {
-      const v = classifyProbeError(e instanceof Error ? e.message : String(e));
-      setBalProbe({ label: "strk20Balances", state: v.pass ? "pass" : "fail", detail: v.reason });
+      const call = fn as (tokens?: unknown) => Promise<unknown>;
+
+      /* 1. The call the app actually makes. */
+      try {
+        const entries = await call.call(acct, [config.strkAddress]);
+        const n = Array.isArray(entries) ? entries.length : 0;
+        setBalProbe({
+          label: "real read · strk20Balances([STRK])", state: "pass",
+          detail: `PASS on ${onNet} — the wallet completed a pool read and returned `
+            + `${n} balance entr${n === 1 ? "y" : "ies"}. No figure is shown here or sent `
+            + "anywhere; this page reports only that the read worked.",
+        });
+      } catch (e) {
+        const err = readWalletError(e);
+        /* NOT_REGISTERED and a refusal are the pool and the user answering. The wallet
+           routed the call, which is the capability under test. Everything else — the
+           spec's own catch-all included — is a failed read, and must not be dressed up
+           as a pass the way an unrecognised error once was. */
+        const routed = err.code === 118 || err.code === 113;
+        setBalProbe({
+          label: "real read · strk20Balances([STRK])",
+          state: routed ? "pass" : "fail",
+          detail: routed
+            ? `PASS — ${err.say} The wallet routed a real read, so the interface is there.`
+            : `FAIL on ${onNet} — ${err.say}`
+              + (err.recognised ? "" : ` Raw: ${err.raw}`),
+        });
+      }
+
+      /* 2. The old probe, kept so the discrepancy is visible rather than inferred. */
+      try {
+        await call.call(acct);
+        setReachProbe({
+          label: "reachability · no token list",
+          state: "warn",
+          detail: "The method answered a request with no `tokens` field, which is not a "
+            + "valid balance read. This proves the method is reachable and nothing more — "
+            + "it is the check that previously stood in for a real one.",
+        });
+      } catch (e) {
+        const err = readWalletError(e);
+        setReachProbe({
+          label: "reachability · no token list", state: "warn",
+          detail: `The method rejected an argumentless call — ${err.say}`,
+        });
+      }
     } finally { setProbing(false); }
   };
 
@@ -252,6 +304,7 @@ export default function Client() {
                   detail: has ? "present" : "missing" });
               })}
               {balProbe && row(balProbe)}
+              {reachProbe && row(reachProbe)}
             </tbody></table>
           </div>
         )}
@@ -280,14 +333,24 @@ export default function Client() {
         <div className="panel accent" style={{ marginTop: "1rem" }}>
           <p className="eyebrow">The decisive test, and it is free</p>
           <p style={{ marginTop: ".5rem" }}>
-            <code>strk20Balances</code> is the one STRK20 call that costs nothing. A wallet
-            that answers it — <b>even by refusing consent</b> — has implemented the
-            interface. One that reports the method as unsupported has not.
+            This runs <code>strk20Balances</code> <b>with a real token list</b> — the exact
+            call the app makes when you ask for a shielded balance. A wallet that completes
+            it can do pool reads here. One that answers <code>NOT_REGISTERED</code>, or that
+            you decline, has still routed the call and passes: those are the pool and you
+            replying, not the wallet failing.
           </p>
           <p className="note" style={{ marginTop: ".5rem" }}>
-            It reads your private balances, so your wallet will ask. Declining is fine and
-            still counts as a pass. Nothing is displayed here and nothing leaves your
-            browser — this page reports only whether the call was understood.
+            An earlier version of this page called the method <b>with no arguments</b>,
+            which is not a balance read — <code>tokens</code> is required, so it put an
+            empty payload on the wire. It measured that the method was reachable and
+            reported that as STRK20 working. Both calls run now, separately labelled,
+            because a wallet can pass the second and fail the first.
+          </p>
+          <p className="note" style={{ marginTop: ".5rem" }}>
+            The wallet answers for <b>whichever network it is on</b>, not the one this site
+            reads — so the result below names the wallet&rsquo;s network. To fill in both
+            rows, switch networks in your wallet and run it again. Nothing is displayed
+            here, nothing is signed, and nothing leaves your browser.
           </p>
           <button className="primary" style={{ marginTop: ".9rem" }}
                   onClick={() => void probeBalances()} disabled={probing}>
