@@ -13,7 +13,9 @@ import {
   Status,
 } from "@vickrey/client";
 import type { AuctionView } from "@/lib/chain";
-import { STRK_DECIMALS, config, countdown, formatUnits, hasAnonymizer, priceAt } from "@/lib/config";
+import {
+  STRK_DECIMALS, config, countdown, formatUnits, hasAnonymizer, priceAt, utcDate,
+} from "@/lib/config";
 import { markRevealed, saveBid, toPrivateBid, type StoredBid } from "@/lib/vault";
 import type { Connection } from "@/lib/wallet";
 import { Ladder } from "./Ladder";
@@ -483,6 +485,72 @@ export function ClaimPanel({
       </div>
       {msg && <p className="ok mono">{msg}</p>}
       {err && <p className="err">{err}</p>}
+    </div>
+  );
+}
+
+/* ── abandon ─────────────────────────────────────────────────────────── */
+
+/**
+ * Cancels a sealed auction whose auctioneer never settled it.
+ *
+ * Permissionless, and shown to anyone looking at the auction rather than only to the
+ * auctioneer — the entire point is that it works when the auctioneer has gone. It
+ * renders only once the grace has actually expired, so it is never a button that exists
+ * solely to refuse.
+ */
+export function AbandonPanel({
+  auction, connection, now, onDone,
+}: {
+  auction: AuctionView;
+  connection: Connection | null;
+  now: number;
+  onDone: () => void;
+}) {
+  const { ensureChain } = useWallet();
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  if (auction.status !== Status.Sealed) return null;
+  const graceEnds = auction.sealedAtTime + auction.disputeWindow;
+  if (!auction.sealedAtTime || now < graceEnds) return null;
+
+  async function abandon() {
+    if (!connection) return setErr("Connect a wallet first.");
+    if (!(await ensureChain())) return;
+    setErr(null); setBusy(true);
+    try {
+      const res = await connection.account.execute({
+        contractAddress: config.auctionAddress,
+        entrypoint: "abandon",
+        calldata: [auction.terms.auctionId.toString()],
+      });
+      setMsg(res.transaction_hash);
+      onDone();
+    } catch (e) { setErr(errText(e)); }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <div className="panel accent">
+      <p className="eyebrow">Never settled</p>
+      <p style={{ marginTop: ".5rem" }}>
+        The auctioneer&rsquo;s time to settle ran out {countdown(graceEnds, now) ?? ""}
+        ago — it ended {utcDate(graceEnds)}.
+      </p>
+      <p className="note" style={{ marginTop: ".5rem" }}>
+        <b>Anyone can cancel it now.</b> Every bidder is refunded in full and takes an
+        equal share of the auctioneer&rsquo;s forfeited bond; the lot goes back to the
+        seller. Nothing is sold, no outcome is recorded, and it cannot be undone.
+      </p>
+      <div className="row" style={{ gap: ".6rem", marginTop: "1rem" }}>
+        <button className="primary" onClick={() => void abandon()} disabled={busy || !connection}>
+          {busy ? "Waiting for your wallet…" : "Abandon the auction"}
+        </button>
+      </div>
+      {msg && <p className="note mono" style={{ marginTop: ".6rem", wordBreak: "break-all" }}>{msg}</p>}
+      {err && <p className="err" style={{ marginTop: ".6rem" }}>{err}</p>}
     </div>
   );
 }

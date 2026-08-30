@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { config, shortAddr } from "@/lib/config";
 import { useWallet } from "@/components/WalletProvider";
+import { WalletMenu } from "@/components/WalletMenu";
 import { Balances } from "@/components/Balances";
 
 /**
@@ -101,9 +102,7 @@ export function DashShell({
 
         <div className="dash-foot">
           <span className="badge">{config.label}</span>
-          <button className="chip" onClick={disconnect} title="Disconnect">
-            {shortAddr(connection.address)} ×
-          </button>
+          <WalletMenu compact />
           {!connection.strk20 && (
             <p className="note" style={{ marginTop: ".5rem" }}>
               This wallet reports no STRK20 support. Public-rail bidding still works; the

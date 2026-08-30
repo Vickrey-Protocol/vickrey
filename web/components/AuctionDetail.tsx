@@ -11,7 +11,7 @@ import { useWallet } from "@/components/WalletProvider";
 import { Ladder } from "@/components/Ladder";
 import { CountUp } from "@/components/CountUp";
 import { TrustStatement } from "@/components/TrustStatement";
-import { BidPanel, ClaimPanel, DisputePanel, RevealPanel } from "@/components/Panels";
+import { AbandonPanel, BidPanel, ClaimPanel, DisputePanel, RevealPanel } from "@/components/Panels";
 
 /**
  * The auction view, rendered once and used by both the public route and the dashboard.
@@ -148,6 +148,7 @@ export function AuctionDetail({
                   <BidPanel auction={auction} connection={connection} onPlaced={onRefresh} />
                 </div>
               )}
+              <AbandonPanel auction={auction} connection={connection} now={now} onDone={onRefresh} />
               <RevealPanel auction={auction} bids={mine} />
               <DisputePanel auction={auction} bids={mine} connection={connection} now={now} />
               <ClaimPanel auction={auction} bids={mine} connection={connection} />

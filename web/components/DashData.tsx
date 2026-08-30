@@ -59,9 +59,12 @@ export function useDashData(): DashData {
     return () => clearInterval(t);
   }, []);
 
+  /* `tick` is in the deps so the queue re-derives as the clock advances: `abandon` only
+     appears once a grace period has actually expired, and a memo frozen at mount would
+     never show it. */
   const actions = useMemo(
-    () => actionsFor(auctions, mine, connection?.address ?? null),
-    [auctions, mine, connection?.address],
+    () => actionsFor(auctions, mine, connection?.address ?? null, Math.floor(Date.now() / 1000)),
+    [auctions, mine, connection?.address, tick],
   );
   const ownsAuctions = useMemo(
     () => !!connection && auctions.some((a) => sameAddress(connection.address, a.auctioneer)),

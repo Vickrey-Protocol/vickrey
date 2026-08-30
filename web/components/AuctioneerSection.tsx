@@ -112,8 +112,14 @@ export function AuctioneerSection({
           <div className="stack" style={{ gap: ".6rem" }}>
             <h3 style={{ fontSize: "var(--step-1)" }}>Seal</h3>
             <p className="note">
-              Freezes the bid set and stamps the block. Permissionless on purpose — if
-              only the auctioneer could call it, it could stall until the book suited it.
+              <b>Freezes the bid set so no further bids can be added</b>, and stamps the
+              block — before any seed can be sent, and so before anyone can read an
+              amount. That ordering is the whole point: it is what stops a bid being
+              dropped after its value is known. It also starts your clock to settle.
+            </p>
+            <p className="note">
+              Permissionless on purpose — if only the auctioneer could call it, sealing
+              could stall until the book suited them. Irreversible.
             </p>
             <div className="row">
               <button
@@ -132,9 +138,14 @@ export function AuctioneerSection({
             <h3 style={{ fontSize: "var(--step-1)" }}>Settle</h3>
             <SeedTracker auction={auction} bids={bids} now={now} />
             <p className="note">
-              Builds the {bids.length + 1} witnesses the contract checks. Only the
-              clearing price and the winning index reach the chain; every other bid is
+              Builds the {bids.length + 1} witnesses the contract checks — one per bid,
+              plus a second for the runner-up, whose level has to be pinned exactly. Only
+              the clearing price and the winning index reach the chain; every other bid is
               proved at or below the price without being opened.
+            </p>
+            <p className="note">
+              <b>It moves no money.</b> It opens the dispute window, and puts your bond at
+              risk: anyone who can prove their bid was above the price you claim takes it.
             </p>
             <div>
               <label htmlFor="pasted">Pasted reveals, if the relay missed any</label>

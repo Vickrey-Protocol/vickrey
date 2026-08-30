@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { config, shortAddr } from "@/lib/config";
 import { useWallet } from "@/components/WalletProvider";
+import { WalletMenu } from "@/components/WalletMenu";
 
 /**
  * The public-site header. Its wallet button is a convenience, never a gate — every
@@ -31,9 +32,10 @@ export function Masthead() {
       </nav>
       <div className="row">
         {connection ? (
-          <Link href="/app" className="pill sealed" style={{ textDecoration: "none" }}>
-            {shortAddr(connection.address)}{connection.strk20 ? "" : " · no strk20"}
-          </Link>
+          <div className="row" style={{ gap: ".5rem" }}>
+            <Link href="/app" className="note">Dashboard</Link>
+            <WalletMenu />
+          </div>
         ) : reconnecting ? (
           /* A wallet we were authorised on is being re-attached. Showing the button here
              and swapping it for an address a moment later is the flash this avoids. */

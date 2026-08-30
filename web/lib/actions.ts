@@ -18,7 +18,7 @@ import { sameAddress } from "@/lib/wallet";
 
 export type ActionKind =
   | "send-seed" | "claim-refund" | "claim-lot" | "dispute"
-  | "seal" | "settle" | "finalize";
+  | "seal" | "settle" | "finalize" | "abandon";
 
 export interface DueAction {
   kind: ActionKind;
@@ -36,6 +36,8 @@ export function actionsFor(
   auctions: AuctionView[],
   mine: StoredBid[],
   address: string | null,
+  /** Seconds since epoch. Only `abandon` needs it — it appears once a grace has expired. */
+  now: number = Math.floor(Date.now() / 1000),
 ): DueAction[] {
   if (!address) return [];
   const out: DueAction[] = [];
@@ -56,8 +58,11 @@ export function actionsFor(
           kind: "send-seed", auctionId: id, role: "bidder",
           title: `Send your seed — Auction #${id}`,
           detail: unsent.length === 1
-            ? "Without it your bid cannot be counted and your collateral is forfeited."
-            : `${unsent.length} bids still need their seed. Unsent means forfeited.`,
+            ? "Sends the seed that lets the auctioneer prove where your bid sits, without "
+              + "revealing it. Your bid amount is not disclosed by this. Not sending it "
+              + "forfeits your collateral."
+            : `${unsent.length} bids still need their seed. Each one unsent is a forfeited `
+              + "collateral. Sending reveals a bound, never the amount.",
           cta: "Send seed", href: bidHref, deadline: a.disputeDeadline || null,
         });
       }
@@ -69,7 +74,8 @@ export function actionsFor(
         out.push({
           kind: "claim-lot", auctionId: id, role: "bidder",
           title: `Claim your lot — Auction #${id}`,
-          detail: "You won. The lot is waiting in the contract.",
+          detail: "You won. This transfers the lot to you and is final — the auction is "
+            + "already settled, so nothing about your bid becomes public by claiming it.",
           cta: "Claim lot", href: bidHref, deadline: null,
         });
       }
@@ -77,7 +83,8 @@ export function actionsFor(
         out.push({
           kind: "claim-refund", auctionId: id, role: "bidder",
           title: `Claim your refund — Auction #${id}`,
-          detail: "You did not win. Your escrow is refundable in full.",
+          detail: "You did not win, so your whole escrow comes back — the uniform cap, not "
+            + "the amount you bid. Claiming reveals nothing; your bid stays sealed.",
           cta: "Claim refund", href: bidHref, deadline: null,
         });
       }
@@ -87,8 +94,26 @@ export function actionsFor(
       out.push({
         kind: "dispute", auctionId: id, role: "bidder",
         title: `Check the result — Auction #${id}`,
-        detail: "The dispute window is open. If the outcome is wrong, this is the only time it can be challenged.",
+        detail: "The dispute window is open. If your bid was above the price the auctioneer "
+          + "claimed, proving it now voids the settlement and pays you their bond. This is "
+          + "the only time that is possible — after it closes the outcome is final.",
         cta: "Review", href: bidHref, deadline: a.disputeDeadline,
+      });
+    }
+
+    /* Abandon is permissionless and is offered to anyone with a stake, not only the
+       auctioneer — the whole point is that it works when the auctioneer has gone. It
+       appears only once the grace has actually expired, so it is never a button that
+       merely refuses. */
+    if (a.status === Status.Sealed && (iBid || isAuctioneer)
+        && a.sealedAtTime > 0 && now >= a.sealedAtTime + a.disputeWindow) {
+      out.push({
+        kind: "abandon", auctionId: id, role: iBid ? "bidder" : "auctioneer",
+        title: `Auction #${id} was never settled`,
+        detail: "The auctioneer's time to settle has run out. Anyone can cancel it now: "
+          + "every bidder is refunded in full and takes an equal share of the forfeited "
+          + "bond, and the lot goes back to the seller. It cannot be undone.",
+        cta: "Abandon", href: bidHref, deadline: null,
       });
     }
 
@@ -97,7 +122,10 @@ export function actionsFor(
         out.push({
           kind: "seal", auctionId: id, role: "auctioneer",
           title: `Seal Auction #${id}`,
-          detail: "Bidding has closed. Sealing freezes the bid set before anything can be opened.",
+          detail: "Freezes the bid set so no further bids can be added, and stamps the block "
+            + "— before any seed can be sent and so before anyone can read an amount. That "
+            + "ordering is what stops a bid being dropped after its value is known. It also "
+            + "starts your clock to settle.",
           cta: "Seal", href: manageHref, deadline: a.bidDeadline,
         });
       }
@@ -105,7 +133,9 @@ export function actionsFor(
         out.push({
           kind: "settle", auctionId: id, role: "auctioneer",
           title: `Settle Auction #${id}`,
-          detail: "Every bid needs a witness. Settlement proves the clearing price without opening one.",
+          detail: "Submits one witness per bid plus a second for the runner-up, proving the "
+            + "clearing price without opening a single bid. It moves no money — it opens the "
+            + "dispute window, and puts your bond at risk if the outcome is wrong.",
           cta: "Settle", href: manageHref, deadline: null,
         });
       }
@@ -113,7 +143,9 @@ export function actionsFor(
         out.push({
           kind: "finalize", auctionId: id, role: "auctioneer",
           title: `Finalize Auction #${id}`,
-          detail: "Once the dispute window closes, finalizing releases the funds.",
+          detail: "The dispute window has closed clean, so this releases the funds: the "
+            + "clearing price and your bond to the seller, the lot to the winner. Final and "
+            + "irreversible.",
           cta: "Finalize", href: manageHref, deadline: a.disputeDeadline,
         });
       }

@@ -48,17 +48,26 @@ export function Balances() {
   if (!connection) return null;
 
   return (
-    <div className="bal" title="Shielded balances need a viewing key, which this app never requests.">
+    <div className="bal">
       <span className="bal-item">
         <span className="bal-lab">Public</span>
         <span className="bal-num">
           {failed ? "unavailable" : strk === null ? "…" : `${formatUnits(strk, STRK_DECIMALS, 2)} STRK`}
         </span>
       </span>
-      <span className="bal-item">
-        <span className="bal-lab">Shielded</span>
-        <span className="bal-num undisclosed">not requested</span>
-      </span>
+      {/* The reason used to live in a `title`, which does not exist on touch — and this
+          is one of the better things the product has to say about itself. It is on screen
+          now, and expandable rather than truncated. */}
+      <details className="bal-item bal-shielded">
+        <summary>
+          <span className="bal-lab">Shielded</span>
+          <span className="bal-num undisclosed">not requested ⓘ</span>
+        </summary>
+        <p className="note">
+          Reading a shielded balance needs a viewing key. This app never asks for one, so
+          it cannot see your private balance — and neither can anyone reading this page.
+        </p>
+      </details>
     </div>
   );
 }
