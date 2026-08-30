@@ -54,7 +54,7 @@ const PROPERTIES = [
   {
     n: 6, title: "Refusing to reveal cannot grief the auction",
     hard: "In commit-reveal, a bidder who dislikes the result simply never reveals — and in a second-price auction one silent bidder moves the price the winner pays.",
-    how: "Settlement needs no cooperation from a bidder who stays silent: their collateral is forfeit and the auction completes without them.",
+    how: "Settlement needs no cooperation from a bidder who stays silent: their bid is marked forfeited and the auction completes without them. Silence costs that bidder a delay rather than their escrow — they redeem it themselves afterwards with a late loser-side proof.",
   },
 ];
 
@@ -151,8 +151,8 @@ export default function Page() {
                   <li>One number is published: the clearing price, because it is the price</li>
                   <li>Every other bid is still two hashes — including the winner&rsquo;s
                     own</li>
-                  <li>Silence forfeits escrowed collateral and settlement proceeds
-                    regardless</li>
+                  <li>Silence marks a bid forfeited and settlement proceeds regardless
+                    &mdash; that escrow is redeemable later, not lost</li>
                 </ul>
               </div>
             </div>
@@ -486,7 +486,7 @@ down_anchor = step^(P−1−ℓ)    a depth-(P−1−t) preimage proves  ℓ ≤
                 <span className="note"> Ends at the bid deadline.</span></li>
               <li><b>Sealed</b> — the set is frozen and stamped from the block. Bidders now
                 send seeds to the auctioneer.
-                <span className="note"> A seed not sent means collateral forfeited.</span></li>
+                <span className="note"> A seed not sent costs a delay, not the escrow.</span></li>
               <li><b>Settled</b> — the outcome is proved on-chain from N+1 witnesses.
                 <span className="note"> The dispute window opens here — the only time a
                 wrong outcome can be challenged.</span></li>

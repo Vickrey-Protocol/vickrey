@@ -1,11 +1,19 @@
 /**
  * What needs the user, and when.
  *
- * This protocol has time-gated steps a bidder can silently fail: a seed that is never
- * sent forfeits collateral, a dispute window that closes leaves a wrong outcome final,
- * a refund nobody claims stays in the contract. None of those produce an error — they
- * just quietly cost the user money. Deriving them in one place means the dashboard, the
- * sidebar badge and the topbar counter cannot disagree about whether something is due.
+ * This protocol has time-gated steps a bidder can silently fail: a seed that arrives
+ * after the auctioneer has settled, a dispute window that closes leaving a wrong outcome
+ * final, a refund nobody claims. None of those produce an error — they just go quiet,
+ * and one of them is the only way to actually lose money here.
+ *
+ * Which makes the *consequence* copy load-bearing, and it was wrong. `send-seed` said a
+ * seed not sent forfeits your collateral. `redeem_forfeit` exists precisely so that it
+ * does not — "going offline costs a delay, not the money", in the contract's own words.
+ * A bidder who read the old text would conclude the money was gone and never come back
+ * for it, which is a worse outcome than the one it warned about.
+ *
+ * Deriving them in one place means the dashboard, the sidebar badge and the topbar
+ * counter cannot disagree about whether something is due.
  *
  * Deadlines are seconds since epoch, absolute. Rendering decides how to say it; R4
  * requires both a countdown and the UTC time, and a helper that returned only one of
@@ -57,13 +65,27 @@ export function actionsFor(
         out.push({
           kind: "send-seed", auctionId: id, role: "bidder",
           title: `Send your seed — Auction #${id}`,
-          detail: unsent.length === 1
-            ? "Sends the seed that lets the auctioneer prove where your bid sits, without "
-              + "revealing it. Your bid amount is not disclosed by this. Not sending it "
-              + "forfeits your collateral."
-            : `${unsent.length} bids still need their seed. Each one unsent is a forfeited `
-              + "collateral. Sending reveals a bound, never the amount.",
-          cta: "Send seed", href: bidHref, deadline: a.disputeDeadline || null,
+          detail:
+            (unsent.length === 1
+              ? "Sends the seed that lets the auctioneer prove where your bid sits, "
+              : `${unsent.length} bids still need a seed. Each one lets the auctioneer `
+                + "prove where that bid sits, ")
+            + "without revealing it — a bound, never the amount. Send it before they "
+            + "settle, which they may do at any moment. Missing it does not burn your "
+            + "escrow: the bid is marked forfeited, and you take it back in full after "
+            + "finalize with Redeem forfeit. If your bid was above the clearing price, "
+            + "dispute instead — that voids the settlement and pays you the auctioneer's "
+            + "bond, and it is the one window here that really does shut.",
+          cta: "Send seed", href: bidHref,
+          /* `dispute_deadline` is written by `settle`, so during `Sealed` — which is the
+             only status this action fires in — it is still 0, and `|| null` turned the
+             tightest window in the protocol into "No deadline" and sorted it last.
+
+             There is no on-chain deadline for the bidder: the auctioneer settles when
+             they like. But the auctioneer's own window has an outer bound, because past
+             `sealed_at + dispute_window` anyone can `abandon`. That bound is the honest
+             deadline to show, so long as it is not read as a cutoff the chain enforces. */
+          deadline: a.sealedAtTime > 0 ? a.sealedAtTime + a.disputeWindow : null,
         });
       }
     }

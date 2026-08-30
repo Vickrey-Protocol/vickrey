@@ -11,7 +11,7 @@
   "scripts": {
     "build": "npm run build --workspace @vickrey/web",
     "dev": "npm run dev --workspace @vickrey/web",
-    "test": "npm run test --workspace @vickrey/client",
+    "test": "npm run test --workspace @vickrey/client && npm run test --workspace @vickrey/web",
     "typecheck": "npm run typecheck --workspace @vickrey/client && npm run typecheck --workspace @vickrey/web",
     "verify:pool": "npm run verify:pool --workspace @vickrey/client",
     "contracts:build": "scarb build",
