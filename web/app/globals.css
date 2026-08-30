@@ -852,13 +852,6 @@ button.primary:hover::before { opacity: .9; animation: spinEdge 2.4s linear infi
   font-variant-numeric: tabular-nums;
 }
 
-.chip {
-  align-self: flex-start; padding: .35rem .6rem; border-radius: 999px;
-  border: 1px solid var(--line); background: var(--glass-2);
-  color: var(--ink-2); font-family: var(--font-mono); font-size: .78rem; cursor: pointer;
-}
-.chip:hover { color: var(--ink); border-color: var(--line-lit); }
-
 .dash-main { display: flex; flex-direction: column; min-inline-size: 0; }
 .dash-top {
   position: sticky; inset-block-start: 0; z-index: 5;
@@ -1125,7 +1118,7 @@ ul.tight li { font-size: var(--s--1); color: var(--ink-2); line-height: 1.5; }
   .hero-stats dd { font-size: clamp(1.3rem, 7vw, 2rem); }
 
   /* Buttons sit at the accessibility floor rather than the desktop's compact height. */
-  button, .primary, .chip { min-block-size: 2.6rem; }
+  button, .primary { min-block-size: 2.6rem; }
 
   .rails { grid-template-columns: 1fr; }
   .facts { grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr)); }
@@ -1220,7 +1213,7 @@ button.primary strong { color: inherit; }
   .nav a, .docs-toc a, .foot-grid a {
     min-block-size: 44px; display: inline-flex; align-items: center;
   }
-  button, .primary, .chip, summary, select, input[type="file"] + *, .rail {
+  button, .primary, summary, select, input[type="file"] + *, .rail {
     min-block-size: 44px;
   }
   .wordmark { min-block-size: 44px; display: inline-flex; align-items: center; }
