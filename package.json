@@ -16,7 +16,8 @@
     "verify:pool": "npm run verify:pool --workspace @vickrey/client",
     "contracts:build": "scarb build",
     "contracts:test": "snforge test",
-    "check:links": "node scripts/check-links.mjs"
+    "check:links": "node scripts/check-links.mjs",
+    "check:reachability": "node scripts/check-reachability.mjs"
   },
   "engines": {
     "node": ">=22"

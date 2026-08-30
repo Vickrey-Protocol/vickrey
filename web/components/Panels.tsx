@@ -429,6 +429,8 @@ export function ClaimPanel({
   const { ensureChain } = useWallet();
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const canPrivate = !!connection?.strk20 && hasAnonymizer();
+  const [rail, setRail] = useState<Rail>("public");
 
   const final = auction.status === Status.Finalized || auction.status === Status.Cancelled;
   if (!final || bids.length === 0) return null;
@@ -439,6 +441,30 @@ export function ClaimPanel({
     setErr(null); setMsg(null);
     try {
       const bid = toPrivateBid(stored);
+
+      /* The public rail calls the auction directly. It has to exist: a bidder who used
+         the public rail has no shielded balance, and routing their refund through the
+         pool would demand one to retrieve money they put in publicly. Claiming this way
+         reveals nothing new — their address was already on the escrow transfer. */
+      if (rail === "public") {
+        const id = num.toHex(auction.terms.auctionId);
+        const call =
+          operation === AuctionOperation.ClaimLot
+            ? { contractAddress: config.auctionAddress, entrypoint: "claim_lot",
+                calldata: CallData.compile([id, num.toHex(bid.claimSecret), connection.address]) }
+            : operation === AuctionOperation.RedeemForfeit
+              ? { contractAddress: config.auctionAddress, entrypoint: "redeem_forfeit",
+                  calldata: CallData.compile([id, num.toHex(bid.index), num.toHex(bid.claimSecret),
+                    num.toHex(redeemWitness(auction.terms, bid, auction.clearingLevel)),
+                    connection.address]) }
+              : { contractAddress: config.auctionAddress, entrypoint: "claim_refund",
+                  calldata: CallData.compile([id, num.toHex(bid.index),
+                    num.toHex(bid.claimSecret), connection.address]) };
+        const { transaction_hash } = await connection.account.execute(call);
+        setMsg(transaction_hash);
+        return;
+      }
+
       const actions = claimActions(operation, {
         helper: config.anonymizerAddress,
         token: operation === AuctionOperation.ClaimLot ? auction.lotToken : auction.paymentToken,
@@ -461,9 +487,25 @@ export function ClaimPanel({
   return (
     <div className="panel">
       <h3 style={{ fontSize: "var(--step-1)" }}>Collect</h3>
+      <div className="rails" style={{ marginBlock: ".8rem" }}>
+        <button className={rail === "public" ? "rail on" : "rail"} onClick={() => setRail("public")}>
+          <span className="rail-name">Public rail <span className="rail-tag">usual</span></span>
+          <span className="note">Straight back to this wallet. Nothing to set up.</span>
+        </button>
+        <button className={rail === "private" ? "rail on" : "rail"}
+                onClick={() => canPrivate && setRail("private")} disabled={!canPrivate}>
+          <span className="rail-name">Private rail</span>
+          <span className="note">
+            {canPrivate
+              ? "Comes back as a note inside the pool — no address beside a price."
+              : "Needs a wallet that speaks STRK20."}
+          </span>
+        </button>
+      </div>
       <p className="note">
-        Everything comes back as a private note, so collecting does not put your
-        address on chain beside a price.
+        If you bid on the public rail your address is already on the escrow transfer, so
+        collecting that way reveals nothing new. The private rail keeps the return
+        unlinked as well.
       </p>
       <div className="stack" style={{ gap: ".5rem", marginTop: ".8rem" }}>
         {bids.map((b) => (

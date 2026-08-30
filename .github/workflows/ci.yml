@@ -23,6 +23,12 @@ jobs:
       - run: scarb fmt --check
       - run: scarb build
       - run: snforge test
+      # Every external entrypoint must be reachable from the interface, or declared as
+      # deliberately not. `abandon` shipped tested and documented with no button anywhere.
+      - run: scarb -P release build
+      - uses: actions/setup-node@v4
+        with: { node-version: "24" }
+      - run: node scripts/check-reachability.mjs
 
   client:
     runs-on: ubuntu-latest

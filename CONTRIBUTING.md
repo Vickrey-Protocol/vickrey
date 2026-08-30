@@ -60,6 +60,27 @@ These are not style preferences. Each one is here because skipping it cost somet
    contract holds at each stage and that it holds **nothing** once an ordinary auction
    has been claimed out. Prefer one invariant over a checklist of paths — the checklist
    only covers what somebody thought to list.
+9. **Reachability is its own property.** A feature can exist in the contract, have tests,
+   and appear in the documentation, and still be unreachable from the interface.
+
+   `abandon` shipped exactly like that: seven tests, a section in `/docs`, and no button
+   anywhere. Every individual check passed, because each verified one side. Nothing
+   asserted the relationship *between* the contract and the app, and that relationship is
+   a property in its own right.
+
+   `scripts/check-reachability.mjs` asserts it: every external entrypoint is either
+   reached by the app, or listed as deliberately not user-facing **with a reason**. Adding
+   an entrypoint forces the decision; forgetting to wire one up fails CI. Running it the
+   first time immediately found a second instance — a public-rail bidder could not claim
+   their own refund, because the claim panel only offered the STRK20 path.
+10. **A truthiness guard on a number is not a boolean.** `tick && 0` evaluates to `0`,
+    not `false`, and `0 && x` short-circuits to `0` rather than running `x`.
+
+    Threading a clock into the action queue, `actionsFor(..., tick && 0)` type-checked,
+    ran, and silently passed `0` as the current time — so a deadline comparison was
+    always against the epoch and `abandon` would never have appeared. Numbers used as
+    conditions are the easiest place in this codebase to write something that is wrong and
+    quiet. Compare explicitly.
 
 ## Before you push
 
