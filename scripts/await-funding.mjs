@@ -17,7 +17,7 @@ const ACCOUNTS = [
   ["sepolia", "https://api.cartridge.gg/x/starknet/sepolia",
    "0xbf54b8d90403f275fbf0e9db0bb7e2a278bcc0e8b53f3fe71a3e2931c668fa", 70],
   ["mainnet", "https://api.cartridge.gg/x/starknet/mainnet",
-   "0x04c475d32f7929507ad3d4691f8e263528355eca074e43b8ac26892fb03ace5f", 61.6],
+   "0x04c475d32f7929507ad3d4691f8e263528355eca074e43b8ac26892fb03ace5f", 66.08],
 ];
 
 const balance = async (rpc, addr) => {
