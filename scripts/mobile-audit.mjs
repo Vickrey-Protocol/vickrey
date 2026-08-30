@@ -51,7 +51,15 @@ for (const path of PAGES) {
     for (const el of document.querySelectorAll("body *")) {
       const r = el.getBoundingClientRect();
       if (r.width === 0 && r.height === 0) continue;
-      const tooWide = r.right > vw + 1 || r.left < -1;
+      /* A wide table inside a horizontally scrollable container is contained, not
+         overflowing — the page does not move, the container does. Flagging those made
+         the report noisy about the one case that is already handled. */
+      let scrollableAncestor = false;
+      for (let a = el.parentElement; a; a = a.parentElement) {
+        const ox = getComputedStyle(a).overflowX;
+        if (ox === "auto" || ox === "scroll") { scrollableAncestor = true; break; }
+      }
+      const tooWide = !scrollableAncestor && (r.right > vw + 1 || r.left < -1);
       const spills = el.scrollWidth > el.clientWidth + 1 &&
         getComputedStyle(el).overflowX === "visible";
       if (tooWide || spills) offenders.push({ el, r, why: tooWide ? "wider than viewport" : "content spills" });

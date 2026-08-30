@@ -608,7 +608,10 @@ td.undisclosed { color: var(--muted); font-style: italic; }
        the wallet button instead of below them. An out-of-flow element cannot be moved by
        flex properties, which is easy to write and invisible until something overlaps. */
     position: static; transform: none; left: auto;
-    order: 3; flex: 1 0 100%;
+    /* `flex: 1 0 100%` resolved to a basis of 100% *plus* the row's own offset and
+       pushed the masthead 16px wider than its box. A plain full-width item on its own
+       line does the same job without the arithmetic. */
+    order: 3; flex: none; inline-size: 100%;
     flex-wrap: wrap; gap: .35rem .9rem;
     padding-block-start: .55rem;
     border-block-start: 1px solid var(--line);
@@ -1254,9 +1257,12 @@ button.primary strong { color: inherit; }
   .wordmark { min-block-size: 44px; display: inline-flex; align-items: center; }
 
   /* A standalone link that acts as a control gets the same floor. Ones inside prose
-     are left alone — `.note a` and `.docs-body a` are not listed. */
+     are left alone — a link mid-sentence must not become a 44px block. */
   .spread > a, .row > a, .stack > a { min-block-size: 44px; display: inline-flex;
     align-items: center; }
+  /* The docs list every contract and document as a link; those are navigation, not
+     prose, so they get the floor too. */
+  ul.tight li { min-block-size: 44px; display: flex; align-items: center; }
 
   /* ── tables ──
      They live in .scroller and do scroll, but a table that silently extends past the
