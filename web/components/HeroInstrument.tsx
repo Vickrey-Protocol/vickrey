@@ -39,7 +39,11 @@ export function HeroInstrument({
         <span>
           Auction #{auction.terms.auctionId.toString()} · {auction.terms.numLevels} levels
         </span>
-        <button className="rig-replay" onClick={onReplay} title="Replay the settlement (R)">
+        {/* The keyboard hint lived in a `title`, which does not exist on touch — and the
+            label alone did not say what would replay. It is in the accessible name now,
+            which screen readers get and hover does not gate. */}
+        <button className="rig-replay" onClick={onReplay}
+                aria-label="Replay the settlement animation. Keyboard shortcut R.">
           replay
         </button>
       </div>

@@ -1207,3 +1207,69 @@ button.primary strong { color: inherit; }
   padding: .8rem .95rem; border: 1px solid var(--line-lit); border-radius: 12px;
   background: #0C1917; box-shadow: 0 18px 48px rgba(0, 0, 0, .5);
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Phone
+   Everything below is additive at narrow widths. Desktop is signed off and
+   none of these rules exist above the breakpoint.
+
+   Measured with scripts/mobile-audit.mjs against a 390px viewport rather
+   than a resized window — every rule here answers something that script
+   reported, and it is the check that says whether they worked.
+   ───────────────────────────────────────────────────────────────────────── */
+@media (max-width: 30rem) {
+  /* ── the masthead spilled its row by 16px ── */
+  .masthead { gap: .55rem; }
+  .masthead .badge {
+    font-size: .62rem; letter-spacing: .06em;
+    max-inline-size: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+
+  /* ── the ladder's brace labels ──
+     They are absolutely positioned beside a 8px-wide brace with `nowrap`, so at 390px
+     they ran 128px past the card. Bounded and wrapped they sit inside it; the brace
+     itself still marks the span, which is the part carrying the meaning. */
+  .brace em {
+    white-space: normal;
+    inline-size: min(38vw, 9.5rem);
+    font-size: .64rem; line-height: 1.25;
+  }
+  /* The scale column is 3rem of digits nobody can read at this size anyway. */
+  .scale { inline-size: 2.4rem; font-size: .6rem; padding-inline-end: .35rem; }
+
+  /* ── touch targets ──
+     44px is the floor. Applied to the controls the audit measured at 15–42px, and
+     nowhere else: a link inside a sentence must not become a 44px block. */
+  .nav a, .docs-toc a, .foot-grid a {
+    min-block-size: 44px; display: inline-flex; align-items: center;
+  }
+  button, .primary, .chip, summary, select, input[type="file"] + *, .rail {
+    min-block-size: 44px;
+  }
+  .wordmark { min-block-size: 44px; display: inline-flex; align-items: center; }
+
+  /* A standalone link that acts as a control gets the same floor. Ones inside prose
+     are left alone — `.note a` and `.docs-body a` are not listed. */
+  .spread > a, .row > a, .stack > a { min-block-size: 44px; display: inline-flex;
+    align-items: center; }
+
+  /* ── tables ──
+     They live in .scroller and do scroll, but a table that silently extends past the
+     edge reads as broken. The shadow says there is more to the right. */
+  .scroller {
+    background:
+      linear-gradient(to right, var(--glass) 30%, rgba(0,0,0,0)) left / 2.4rem 100% no-repeat,
+      linear-gradient(to left,  var(--glass) 30%, rgba(0,0,0,0)) right / 2.4rem 100% no-repeat;
+    background-attachment: local, local;
+  }
+  .scroller table { min-inline-size: 30rem; }
+  th, td { padding: .5rem .45rem; }
+
+  /* ── the create form ──
+     Side by side does not fit; the preview follows the form instead of sitting beside a
+     column too narrow to draw a ladder in. */
+  .cols { grid-template-columns: 1fr; }
+
+  /* Bodoni at a narrow measure: let long words break rather than push the line out. */
+  .display, .hero-body p, h1, h2 { overflow-wrap: anywhere; hyphens: auto; }
+}

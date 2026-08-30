@@ -88,8 +88,9 @@ export function SeedTracker({
             {bids.map((b) => {
               const here = arrived.has(b.index);
               return (
-                <span key={b.index} className={here ? "seed seed-in" : "seed"}
-                      title={here ? "seed received" : "no seed yet"}>
+                /* No title: the state is already spelled out in the chip itself, so a
+                   hover duplicate would only be information touch users cannot reach. */
+                <span key={b.index} className={here ? "seed seed-in" : "seed"}>
                   <span className="mono">#{b.index}</span>
                   <span className="note">{here ? "received" : "waiting"}</span>
                 </span>
