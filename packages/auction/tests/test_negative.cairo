@@ -5,12 +5,12 @@
 
 use auction::interface::ISealedBidAuctionDispatcherTrait;
 use auction::ladder;
-use auction::types::{AuctionKind, DispositionProof, NO_WINNER, ProofKind, Status};
+use auction::types::{AuctionKind, Disposition, DispositionProof, NO_WINNER, ProofKind, Status};
 use snforge_std::{start_cheat_block_timestamp_global, start_cheat_caller_address};
 use auction::erc20::IERC20DispatcherTrait;
 use core::num::traits::Zero;
 use super::common::{
-    BOND, CAP, DEADLINE, LOT, LEVELS, WINDOW, finalize, payout, place, pool, proof_above, proof_below,
+    BOND, CAP, DEADLINE, LOT, LEVELS, WINDOW, place_raw, finalize, payout, place, pool, proof_above, proof_below,
     balance, proof_exactly, proof_forfeit, seal, seller, settle, setup, setup_with,
     setup_with_auctioneer,
 };
@@ -557,4 +557,91 @@ fn abandoning_an_auction_with_no_bids_returns_the_bond() {
     start_cheat_block_timestamp_global(DEADLINE + WINDOW + 1);
     env.auction.abandon(env.id);
     assert!(balance(env.pay, seller()) == before + BOND, "no bidders, bond returns");
+}
+
+// ---- where a forfeited escrow actually goes ------------------------------------
+
+/// **End-to-end: a bid nobody can disposition is forfeited, and the money stops moving.**
+///
+/// `place_bid` never sees a level — it takes two anchors and cannot check them. So a
+/// bidder can submit anchors that correspond to no level on the ladder, and the question
+/// is what happens to their escrow afterwards. Reading the code says: the auctioneer
+/// marks it `Forfeit`, `claim_refund` refuses, `redeem_forfeit` needs a witness that
+/// cannot exist for a bogus anchor, and `finalize` never sweeps it.
+///
+/// Reading is what this test exists to replace. The bond defect was also correct by
+/// reading.
+#[test]
+fn an_undispositionable_bid_forfeits_and_its_escrow_is_stranded() {
+    let env = setup(AuctionKind::Vickrey);
+    let good = place(env, 'A', 'SA', 5);
+
+    // Anchors that are simply felts. No seed produces them, so no witness verifies
+    // against them at any bound.
+    let bogus_commit = ladder::claim_commitment_of('B');
+    let bogus_index = place_raw(env, bogus_commit, 'NOT_AN_ANCHOR', 'NOR_THIS');
+
+    seal(env);
+    settle(
+        env, 0, good.index,
+        array![proof_above(env, good, 0), proof_forfeit()],
+    );
+    finalize(env);
+
+    let held_after_finalize = balance(env.pay, env.auction.contract_address);
+
+    // The forfeited bidder cannot take the ordinary refund.
+    // (asserted by the panicking test below, since a revert aborts this one)
+
+    // And the money is still sitting in the contract: finalize paid the seller the
+    // clearing price and returned the bond, and touched nothing else.
+    assert!(held_after_finalize >= CAP, "the forfeited escrow is still held by the contract");
+    assert!(
+        env.auction.get_bid(env.id, bogus_index).disposition == Disposition::Forfeit,
+        "the bogus bid must be forfeited",
+    );
+}
+
+#[test]
+#[should_panic(expected: 'BID_FORFEITED_USE_REDEEM')]
+fn a_forfeited_bogus_bid_cannot_take_the_ordinary_refund() {
+    let env = setup(AuctionKind::Vickrey);
+    let good = place(env, 'A', 'SA', 5);
+    let bogus_commit = ladder::claim_commitment_of('B');
+    let bogus_index = place_raw(env, bogus_commit, 'NOT_AN_ANCHOR', 'NOR_THIS');
+    seal(env);
+    settle(env, 0, good.index, array![proof_above(env, good, 0), proof_forfeit()]);
+    finalize(env);
+    env.auction.claim_refund(env.id, bogus_index, 'B', payout());
+}
+
+#[test]
+#[should_panic(expected: 'PROOF_AT_OR_BELOW_FAILED')]
+fn a_forfeited_bogus_bid_cannot_redeem_either() {
+    let env = setup(AuctionKind::Vickrey);
+    let good = place(env, 'A', 'SA', 5);
+    let bogus_commit = ladder::claim_commitment_of('B');
+    let bogus_index = place_raw(env, bogus_commit, 'NOT_AN_ANCHOR', 'NOR_THIS');
+    seal(env);
+    settle(env, 0, good.index, array![proof_above(env, good, 0), proof_forfeit()]);
+    finalize(env);
+    // No seed produces 'NOR_THIS', so no witness can satisfy verify_at_or_below.
+    env.auction.redeem_forfeit(env.id, bogus_index, 'B', 'ANY_WITNESS', payout());
+}
+
+/// The top rung is an ordinary bid, exercised on the main harness rather than only on
+/// the 256-level benchmark ladder.
+#[test]
+fn a_bid_at_the_top_of_the_ladder_settles_normally() {
+    let env = setup(AuctionKind::Vickrey);
+    let top = place(env, 'A', 'SA', LEVELS - 1);
+    let mid = place(env, 'B', 'SB', 5);
+    seal(env);
+    settle(env, 5, top.index, array![proof_above(env, top, 5), proof_exactly(env, mid, 5)]);
+    finalize(env);
+    assert!(env.auction.get_state(env.id).clearing_level == 5, "second price is the runner-up's");
+    assert!(
+        env.auction.claim_lot(env.id, 'A', payout()) == LOT,
+        "the top bidder takes the lot",
+    );
 }

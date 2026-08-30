@@ -164,6 +164,22 @@ pub fn place(env: Env, secret: felt252, seed: felt252, level: u16) -> Kit {
     Kit { secret, seed, level, commitment, index }
 }
 
+/// Places a bid with **raw anchors** — felts that correspond to no level on the ladder.
+///
+/// `place_bid` takes two anchors and never sees a level, so this is a thing a bidder can
+/// really do. It exists to test what happens to the escrow afterwards, which is a
+/// question about where money ends up rather than about the cryptography.
+pub fn place_raw(env: Env, commitment: felt252, up: felt252, down: felt252) -> u32 {
+    let collateral = env.auction.collateral(env.id);
+    fund(env.pay, pool(), collateral);
+    approve_as(env.pay, pool(), env.auction.contract_address, collateral);
+
+    start_cheat_caller_address(env.auction.contract_address, pool());
+    let index = env.auction.place_bid(env.id, commitment, up, down);
+    stop_cheat_caller_address(env.auction.contract_address);
+    index
+}
+
 pub fn seal(env: Env) {
     start_cheat_block_timestamp_global(DEADLINE);
     env.auction.seal(env.id);
