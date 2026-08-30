@@ -144,6 +144,34 @@ These are not style preferences. Each one is here because skipping it cost somet
     the correction. And a correction is worth a test wherever the claim is load-bearing:
     the fix is only permanent if something fails when it regresses.
 
+13. **Some CSS properties change an element's layout _role_, not just its appearance.**
+    Three instances now, none visible in the declaration, all three found by measuring.
+
+    | Property | What it silently changed | How it presented |
+    |---|---|---|
+    | `position: absolute` on `.nav` | out of flow, so `order` and `flex` cannot move it | narrow rules written against it did nothing; the nav sat on top of the wordmark |
+    | `backdrop-filter` on `.dash-top` | the bar becomes the containing block for every `position: fixed` descendant | a bottom sheet pinned to the bottom of a 64px topbar, its full-screen veil covering nothing else |
+    | `position: fixed` on `.dash-side` | no longer a grid item, so it stops being placed by the grid | `.dash-main` became the only item in flow and was laid out inside the 72px rail |
+
+    Each reads as a value — where a thing sits, what it looks like. Each is really a
+    change of kind: in or out of flow, whose coordinate system a descendant resolves
+    against, whether the parent's layout algorithm sees the element at all. The
+    declaration says nothing about the consequence, and the consequence lands on a
+    *different* element than the one carrying the property — the nav's positioning broke
+    rules about the nav, but the filter on the topbar broke a sheet inside it, and the
+    sidebar's positioning broke the main column beside it.
+
+    **Two of the three produced screenshots that still looked plausible.** The desktop
+    popover landed close enough to right that the bug only appeared at 390px, and the
+    collapsed rail looked correct while the content was laid out inside it. So looking is
+    not sufficient: assert geometry — bounding boxes, computed `position` and `display`,
+    which element is at a point — and compare against what you intended.
+
+    When layout is wrong and the CSS reads correctly, stop re-reading the values. Ask
+    what the properties in play do to the box model's *structure*: what is still in flow,
+    what containing block a descendant resolves against, and what the parent's layout
+    algorithm still considers a child.
+
 ## Before you push
 
 ```shell
