@@ -89,7 +89,12 @@ export default function Client() {
       if (t <= r) return { error: "The top of the ladder must be above the reserve." };
       const tick = (t - r) / BigInt(levels - 1);
       if (tick === 0n) return { error: "Too many levels for that range — the rungs collapse." };
-      return { reserve: r, tick, cap: r + tick * BigInt(levels - 1), error: null as string | null };
+      /* Integer division, so the top you type is often not on the ladder. The contract
+         stores reserve, tick and level count — never a "top" — and derives the cap as
+         reserve + (levels-1)*tick. Silently accepting a top nobody can bid would let an
+         auctioneer believe they had listed a range they had not. */
+      const cap = r + tick * BigInt(levels - 1);
+      return { reserve: r, tick, cap, shortfall: t - cap, error: null as string | null };
     } catch { return { error: "Reserve and top must be numbers." }; }
   }, [reserve, top, levels, decimals]);
 
@@ -185,12 +190,37 @@ export default function Client() {
               {field("Levels", <input type="number" min={2} max={64} value={levels}
                 onChange={(e) => setLevels(Number(e.target.value))} />,
                 "More levels means finer bids and a longer proof.")}
-              {derived.error
-                ? <p className="err">{derived.error}</p>
-                : <p className="note">
-                    Spacing <b>{formatUnits(derived.tick!, decimals)}</b> per rung · top{" "}
-                    <b>{formatUnits(derived.cap!, decimals)}</b>
-                  </p>}
+              {derived.error ? (
+                <p className="err">{derived.error}</p>
+              ) : (
+                <>
+                  <p className="note">
+                    Spacing <b>{formatUnits(derived.tick!, decimals, decimals)}</b> per rung
+                  </p>
+                  <p className="note">
+                    Highest bid anyone can place:{" "}
+                    <b>{formatUnits(derived.cap!, decimals, decimals)}</b>
+                  </p>
+                  {derived.shortfall! > 0n && (
+                    <div className="panel" style={{ borderColor: "var(--accent-edge)",
+                                                    background: "var(--accent-dim)", marginTop: ".6rem" }}>
+                      <p style={{ margin: 0 }}>
+                        <b>{top} is not on this ladder.</b> Rungs are evenly spaced, and{" "}
+                        {levels} of them cannot divide this range exactly — the spacing is
+                        rounded down, so the top rung lands{" "}
+                        <b>{formatUnits(derived.shortfall!, decimals, decimals)}</b> short at{" "}
+                        <b>{formatUnits(derived.cap!, decimals, decimals)}</b>.
+                      </p>
+                      <p className="note" style={{ marginTop: ".5rem" }}>
+                        Nothing has been adjusted for you. Change the top, or the level
+                        count, if you want a different highest bid — or list it as it is,
+                        which is a normal ladder and only the number you typed is
+                        unreachable.
+                      </p>
+                    </div>
+                  )}
+                </>
+              )}
             </>
           )}
 
@@ -248,7 +278,14 @@ export default function Client() {
                 <div className="fact"><dt>Kind</dt>
                   <dd>{kind === AuctionKind.Vickrey ? "Vickrey" : "First price"}</dd></div>
                 <div className="fact"><dt>Reserve</dt><dd>{reserve}</dd></div>
-                <div className="fact"><dt>Top</dt><dd>{top}</dd></div>
+                <div className="fact"><dt>Top requested</dt><dd>{top}</dd></div>
+                <div className="fact"><dt>Highest bid possible</dt>
+                  <dd>{derived.cap ? formatUnits(derived.cap, decimals, decimals) : "—"}
+                    {derived.shortfall! > 0n && (
+                      <span className="note" style={{ display: "block" }}>
+                        {formatUnits(derived.shortfall!, decimals, decimals)} below the top you asked for
+                      </span>
+                    )}</dd></div>
                 <div className="fact"><dt>Levels</dt><dd>{levels}</dd></div>
                 <div className="fact"><dt>Escrow, everyone</dt>
                   <dd>{derived.cap ? formatUnits(derived.cap, decimals) : "—"}</dd></div>
