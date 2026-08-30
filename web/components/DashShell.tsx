@@ -22,9 +22,25 @@ export function DashShell({
   ownsAuctions?: boolean;
   children: React.ReactNode;
 }) {
-  const { connection, connect, connecting, disconnect, error } = useWallet();
+  const { connection, connect, connecting, reconnecting, disconnect, error } = useWallet();
   const path = usePathname();
   const on = (href: string) => path === href || (href !== "/app" && path.startsWith(href));
+
+  /* Wait for the silent reconnect before deciding this is a logged-out visitor —
+     otherwise a reload of the dashboard shows "Connect to act" and then replaces it. */
+  if (!connection && reconnecting) {
+    return (
+      <main>
+        <div className="backdrop" aria-hidden="true" />
+        <div className="panel" style={{ maxWidth: "52ch", margin: "5rem auto" }}>
+          <p className="eyebrow">Dashboard</p>
+          <p className="note" style={{ marginTop: ".6rem" }} aria-live="polite">
+            Reconnecting to your wallet…
+          </p>
+        </div>
+      </main>
+    );
+  }
 
   if (!connection) {
     return (

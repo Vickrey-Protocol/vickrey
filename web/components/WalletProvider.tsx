@@ -4,9 +4,12 @@ import {
   createContext, useCallback, useContext, useEffect, useMemo, useRef, useState,
 } from "react";
 import { useRouter } from "next/navigation";
-import { compareVersions, shortString, walletV6 } from "starknet";
+import { shortString, walletV6 } from "starknet";
 import { config } from "@/lib/config";
-import { availableWallets, connect as connectWallet, type Connection } from "@/lib/wallet";
+import {
+  availableWallets, connect as connectWallet, forgetWallet, reconnect, rememberWallet,
+  rememberedWallet, type Connection,
+} from "@/lib/wallet";
 import type { WalletWithStarknetFeatures } from "@starknet-io/get-starknet-wallet-standard/features";
 
 /**
@@ -34,6 +37,9 @@ interface WalletState {
   connection: Connection | null;
   error: string | null;
   connecting: boolean;
+  /** True only while a silent reconnect is in flight, so the UI can wait rather than
+   *  flash "Connect wallet" and swap to an address a moment later. */
+  reconnecting: boolean;
   /**
    * Opens the picker. Never connects to a wallet the user did not name.
    *
@@ -66,6 +72,12 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [connection, setConnection] = useState<Connection | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
+  const [reconnecting, setReconnecting] = useState(() => {
+    /* Seeded synchronously so the very first paint already knows a reconnect is coming.
+       Starting at false and flipping in an effect is what produces the flash. */
+    if (typeof window === "undefined") return false;
+    try { return !!window.localStorage.getItem("vickrey.wallet"); } catch { return false; }
+  });
   const [choices, setChoices] = useState<WalletWithStarknetFeatures[] | null>(null);
 
   /**
@@ -80,6 +92,33 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [wrongChain, setWrongChain] = useState<string | null>(null);
   const [switching, setSwitching] = useState(false);
   const goToRef = useRef<string | null>(null);
+
+  /* One silent attempt on mount. Failure is not an error state — the connect button is
+     the fallback and the user is told nothing, because nothing went wrong from their
+     side. */
+  useEffect(() => {
+    if (!rememberedWallet()) return;
+    let live = true;
+    (async () => {
+      try {
+        const c = await reconnect();
+        if (!live) return;
+        if (c) {
+          setConnection(c);
+          const found = await availableWallets().catch(() => []);
+          const w = found.find((x) => x.name === c.walletName);
+          if (w) {
+            const id = await walletV6.requestChainId(w as never).catch(() => null);
+            if (id && id !== CHAIN_ID[config.network]) setWrongChain(id);
+          }
+        } else {
+          forgetWallet();
+        }
+      } catch { forgetWallet(); }
+      finally { if (live) setReconnecting(false); }
+    })();
+    return () => { live = false; };
+  }, []);
 
   const readChain = useCallback(async (): Promise<string | null> => {
     try {
@@ -135,6 +174,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     try {
       const c = await connectWallet(w);
       setConnection(c);
+      rememberWallet(c.walletName);
       // Checked on connect too, so the mismatch is visible before anything is attempted.
       const id = await readChain();
       if (id && id !== CHAIN_ID[config.network]) setWrongChain(id);
@@ -149,11 +189,14 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const disconnect = useCallback(() => {
     setConnection(null);
     setError(null);
+    setWrongChain(null);
+    // Persisted, so a reload does not sign them straight back in.
+    forgetWallet();
   }, []);
 
   const value = useMemo(
-    () => ({ connection, error, connecting, connect, disconnect, ensureChain }),
-    [connection, error, connecting, connect, disconnect, ensureChain],
+    () => ({ connection, error, connecting, reconnecting, connect, disconnect, ensureChain }),
+    [connection, error, connecting, reconnecting, connect, disconnect, ensureChain],
   );
   return (
     <Ctx.Provider value={value}>

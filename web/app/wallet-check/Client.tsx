@@ -37,7 +37,7 @@ const chainName = (id: string | null) => {
 };
 
 export default function Client() {
-  const { connection, connect, connecting, error, disconnect } = useWallet();
+  const { connection, connect, connecting, reconnecting, error, disconnect } = useWallet();
   const [detected, setDetected] = useState<string[]>([]);
   const [versions, setVersions] = useState<string[] | null>(null);
   const [pool, setPool] = useState<Check[]>([]);
@@ -224,8 +224,8 @@ export default function Client() {
         {!connection ? (
           <>
             <button className="primary" style={{ marginTop: ".9rem" }}
-                    onClick={() => void connect()} disabled={connecting}>
-              {connecting ? "Connecting…" : "Connect wallet"}
+                    onClick={() => void connect()} disabled={connecting || reconnecting}>
+              {reconnecting ? "Reconnecting…" : connecting ? "Connecting…" : "Connect wallet"}
             </button>
             {error && <p className="err" style={{ marginTop: ".6rem" }}>{error}</p>}
           </>

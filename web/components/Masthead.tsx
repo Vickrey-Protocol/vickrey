@@ -9,7 +9,7 @@ import { useWallet } from "@/components/WalletProvider";
  * route that renders this masthead renders its evidence with or without a connection.
  */
 export function Masthead() {
-  const { connection, connect, connecting } = useWallet();
+  const { connection, connect, connecting, reconnecting } = useWallet();
   return (
     <header className="masthead">
       <div className="row" style={{ gap: ".7rem" }}>
@@ -34,6 +34,10 @@ export function Masthead() {
           <Link href="/app" className="pill sealed" style={{ textDecoration: "none" }}>
             {shortAddr(connection.address)}{connection.strk20 ? "" : " · no strk20"}
           </Link>
+        ) : reconnecting ? (
+          /* A wallet we were authorised on is being re-attached. Showing the button here
+             and swapping it for an address a moment later is the flash this avoids. */
+          <span className="pill sealed" aria-live="polite">Reconnecting…</span>
         ) : (
           <button className="primary" onClick={() => void connect("/app")} disabled={connecting}>
             {connecting ? "Connecting…" : "Connect wallet"}
