@@ -8,6 +8,7 @@ import { shortString, walletV6 } from "starknet";
 import { config } from "@/lib/config";
 import {
   availableWallets, connect as connectWallet, forgetWallet, reconnect, rememberWallet,
+  waitForWallet,
   rememberedWallet, type Connection,
 } from "@/lib/wallet";
 import type { WalletWithStarknetFeatures } from "@starknet-io/get-starknet-wallet-standard/features";
@@ -108,9 +109,22 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [shieldedErr, setShieldedErr] = useState<string | null>(null);
   const goToRef = useRef<string | null>(null);
 
-  /* One silent attempt on mount. Failure is not an error state — the connect button is
-     the fallback and the user is told nothing, because nothing went wrong from their
-     side. */
+  /**
+   * One silent attempt on mount. Failure is not an error state — the connect button is
+   * the fallback and the user is told nothing, because nothing went wrong from their
+   * side.
+   *
+   * It used to call `forgetWallet()` when the attempt came back empty, and that turned
+   * every transient failure into a permanent one. A wallet that is merely **locked**, or
+   * that has not finished announcing itself, or that does not implement `silent_mode`,
+   * all return null here — and erasing the remembered name on any of them means the next
+   * reload has nothing to reconnect to either, and the one after that. One locked reload
+   * cost the user the session for good, which is exactly the "Connect to act" this was
+   * built to prevent.
+   *
+   * Only an explicit disconnect forgets. Retrying silently on every load costs nothing:
+   * silent mode cannot prompt, so a revoked grant just keeps failing quietly.
+   */
   useEffect(() => {
     if (!rememberedWallet()) return;
     let live = true;
@@ -120,16 +134,13 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         if (!live) return;
         if (c) {
           setConnection(c);
-          const found = await availableWallets().catch(() => []);
-          const w = found.find((x) => x.name === c.walletName);
+          const w = await waitForWallet(c.walletName).catch(() => null);
           if (w) {
             const id = await walletV6.requestChainId(w as never).catch(() => null);
             if (id && id !== CHAIN_ID[config.network]) setWrongChain(id);
           }
-        } else {
-          forgetWallet();
         }
-      } catch { forgetWallet(); }
+      } catch { /* stays remembered; the connect button is the fallback */ }
       finally { if (live) setReconnecting(false); }
     })();
     return () => { live = false; };
@@ -137,8 +148,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
   const readChain = useCallback(async (): Promise<string | null> => {
     try {
-      const found = await availableWallets();
-      const w = found.find((x) => x.name === connection?.walletName) ?? found[0];
+      /* By name, and waiting for it — the same announcement race as the reconnect. A
+         snapshot taken too early answers "no wallet", which here reads as "will not say
+         which chain it is on" and silently skips the mismatch guard. */
+      const w = connection?.walletName ? await waitForWallet(connection.walletName) : null;
       const id = w ? await walletV6.requestChainId(w as never) : null;
       setWalletChain(id);
       return id;
@@ -200,8 +213,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const switchChain = useCallback(async () => {
     setSwitching(true);
     try {
-      const found = await availableWallets();
-      const w = found.find((x) => x.name === connection?.walletName) ?? found[0];
+      const w = connection?.walletName ? await waitForWallet(connection.walletName) : null;
       if (w) await walletV6.switchStarknetChain(w as never, CHAIN_ID[config.network]);
       const id = await readChain();
       if (!id || id === CHAIN_ID[config.network]) setWrongChain(null);
