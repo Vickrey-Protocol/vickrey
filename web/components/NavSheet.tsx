@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { createPortal } from "react-dom";
+import { Wordmark } from "@/components/Wordmark";
 
 /**
  * The narrow-screen navigation panel, and the button that opens it.
@@ -101,7 +102,7 @@ export function NavSheet({
             tabIndex={-1}
           >
             <div className="navsheet-top">
-              <span className="wordmark">Vickrey<span aria-hidden="true" /></span>
+              <Wordmark href={null} />
               <button className="sheet-x" onClick={onClose} aria-label="Close menu">×</button>
             </div>
             <div className="navsheet-body">{children}</div>

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useWallet } from "@/components/WalletProvider";
 import { WalletMenu } from "@/components/WalletMenu";
 import { NavSheet } from "@/components/NavSheet";
+import { Wordmark } from "@/components/Wordmark";
 
 /**
  * The public-site header. Its wallet button is a convenience, never a gate — every
@@ -55,9 +56,7 @@ export function Masthead() {
 
   return (
     <header className="masthead">
-      <Link href="/" className="wordmark" style={{ textDecoration: "none" }}>
-        Vickrey<span aria-hidden="true" />
-      </Link>
+      <Wordmark />
 
       <nav className="nav" aria-label="Sections">
         {LINKS.map((l) => <Link key={l.href} href={l.href}>{l.label}</Link>)}

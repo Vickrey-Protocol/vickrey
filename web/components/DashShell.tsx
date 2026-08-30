@@ -7,6 +7,12 @@ import { useWallet } from "@/components/WalletProvider";
 import { WalletMenu } from "@/components/WalletMenu";
 import { Notifications } from "@/components/Notifications";
 import { NavSheet } from "@/components/NavSheet";
+import { Wordmark } from "@/components/Wordmark";
+import { Tour } from "@/components/Tour";
+import {
+  IconAuctions, IconBids, IconCreate, IconDocs, IconGithub, IconManage, IconOverview,
+  IconPublic,
+} from "@/components/Icons";
 import { bidderActions, type DueAction } from "@/lib/actions";
 
 /**
@@ -80,41 +86,67 @@ export function DashShell({
   /* One definition, rendered twice: in the sidebar at 1024px and up, and inside the
      slide-in panel below it. Two copies would drift, and the one that drifts is always
      the one fewer people look at. */
+  /**
+   * One definition, rendered twice: in the rail at 1024px and up, and inside the
+   * slide-in panel below it. Two copies would drift, and the one that drifts is always
+   * the one fewer people look at.
+   *
+   * Every item carries an icon because the rail collapses to icons alone — an item
+   * without one would simply vanish when collapsed. The label stays in the DOM at all
+   * widths and is only faded, so it is always available to a screen reader and the rail
+   * never needs a parallel set of accessible names.
+   */
+  const item = (href: string, icon: React.ReactNode, label: string, extra?: React.ReactNode) => (
+    <Link href={href} className={on(href) && (href !== "/app" || path === "/app") ? "here" : ""}>
+      <span className="nav-icon">{icon}</span>
+      <span className="nav-label">{label}</span>
+      {extra}
+    </Link>
+  );
+
   const navLinks = (
     <>
-      <Link href="/app" className={on("/app") && path === "/app" ? "here" : ""}>Overview</Link>
-      <Link href="/app/auctions" className={on("/app/auctions") ? "here" : ""}>Auctions</Link>
-      <Link href="/app/bids" className={on("/app/bids") ? "here" : ""}>
-        My bids
-        {/* Bid-side only. Counting the auctioneer's steps here put a number on a noun it
-            did not describe, and the page underneath then correctly showed no bids — two
-            true statements that read as a contradiction. */}
-        {myBids > 0 && <span className="due">{myBids}</span>}
-      </Link>
-      <Link href="/app/create" className={on("/app/create") ? "here" : ""}>Create auction</Link>
+      {item("/app", <IconOverview />, "Overview")}
+      {item("/app/auctions", <IconAuctions />, "Auctions")}
+      {item("/app/bids", <IconBids />, "My bids",
+        /* Bid-side only. Counting the auctioneer's steps here put a number on a noun it
+           did not describe, and the page underneath then correctly showed no bids — two
+           true statements that read as a contradiction. */
+        myBids > 0 ? <span className="due">{myBids}</span> : null)}
+      {item("/app/create", <IconCreate />, "Create auction")}
 
       {/* Rendered only when it has contents — an empty group is furniture. */}
       {ownsAuctions && (
         <>
           <hr />
           <p className="dash-group">Auctioneer</p>
-          <Link href="/app/manage" className={on("/app/manage") ? "here" : ""}>Manage</Link>
+          {item("/app/manage", <IconManage />, "Manage")}
         </>
       )}
 
       <hr />
-      <Link href="/docs">Docs</Link>
-      <Link href="/auctions">Public site</Link>
-      <a href="https://github.com/Vickrey-Protocol/vickrey" target="_blank" rel="noreferrer">GitHub</a>
+      {item("/docs", <IconDocs />, "Docs")}
+      {item("/auctions", <IconPublic />, "Public site")}
+      <a href="https://github.com/Vickrey-Protocol/vickrey" target="_blank" rel="noreferrer">
+        <span className="nav-icon"><IconGithub /></span>
+        <span className="nav-label">GitHub</span>
+      </a>
     </>
   );
 
   return (
     <div className="dash">
+      {/*
+        A collapsed icon rail that widens on hover, in our own CSS. The interaction is
+        the one Aceternity's sidebar demonstrates; none of its implementation is here,
+        because that is Tailwind and Framer Motion and this app is neither.
+
+        It overlays the content rather than pushing it. Animating the grid column would
+        reflow the whole page — tables, the ladder, the action queue — every time a
+        pointer crossed the rail, which is a lot of layout work to pay for a hover.
+      */}
       <aside className="dash-side">
-        <Link href="/" className="wordmark" style={{ textDecoration: "none" }}>
-          Vickrey<span aria-hidden="true" />
-        </Link>
+        <Wordmark />
 
         <nav className="dash-nav" aria-label="Dashboard">{navLinks}</nav>
       </aside>
@@ -138,6 +170,10 @@ export function DashShell({
         </header>
         <div className="dash-body">{children}</div>
       </div>
+
+      {/* Only where there is a dashboard to tour, and only for a connected wallet —
+          the gate above returns before this. */}
+      <Tour />
     </div>
   );
 }

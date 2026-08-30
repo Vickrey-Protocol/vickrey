@@ -9,6 +9,18 @@ These are not style preferences. Each one is here because skipping it cost somet
    because the investigation said so.
 2. **Never inherit a property without re-verifying it here.** STRK20 hides senders.
    Other chains publish them. Assume nothing transfers.
+
+   The same applies to a default carried between two callers of one function.
+   `check-deployed.mjs` grew a 30-minute grace window so the *scheduled* check would not
+   cry wolf during the minutes between a push and a deploy. That is right there and
+   wrong inside `deploy-web.sh`, whose last line calls the same script to prove the
+   deploy it just ran has landed: there the wait is already over, so any drift means
+   failure. The default followed the function into the second context and the script
+   reported "ahead of live by 1 min — not stale yet", exit 0, on the very deploy it was
+   verifying. A genuinely failed deploy would have printed the same thing. One function,
+   two callers, and only one of them wanted the default — so pass it explicitly at the
+   call site that differs (`GRACE_MIN=0`), rather than letting the definition decide for
+   both.
 3. **Negative tests before happy paths.** `test_negative.cairo` was written first. It
    is the file that says what the system refuses to do, which is the part worth being
    sure about.
@@ -116,6 +128,21 @@ These are not style preferences. Each one is here because skipping it cost somet
 
     Ask of every empty result: can I tell "no" from "not yet"? If not, treat it as "not
     yet" and say so in the code, because that is the reading that stays recoverable.
+
+12. **Correcting the README is not correcting the product.** A claim lives wherever it
+    was written, not where you remember writing it.
+
+    The Wallet API "has exactly three STRK20 methods and none of them deposits" was found
+    to be wrong, corrected in the README with its own section explaining the correction —
+    and left standing in three other places: `/wallet-check` and twice in `Panels.tsx`.
+    Users read the app. For days the product asserted the falsehood while the
+    documentation explained why it was false.
+
+    So when a claim turns out to be wrong, **grep for the claim**, not for the file. Grep
+    for the phrase, for the distinctive noun, for the negation — "no deposit", "none of
+    them", "has no". Fix every instance in one commit, so no version of it can outlive
+    the correction. And a correction is worth a test wherever the claim is load-bearing:
+    the fix is only permanent if something fails when it regresses.
 
 ## Before you push
 

@@ -8,6 +8,7 @@ import {
 import { CHAIN_ID, chainName, useWallet } from "@/components/WalletProvider";
 import { PublicBalance } from "@/components/Balances";
 import { Popover } from "@/components/Popover";
+import { replayTour } from "@/lib/tour";
 
 /**
  * The account panel: who you are, where you are, what you can spend, and the way out.
@@ -121,6 +122,9 @@ export function WalletMenu() {
                 <button onClick={() => void copy()}>{copied ? "Copied" : "Copy address"}</button>
                 <a href={explorerContract(connection.address)} target="_blank" rel="noreferrer"
                    onClick={close}>View on the explorer ↗</a>
+                {/* The only route back for anyone who skipped it. A tour with no replay
+                    is a one-question exam. */}
+                <button onClick={() => { close(); replayTour(); }}>Replay the tour</button>
                 <button className="acct-out" onClick={leave}>Disconnect</button>
               </section>
 

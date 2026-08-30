@@ -1,4 +1,5 @@
 import { config, explorerContract } from "@/lib/config";
+import { Wordmark } from "@/components/Wordmark";
 
 const REPO = "https://github.com/Vickrey-Protocol/vickrey";
 
@@ -19,7 +20,7 @@ export function Footer() {
     <footer>
       <div className="foot-grid" data-reveal>
         <div className="foot-brand">
-          <div className="wordmark">Vickrey<span aria-hidden="true" /></div>
+          <Wordmark href={null} size={20} />
           <p className="note" style={{ marginTop: ".6rem", maxWidth: "26ch" }}>
             Sealed-bid auctions on STRK20. The losing bids are never published, and the
             outcome is proved on-chain rather than asserted.
