@@ -603,6 +603,11 @@ td.undisclosed { color: var(--muted); font-style: italic; }
 @media (max-width: 60rem) {
   .masthead { flex-wrap: wrap; row-gap: .6rem; }
   .nav {
+    /* Back into the flow. On wide screens the nav is absolutely centred on the page, so
+       `order` and `flex` had no effect on it here and it sat on top of the wordmark and
+       the wallet button instead of below them. An out-of-flow element cannot be moved by
+       flex properties, which is easy to write and invisible until something overlaps. */
+    position: static; transform: none; left: auto;
     order: 3; flex: 1 0 100%;
     flex-wrap: wrap; gap: .35rem .9rem;
     padding-block-start: .55rem;
