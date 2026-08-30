@@ -1263,6 +1263,10 @@ button.primary strong { color: inherit; }
   /* The docs list every contract and document as a link; those are navigation, not
      prose, so they get the floor too. */
   ul.tight li { min-block-size: 44px; display: flex; align-items: center; }
+  /* The tappable thing is the link, not the row around it. */
+  ul.tight li > a { min-block-size: 44px; display: inline-flex; align-items: center; }
+  /* Standalone back-links sit alone on a line and are navigation. */
+  p > a[href^="/"]:only-child { min-block-size: 44px; display: inline-flex; align-items: center; }
 
   /* ── tables ──
      They live in .scroller and do scroll, but a table that silently extends past the
