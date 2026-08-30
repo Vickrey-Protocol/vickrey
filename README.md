@@ -1,3 +1,5 @@
+<img src=".github/assets/readme-header.png" alt="Vickrey — sealed-bid auctions on STRK20" width="820">
+
 # Vickrey
 
 **Sealed-bid auctions on STRK20 where the losing bids are never published.**

@@ -1,0 +1,13 @@
+{
+  "name": "Vickrey",
+  "short_name": "Vickrey",
+  "description": "Sealed-bid auctions on STRK20 where the losing bids are never published.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0A1514",
+  "theme_color": "#0A1514",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

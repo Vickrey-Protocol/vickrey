@@ -45,6 +45,17 @@ export const metadata: Metadata = {
   },
   description: DESCRIPTION,
   alternates: { canonical: "/" },
+  /* app/favicon.ico is picked up automatically; the rest have to be declared. The
+     apple-touch icon is the one that must not be transparent — iOS composites a
+     transparent icon onto black rather than onto the home screen. */
+  icons: {
+    icon: [
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
+  manifest: "/site.webmanifest",
   openGraph: {
     type: "website",
     siteName: "Vickrey",
