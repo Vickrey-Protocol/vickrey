@@ -77,6 +77,8 @@ interface WalletState {
   requestShielded: () => Promise<void>;
   /** What a real STRK20 call established. Never inferred from the version string. */
   strk20Proof: "untested" | "working" | "failed";
+  /** Feed a real STRK20 call's error in, so the rail can stop offering what cannot work. */
+  noteStrk20Error: (e: unknown) => void;
 }
 
 const Ctx = createContext<WalletState | null>(null);
@@ -189,6 +191,22 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
    * the account back to undisclosed. Persisting the preference would quietly turn a
    * decision made once into a disclosure repeated on every visit.
    */
+  /**
+   * Records what a real STRK20 call proved, from anywhere that makes one.
+   *
+   * The private rail's own calls are the other real evidence we get, and far more people
+   * hit those than press the balance button. A rail that has already failed for a reason
+   * that is not going to change should stop being offered — letting someone retry into
+   * the same wallet error is the "let the bid fail" outcome.
+   */
+  const noteStrk20Error = useCallback((e: unknown) => {
+    const err = readWalletError(e);
+    /* Routed, not failed: the pool or the user answered. Also leave it untouched on an
+       error carrying no code at all — that is an absence, not a negative answer. */
+    if (err.code === null) return;
+    setStrk20Proof(err.code === 118 || err.code === 113 ? "working" : "failed");
+  }, []);
+
   const requestShielded = useCallback(async () => {
     if (!connection) return;
     setShieldedErr(null);
@@ -293,11 +311,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     () => ({
       connection, error, connecting, reconnecting, connect, disconnect, ensureChain,
       walletChain, switchChain, switching,
-      shielded, shieldedPending, shieldedErr, requestShielded, strk20Proof,
+      shielded, shieldedPending, shieldedErr, requestShielded, strk20Proof, noteStrk20Error,
     }),
     [connection, error, connecting, reconnecting, connect, disconnect, ensureChain,
      walletChain, switchChain, switching,
-     shielded, shieldedPending, shieldedErr, requestShielded, strk20Proof],
+     shielded, shieldedPending, shieldedErr, requestShielded, strk20Proof, noteStrk20Error],
   );
   return (
     <Ctx.Provider value={value}>

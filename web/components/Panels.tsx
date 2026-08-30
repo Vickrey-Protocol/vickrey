@@ -10,6 +10,7 @@ import {
   createBid,
   disputeWitness,
   placeBidActions,
+  readWalletError,
   redeemWitness,
   Status,
 } from "@vickrey/client";
@@ -22,7 +23,17 @@ import type { Connection } from "@/lib/wallet";
 import { Ladder } from "./Ladder";
 import { useWallet } from "@/components/WalletProvider";
 
-const errText = (e: unknown) => (e instanceof Error ? e.message : String(e));
+/**
+ * Never `String(e)` on a wallet error: a JSON-RPC error is a plain object, so that
+ * yields "[object Object]" and discards the code. `readWalletError` maps the spec's
+ * twelve codes to sentences and says plainly when it does not recognise one.
+ */
+const errText = (e: unknown) => {
+  const err = readWalletError(e);
+  return err.recognised || err.code !== null
+    ? (err.recognised ? err.say : `${err.say} Raw: ${err.raw}`)
+    : (e instanceof Error ? e.message : err.raw);
+};
 
 /* ── bidding ─────────────────────────────────────────────────────────── */
 
@@ -48,7 +59,7 @@ export function BidPanel({
   connection: Connection | null;
   onPlaced: () => void;
 }) {
-  const { ensureChain } = useWallet();
+  const { ensureChain, strk20Proof, noteStrk20Error } = useWallet();
   const [level, setLevel] = useState<number | null>(null);
   const [rail, setRail] = useState<Rail>("public");
   const [busy, setBusy] = useState<string | null>(null);
@@ -56,7 +67,7 @@ export function BidPanel({
   const [placed, setPlaced] = useState<StoredBid | null>(null);
   const [ack, setAck] = useState(false);
 
-  const canPrivate = !!connection?.strk20Declared && hasAnonymizer();
+  const canPrivate = !!connection?.strk20Declared && hasAnonymizer() && strk20Proof !== "failed";
 
   async function submit() {
     if (!connection) return setError("Connect a wallet first.");
@@ -103,6 +114,10 @@ export function BidPanel({
       setPlaced({ ...stored, txHash: transaction_hash });
       onPlaced();
     } catch (e) {
+      /* A private-rail failure is the same pool read failing. Recording it stops the
+         rail being offered again, so the next attempt is a button that explains itself
+         rather than a bid that fails. */
+      if (rail === "private") noteStrk20Error(e);
       setError(errText(e));
     } finally {
       setBusy(null);
@@ -162,9 +177,12 @@ export function BidPanel({
           rather than a choice.
 
           Public is first and marked as the ordinary path, which is honest rather than
-          modest. The Wallet API has no deposit method, so the private rail requires
-          leaving this page, shielding inside your own wallet, and paying the pool fee
-          before you can even start — almost nobody completes that in one sitting.
+          modest. The private rail needs a shielded balance that exists before the bid
+          does, and this app deliberately does not create one for you — see the note in
+          the panel. (It *could*: `strk20InvokeTransaction` accepts a deposit action. The
+          reason it does not is a product decision, not a limit of the standard.) So the
+          rail requires leaving this page, shielding inside your wallet, and paying the
+          pool fee before you can even start — almost nobody does that in one sitting.
           Presenting it as the expected route would be setting most visitors up to
           abandon a bid halfway. */}
       <div className="rails">
@@ -188,7 +206,13 @@ export function BidPanel({
                 /* What we know is what it advertises. Whether a pool call actually works
                    is a different question and only a real call answers it. */
                 ? "This wallet does not advertise STRK20 support."
-                : "No anonymizer configured."}
+                : strk20Proof === "failed"
+                  /* Proven, not guessed: a real call to this wallet failed on this
+                     network. Ready X does this on Sepolia. Offering the rail anyway
+                     means the bid fails instead of the button explaining itself. */
+                  ? `A real pool read failed with this wallet on ${config.label}. `
+                    + "Try Xverse, or use the public rail."
+                  : "No anonymizer configured."}
           </span>
           <span className="rail-cost">
             {auction.poolFee === null ? "pool fee + gas" : `${formatUnits(auction.poolFee, STRK_DECIMALS)} STRK pool fee + gas`}
@@ -214,9 +238,11 @@ export function BidPanel({
           <p className="eyebrow">Before this will work</p>
           <p className="note" style={{ marginTop: ".4rem" }}>
             The private rail spends from a <b>shielded balance</b>, and{" "}
-            <b>shielding does not happen here</b> — the wallet standard has no deposit
-            method, so no site can do it for you. Open your wallet&rsquo;s private balance
-            section and shield there first. The pool charges{" "}
+            <b>shielding does not happen here</b>. The standard would allow it —{" "}
+            <code>strk20InvokeTransaction</code> takes a deposit action — but your first
+            shield is the one step where seeing the amount in your own wallet is worth
+            more than the convenience. Open your wallet&rsquo;s private balance section
+            and shield there. The pool charges{" "}
             {auction.poolFee === null ? "its fee" : <b>{formatUnits(auction.poolFee, STRK_DECIMALS)} STRK</b>}{" "}
             for the shield and again for the bid.
           </p>
@@ -451,10 +477,10 @@ export function ClaimPanel({
 }: {
   auction: AuctionView; bids: StoredBid[]; connection: Connection | null;
 }) {
-  const { ensureChain } = useWallet();
+  const { ensureChain, strk20Proof, noteStrk20Error } = useWallet();
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const canPrivate = !!connection?.strk20Declared && hasAnonymizer();
+  const canPrivate = !!connection?.strk20Declared && hasAnonymizer() && strk20Proof !== "failed";
   const [rail, setRail] = useState<Rail>("public");
 
   /* `undefined` = still reading, `null` = the read failed. Distinguishing them matters:
@@ -527,6 +553,7 @@ export function ClaimPanel({
       const { transaction_hash } = await connection.account.strk20InvokeTransaction(actions);
       setMsg(transaction_hash);
     } catch (e) {
+      if (rail === "private") noteStrk20Error(e);
       setErr(errText(e));
     }
   }

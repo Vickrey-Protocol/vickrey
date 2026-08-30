@@ -108,8 +108,26 @@ for mainnet, which is why it is read and never hardcoded.
   remaining gap and the only one needing a human at a browser.
 - The helper has never run, because nothing is deployed.
 - Mainnet gas for `settle`, measured rather than estimated.
-- Whether Ready or Xverse expose STRK20 on Sepolia specifically. The pool is there;
-  wallet support for it is a separate question.
+### Answered: which wallets expose STRK20, and where
+
+Measured with `/wallet-check`, which makes a real `strk20Balances([STRK])` call rather
+than testing that the method exists. The wallet answers for **its own** network, so both
+columns come from one deployment by switching networks in the wallet.
+
+| Wallet   | Sepolia | Mainnet |
+|----------|---------|---------|
+| Xverse   | pass    | pass    |
+| Ready X  | **fail**| pass    |
+
+Two consequences. **Xverse is the wallet for the whole run**, and because it works on
+Sepolia the pool leg is rehearsable on testnet — shield the smallest note, wait for
+maturity, confirm with `scripts/pool-status.mjs` that `registered` flips no→yes and
+channels 0→1, then place a real private-rail bid. Only then does the mainnet declare
+happen, so Rule 1 still holds on mainnet but the step is no longer unrehearsed.
+
+**Ready X cannot use the private rail on Sepolia.** The app detects this rather than
+documenting it alone: a real STRK20 call that fails on a wallet that advertises support
+disables the private rail and says why, instead of letting a bid fail.
 
 ## What this is not: commit–reveal
 

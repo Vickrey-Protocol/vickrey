@@ -3,7 +3,10 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { compareVersions, RpcProvider, shortString, walletV6 } from "starknet";
-import { probeMissing, readWalletError } from "@vickrey/client";
+import { probeMissing } from "@vickrey/client";
+import {
+  REAL_READ_LABEL, reachabilityAnswered, reachabilityRejected, realReadFailed, realReadPassed,
+} from "@/lib/walletCheck";
 import { availableWallets } from "@/lib/wallet";
 import { STRK_DECIMALS, config, formatUnits } from "@/lib/config";
 import { PublicShell } from "@/components/PublicShell";
@@ -140,7 +143,7 @@ export default function Client() {
       const fn = acct["strk20Balances"];
       if (typeof fn !== "function") {
         const v = probeMissing();
-        setBalProbe({ label: "real read · strk20Balances([STRK])", state: "fail", detail: v.reason });
+        setBalProbe({ label: REAL_READ_LABEL, state: "fail", detail: v.reason });
         return;
       }
       const call = fn as (tokens?: unknown) => Promise<unknown>;
@@ -148,46 +151,18 @@ export default function Client() {
       /* 1. The call the app actually makes. */
       try {
         const entries = await call.call(acct, [config.strkAddress]);
-        const n = Array.isArray(entries) ? entries.length : 0;
-        setBalProbe({
-          label: "real read · strk20Balances([STRK])", state: "pass",
-          detail: `PASS on ${onNet} — the wallet completed a pool read and returned `
-            + `${n} balance entr${n === 1 ? "y" : "ies"}. No figure is shown here or sent `
-            + "anywhere; this page reports only that the read worked.",
-        });
+        setBalProbe(realReadPassed(Array.isArray(entries) ? entries.length : 0, onNet));
       } catch (e) {
-        const err = readWalletError(e);
-        /* NOT_REGISTERED and a refusal are the pool and the user answering. The wallet
-           routed the call, which is the capability under test. Everything else — the
-           spec's own catch-all included — is a failed read, and must not be dressed up
-           as a pass the way an unrecognised error once was. */
-        const routed = err.code === 118 || err.code === 113;
-        setBalProbe({
-          label: "real read · strk20Balances([STRK])",
-          state: routed ? "pass" : "fail",
-          detail: routed
-            ? `PASS — ${err.say} The wallet routed a real read, so the interface is there.`
-            : `FAIL on ${onNet} — ${err.say}`
-              + (err.recognised ? "" : ` Raw: ${err.raw}`),
-        });
+        setBalProbe(realReadFailed(e, onNet));
       }
 
-      /* 2. The old probe, kept so the discrepancy is visible rather than inferred. */
+      /* 2. The old probe, kept so the discrepancy is visible rather than inferred. Its
+            verdict is written separately on purpose — see lib/walletCheck.ts. */
       try {
         await call.call(acct);
-        setReachProbe({
-          label: "reachability · no token list",
-          state: "warn",
-          detail: "The method answered a request with no `tokens` field, which is not a "
-            + "valid balance read. This proves the method is reachable and nothing more — "
-            + "it is the check that previously stood in for a real one.",
-        });
+        setReachProbe(reachabilityAnswered());
       } catch (e) {
-        const err = readWalletError(e);
-        setReachProbe({
-          label: "reachability · no token list", state: "warn",
-          detail: `The method rejected an argumentless call — ${err.say}`,
-        });
+        setReachProbe(reachabilityRejected(e));
       }
     } finally { setProbing(false); }
   };
@@ -362,10 +337,14 @@ export default function Client() {
       <h2 className="section">If it passes</h2>
       <div className="panel">
         <p>
-          The next step is a real shield, and <b>this site cannot do it for you</b>. The
-          Wallet API has exactly three STRK20 methods — <code>strk20Balances</code>,{" "}
-          <code>strk20PrepareInvoke</code>, <code>strk20InvokeTransaction</code> — and
-          none of them deposits. Shielding happens in the wallet&rsquo;s own interface.
+          The next step is a real shield. The Wallet API has three STRK20 <i>methods</i> —{" "}
+          <code>strk20Balances</code>, <code>strk20PrepareInvoke</code>,{" "}
+          <code>strk20InvokeTransaction</code> — and none is <i>named</i> deposit, but{" "}
+          <code>strk20InvokeTransaction</code> carries <i>actions</i> and the action union
+          includes <code>STRK20_DEPOSIT_ACTION</code>. So a dapp can drive a deposit; the
+          claim that only a wallet&rsquo;s own interface can shield was wrong.
+          <b> This site still does not do it for you</b> — shielding your first note is a
+          step we deliberately leave to the wallet, where you can see the amount.
         </p>
         <p className="note" style={{ marginTop: ".6rem" }}>
           Open your wallet, find its private or shielded balance section, and shield the
