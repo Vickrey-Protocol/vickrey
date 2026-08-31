@@ -176,7 +176,7 @@ export default function Client() {
             <>
               {field("Lot token", <input value={lotToken}
                 onChange={(e) => setLotToken(e.target.value)} placeholder="0x…" />,
-                tokenErr ?? `The ERC-20 being auctioned. Escrow and payment use the same token. Decimals read from the token: ${decimals}.`)}
+                tokenErr ?? `The ERC-20 being auctioned. Escrow and payment use the same token. Decimals read from the token: ${decimals}. It must transfer exactly what it is told: fee-on-transfer and rebasing tokens break the accounting, and the contract does not check.`)}
               {field("Lot amount", <input value={lotAmount}
                 onChange={(e) => setLotAmount(e.target.value)} />, "Transferred to the contract on create.")}
               {field("Title", <input value={title} maxLength={31}

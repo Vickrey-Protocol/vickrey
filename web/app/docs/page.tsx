@@ -17,6 +17,8 @@ const SECTIONS = [
   ["properties", "Six properties"],
   ["thermometer", "The thermometer commitment"],
   ["escrow", "Escrow, silence, and exclusion"],
+  ["custody", "Where your assets are"],
+  ["tokens", "Which tokens work"],
   ["strk20", "How it uses STRK20"],
   ["reveal", "The reveal channel"],
   ["disclosure", "Disclosure: the relay"],
@@ -388,6 +390,161 @@ down_anchor = step^(P−1−ℓ)    a depth-(P−1−t) preimage proves  ℓ ≤
           </section>
 
           {/* ── 4 ─────────────────────────────────────────────────────────── */}
+          <section id="custody">
+            <h2>Where your assets are, state by state</h2>
+            <p>
+              Both the lot and every escrow sit in the auction contract itself. It is not a
+              vault contract or a multisig — it is the same contract that runs the auction,
+              and nothing but the paths below moves anything out of it.
+            </p>
+
+            <h3>The lot</h3>
+            <p>
+              The seller&rsquo;s <b>full</b> <code>lot_amount</code> is pulled at{" "}
+              <code>create_auction</code>, before the auction is visible to anyone. There is
+              no partial or lazy funding: an unfunded listing does not exist.
+            </p>
+            <div className="scroller">
+              <table>
+                <thead><tr><th>Status</th><th>Where the lot is</th><th>Who can move it, and how</th></tr></thead>
+                <tbody>
+                  <tr><td><b>Open</b></td><td>The contract</td>
+                    <td><b>Nobody.</b> No entrypoint moves the lot while bidding is open —
+                      not the seller, not the auctioneer, not us.</td></tr>
+                  <tr><td><b>Sealed</b></td><td>The contract</td>
+                    <td><b>Anyone</b>, via <code>abandon</code>, once the grace has expired
+                      (<code>sealed_at + dispute_window</code>). It goes back to the seller.</td></tr>
+                  <tr><td><b>Settled</b></td><td>The contract</td>
+                    <td>Any bidder via <code>dispute</code> while the window is open, proving
+                      a bid above the clearing level — the lot returns to the seller. Or{" "}
+                      <b>anyone</b> via <code>finalize</code> once the window closes.</td></tr>
+                  <tr><td><b>Finalized</b></td><td>The contract</td>
+                    <td><b>The winner only</b>, via <code>claim_lot</code>, by presenting the
+                      claim secret. Once, and to any recipient they name.</td></tr>
+                  <tr><td><b>Cancelled</b></td><td><b>Already with the seller</b></td>
+                    <td>Nothing left to move. All three routes to Cancelled — dispute,
+                      abandon, and finalize with no winner — push the lot to the seller in
+                      the same call.</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <h3>Escrowed payment</h3>
+            <p>
+              One escrow per bid, pulled at <code>place_bid</code>, always the top of the
+              ladder so the amount transferred says nothing about the bid behind it.
+            </p>
+            <div className="scroller">
+              <table>
+                <thead><tr><th>Status</th><th>Where it is</th><th>Who can move it, and how</th></tr></thead>
+                <tbody>
+                  <tr><td><b>Open / Sealed</b></td><td>The contract</td>
+                    <td><b>Nobody.</b> Not even the bidder — there is no withdraw.</td></tr>
+                  <tr><td><b>Settled</b></td><td>The contract</td>
+                    <td><b>Nobody.</b> <code>settle</code> moves no money at all; it only
+                      records the outcome and opens the dispute window.</td></tr>
+                  <tr><td><b>Finalized</b></td><td>The contract</td>
+                    <td>The clearing price has already left the <i>winner&rsquo;s</i> escrow
+                      and gone to the seller, inside <code>finalize</code>. What remains is
+                      claimable only by whoever holds each bid&rsquo;s claim secret:{" "}
+                      <code>claim_refund</code> for a loser&rsquo;s full escrow or the
+                      winner&rsquo;s surplus, <code>redeem_forfeit</code> for a bid marked
+                      forfeited.</td></tr>
+                  <tr><td><b>Cancelled</b></td><td>The contract</td>
+                    <td>Every bid is refundable in full through <code>claim_refund</code>,
+                      forfeits included — no settlement ever established who forfeited. If
+                      the auction was abandoned with bids in it, each claim also carries an
+                      equal share of the forfeited bond.</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <h3>The bond</h3>
+            <p>
+              Pulled from the <b>seller</b> at listing, despite the name — seller and
+              auctioneer may be different addresses. It goes to a successful disputer, back
+              to the seller on <code>finalize</code>, back to the seller on{" "}
+              <code>abandon</code> if nobody bid, and otherwise into a pot split equally
+              among the bidders as they claim.
+            </p>
+
+            <h3>Is there a state where the lot is stuck?</h3>
+            <p>
+              <b>Yes, one.</b> <b>Finalized, with a winner who has lost their claim secret.</b>{" "}
+              The lot is claimable only by presenting it, no path returns it to the seller
+              after finalization, and nothing sweeps it on a timer. It stays in the contract
+              permanently. The same is true of that bid&rsquo;s surplus.
+            </p>
+            <p>
+              Two escrow cases end the same way: a bid whose anchors match no rung, which
+              can never produce the witness <code>redeem_forfeit</code> requires; and a bid
+              that was forfeited while sitting <i>above</i> the clearing level, whose only
+              remedy was <code>dispute</code> and whose window has closed.
+            </p>
+            <p className="note">
+              One near-miss worth naming rather than hiding: an auction left <b>Open</b>{" "}
+              forever holds the lot with no path out, because <code>abandon</code> requires{" "}
+              <code>Sealed</code>. It is not actually stuck — <code>seal</code> is
+              permissionless and callable by anyone the moment the bid deadline passes,
+              which puts it on the road to <code>abandon</code>. But it takes somebody
+              choosing to act, and nothing forces them to.
+            </p>
+          </section>
+
+          <section id="tokens">
+            <h2>Which tokens work, and which quietly do not</h2>
+            <p>
+              The contract accepts <b>any ERC-20</b>. The only check at listing is that the
+              address is non-zero — there is no allowlist, no decimals constraint, and no
+              probe of how the token behaves. Decimals are read from the token itself
+              everywhere they are displayed, never assumed.
+            </p>
+
+            <h3>Known limitation: fee-on-transfer and rebasing tokens break the accounting</h3>
+            <p>
+              Every amount here is a <b>number the contract recorded</b>, not a balance it
+              re-reads. At listing it pulls <code>lot_amount</code> and remembers that
+              figure; each bid pulls the cap and remembers that. It never asks the token
+              how much actually arrived.
+            </p>
+            <p>
+              A <b>fee-on-transfer</b> token therefore credits the contract with less than
+              it books. `transfer_from` returns true, the assertion passes, and the deficit
+              is invisible until someone tries to take money out. Because one contract
+              holds every auction&rsquo;s funds, the shortfall is not paid by the person
+              who caused it: earlier claims succeed out of the pooled balance and{" "}
+              <b>a later claimant&rsquo;s transfer fails</b>, on an auction that may have
+              nothing to do with the offending token.
+            </p>
+            <p>
+              A <b>rebasing</b> token fails the same way when it rebases down, and strands
+              value when it rebases up — the surplus belongs to no bid, and no path sweeps
+              it. So do tokens that transfer less than asked for any other reason.
+            </p>
+            <p className="note">
+              <b>No test covers this.</b> The mock ERC-20 in the suite transfers exactly
+              what it is told, so the conservation invariant passes and would keep passing.
+              We are stating the hazard rather than claiming coverage we do not have.
+            </p>
+            <p>
+              This is <b>not</b> being fixed in the contract. An allowlist would be the
+              wrong repair — it makes us the arbiter of which assets may be auctioned,
+              which is a worse property than the one it protects — and the contracts are
+              frozen. The right fix is per-auction balance accounting, measuring what
+              actually arrived, and that is a redesign rather than a patch.
+            </p>
+            <p>
+              <b>Use standard, non-rebasing ERC-20s.</b> STRK and ordinary tokens are fine.
+              If you are listing something unusual, check how it transfers first — the
+              contract will not check for you.
+            </p>
+            <p className="note">
+              The contract supports a lot token and a payment token that differ. The create
+              form here submits the same address for both, which is a simplification of the
+              interface and not of the protocol.
+            </p>
+          </section>
+
           <section id="strk20">
             <h2 className="section">How it uses STRK20</h2>
             <p>
