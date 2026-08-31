@@ -19,6 +19,9 @@ import { planSettlement, verifyPlan } from "../client/src/settle.ts";
 import { AuctionKind } from "../client/src/types.ts";
 
 const NETWORK = process.env.NETWORK ?? "sepolia";
+/* Printed before anything else. A script that reads chain state without naming
+   its chain produces answers that cannot be checked. */
+console.log(`  network    ${NETWORK}${process.env.NETWORK ? " (NETWORK env)" : " (default)"}`);
 const RPC = process.env.STARKNET_RPC ?? {
   sepolia: "https://api.cartridge.gg/x/starknet/sepolia",
   mainnet: "https://api.cartridge.gg/x/starknet/mainnet",

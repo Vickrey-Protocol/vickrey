@@ -11,6 +11,7 @@
  * wrong, just check by hand.
  */
 import { RpcProvider, hash } from "starknet";
+import { resolveNetwork } from "./lib/network.mjs";
 
 const STRK = "0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d";
 const ACCOUNTS = [
@@ -32,7 +33,11 @@ const balance = async (rpc, addr) => {
 
 const MAX_MINUTES = Number(process.env.MINUTES ?? 55);
 /** Which account actually blocks the work. Everything else is only reported. */
-const WAIT_FOR = process.env.WAIT_FOR ?? "mainnet";
+/* Defaulted to mainnet and never said so, which is a watcher that waits forever on the
+   wrong chain while looking like it is working. `WAIT_FOR` still wins if set. */
+const RESOLVED = resolveNetwork();
+const WAIT_FOR = process.env.WAIT_FOR ?? RESOLVED.network;
+console.log(`  watching   ${WAIT_FOR}${process.env.WAIT_FOR ? " (WAIT_FOR)" : ` (${RESOLVED.source})`}`);
 for (let i = 0; i < MAX_MINUTES; i++) {
   const seen = [];
   for (const [net, rpc, addr, need] of ACCOUNTS) {

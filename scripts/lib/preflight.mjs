@@ -55,7 +55,10 @@ const fmt = (n) => n.toFixed(2).padStart(7);
 const id = await rpcCall("starknet_chainId", []);
 if (id !== chainId) fail(`wrong chain: expected ${chainId}, got ${id}`);
 const block = await rpcCall("starknet_blockNumber", []);
-console.log(`  chain        ${id}`);
+/* Decoded, not the raw felt. "0x534e5f4d41494e" and "mainnet" are the same fact and
+   only one of them can be checked at a glance. */
+const CHAIN_NAMES = { "0x534e5f4d41494e": "mainnet", "0x534e5f5345504f4c4941": "sepolia" };
+console.log(`  chain        ${CHAIN_NAMES[id] ?? "unknown"}  (${id})`);
 console.log(`  block        ${block}`);
 
 // ── the pool is the thing we integrate with; if its class moved, our encoding may

@@ -15,11 +15,18 @@
 import { CairoCustomEnum, CallData, RpcProvider } from "starknet";
 import { placeBidActions, claimActions } from "../src/strk20.ts";
 import { AuctionOperation } from "../src/types.ts";
+import { describe, resolveNetwork } from "../../scripts/lib/network.mjs";
 
-const RPC = process.env.STARKNET_RPC ?? "https://api.cartridge.gg/x/starknet/sepolia";
-const POOL =
-  process.env.POOL_ADDRESS ??
-  "0x254a6b2997ef52e9f830ce1f543f6b29768295e8d17e2267d672c552cfe0d91";
+/* RPC and POOL used to be independently overridable, so setting `STARKNET_RPC` to
+   mainnet without also setting `POOL_ADDRESS` queried the *Sepolia* pool address on
+   mainnet — a confident answer about a contract that is not there. They come from one
+   network choice now, and either can still be overridden deliberately. */
+const NET = resolveNetwork();
+const RPC = process.env.STARKNET_RPC ?? NET.rpc;
+const POOL = process.env.POOL_ADDRESS ?? NET.pool;
+console.log(`  network    ${describe(NET)}`);
+console.log(`  rpc        ${RPC}`);
+console.log(`  pool       ${POOL}\n`);
 const STRK = "0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d";
 
 const USER = "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcde";
