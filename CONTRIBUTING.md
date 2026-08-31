@@ -21,6 +21,17 @@ These are not style preferences. Each one is here because skipping it cost somet
    two callers, and only one of them wanted the default — so pass it explicitly at the
    call site that differs (`GRACE_MIN=0`), rather than letting the definition decide for
    both.
+
+   Where the language allows it, **make the field required instead of giving it a
+   default**. `blocking` on `DueAction` says whether an action holds assets with no clock
+   running, and it has no default: adding an action does not compile until somebody
+   answers the question for it. A default of `false` would have been correct for most and
+   silently wrong for the next `seal`-shaped one, and nothing would have asked.
+
+   A default is a decision made once, by whoever wrote the definition, on behalf of every
+   call site that has not been written yet. A required field is the same question asked at
+   each of them. The type system is a cheaper enforcer than discipline and it does not get
+   tired — prefer it wherever the choice genuinely varies.
 3. **Negative tests before happy paths.** `test_negative.cairo` was written first. It
    is the file that says what the system refuses to do, which is the part worth being
    sure about.
@@ -252,6 +263,35 @@ These are not style preferences. Each one is here because skipping it cost somet
     down in the docs that the property is conditional and on what. What is not acceptable
     is quoting the passing invariant as though it covered the counterparty, which is what
     a reader will assume unless told otherwise.
+
+17. **Permission and incentive are two different audits, and the second is invisible to
+    the first.** Ask who *may* act, then ask who *loses* if nobody does.
+
+    `seal` is permissionless from the bid deadline onward, and the action queue offered it
+    only to the auctioneer. The role check caught that and opened it to bidders too, which
+    made the permission model correct: everyone the contract admits could now find the
+    button.
+
+    The seller still could not. Their lot sits in the contract, an auction left `Open` has
+    no path out until somebody seals it, and nothing compels anybody — so the party with
+    the most to lose was the one party never told they could act. Permission-based
+    reachability found the missing *capability*; asking who loses if nobody acts found the
+    missing *person*. Both audits passed on their own terms, and the gap sat between them.
+
+    The second is a different question with a different shape:
+
+    > For every state where someone *could* act but nothing compels them: who bears the
+    > cost of nobody acting, and does the interface tell **that** party they can?
+
+    Run it over every permissionless step and every step with no deadline. It found the
+    seller missing from `seal`, `finalize` and `abandon` — one absent role running through
+    three separate paths, which is what a systematic sweep looks like when it works.
+
+    `check-reachability.mjs` verifies the first automatically, because permission is
+    written down in the Cairo and can be parsed. It cannot verify the second: who has the
+    strongest incentive is a judgement about what people want, and there is nothing to
+    read. It stays a question a person has to ask, which is exactly why it is written
+    down here.
 
 ## Before you push
 
