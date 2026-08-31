@@ -136,15 +136,14 @@ export function DashShell({
 
   return (
     <div className="dash">
-      {/*
-        A collapsed icon rail that widens on hover, in our own CSS. The interaction is
-        the one Aceternity's sidebar demonstrates; none of its implementation is here,
-        because that is Tailwind and Framer Motion and this app is neither.
-
-        It overlays the content rather than pushing it. Animating the grid column would
-        reflow the whole page — tables, the ladder, the action queue — every time a
-        pointer crossed the rail, which is a lot of layout work to pay for a hover.
-      */}
+      {/* The ground's grid. It has never been on the connected dashboard — only on the
+          public routes and this shell's own logged-out states — so this is new rather
+          than restored, but it is the same layer and the same design. */}
+      <div className="backdrop" aria-hidden="true" />
+      {/* Fixed width, always expanded, content laid out beside it. An expand-on-hover
+          rail was tried and reverted: avoiding the reflow meant overlaying the content,
+          and a heading reading "equired" under the expanded rail is a worse outcome than
+          the reflow it was avoiding. */}
       <aside className="dash-side">
         <Wordmark />
 

@@ -821,64 +821,32 @@ button.primary:hover::before { opacity: .9; animation: spinEdge 2.4s linear infi
    product, not a second design.
    ───────────────────────────────────────────────────────────────────────── */
 
-:root { --rail: 4.5rem; --rail-open: 15rem; }
-
+/* A real two-column grid with both children in flow, which is what a fixed sidebar
+   wants and what an expand-on-hover rail cost us. Nothing here is positioned out of
+   flow, so the grid places both columns itself. */
 .dash {
   display: grid;
-  /* The rail's collapsed width is what the layout reserves, permanently. Expanding it
-     on hover overlays the content instead of widening this column — see .dash-side. */
-  grid-template-columns: var(--rail) minmax(0, 1fr);
+  grid-template-columns: 240px minmax(0, 1fr);
   min-block-size: 100dvh;
 }
 
 .dash-side {
-  position: fixed; inset-block: 0; inset-inline-start: 0; z-index: 30;
-  inline-size: var(--rail);
-  display: flex; flex-direction: column; gap: 1.1rem;
-  padding: 1.15rem .85rem;
+  position: sticky; inset-block-start: 0; block-size: 100dvh;
+  display: flex; flex-direction: column; gap: 1.4rem;
+  padding: 1.4rem 1.1rem;
   border-inline-end: 1px solid var(--line);
-  background: #0B1716;
-  overflow: hidden;
-  transition: inline-size .19s cubic-bezier(.2, .7, .3, 1), box-shadow .19s;
-}
-/* `focus-within` matters as much as hover: tabbing into a rail whose labels are
-   invisible would leave a keyboard user reading eight unlabelled icons. */
-.dash-side:hover, .dash-side:focus-within {
-  inline-size: var(--rail-open);
-  box-shadow: 18px 0 48px -24px rgba(0, 0, 0, .8);
+  /* Translucent, so the ground and its grid read through it. Making this opaque for the
+     collapsing rail is what flattened the dashboard. */
+  background: var(--glass);
+  backdrop-filter: blur(14px);
 }
 
-/* Everything inside is laid out at the OPEN width and clipped, so nothing reflows as
-   the rail moves — only the window onto it changes. Animating the children's own
-   widths is what makes this kind of rail judder. */
-.dash-side > * { inline-size: calc(var(--rail-open) - 1.7rem); flex: none; }
-
-.dash-side .wordmark { gap: .55rem; }
-.dash-side .wordmark-text,
-.nav-label,
-.dash-side .dash-group,
-.dash-side .due {
-  opacity: 0; transform: translateX(-.25rem);
-  transition: opacity .14s ease, transform .19s cubic-bezier(.2, .7, .3, 1);
-}
-.dash-side:hover .wordmark-text,
-.dash-side:focus-within .wordmark-text,
-.dash-side:hover .nav-label,
-.dash-side:focus-within .nav-label,
-.dash-side:hover .dash-group,
-.dash-side:focus-within .dash-group,
-.dash-side:hover .due,
-.dash-side:focus-within .due { opacity: 1; transform: none; }
-
-/* Faded, never removed — the label is the accessible name at every width. */
+/* Icons stay; the collapsing did not. Every item is icon plus label at all times, so
+   nothing is faded and nothing needs a parallel set of accessible names. */
 .nav-label { white-space: nowrap; }
 .nav-icon {
   flex: none; display: inline-flex; align-items: center; justify-content: center;
   inline-size: 1.55rem;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .dash-side, .dash-side * { transition: none !important; }
 }
 
 .dash-nav { display: flex; flex-direction: column; gap: .1rem; flex: 1; }
@@ -907,11 +875,10 @@ button.primary:hover::before { opacity: .9; animation: spinEdge 2.4s linear infi
   font-variant-numeric: tabular-nums;
 }
 
-/* Explicitly column 2. `.dash-side` is `position: fixed` so it is no longer a grid
-   item, which left `.dash-main` as the only one in flow — it was being placed in
-   column 1 and laid out inside the 72px rail. The column still exists and still
-   reserves the width; only its occupant had to be named. */
-.dash-main { grid-column: 2; display: flex; flex-direction: column; min-inline-size: 0; }
+/* No explicit placement: both children are in flow, so the grid assigns the columns.
+   That was only needed while the sidebar was `position: fixed` and had stopped being a
+   grid item at all — see rule 13. */
+.dash-main { display: flex; flex-direction: column; min-inline-size: 0; }
 .dash-top {
   position: sticky; inset-block-start: 0; z-index: 5;
   display: flex; align-items: center; justify-content: space-between; gap: 1rem;
@@ -1647,8 +1614,6 @@ button.primary strong { color: inherit; }
 }
 .navsheet-nav a.here { color: var(--ink); background: var(--accent-dim); }
 .navsheet-nav .due { margin-inline-start: auto; }
-/* In the panel there is no collapsed state, so nothing is faded. */
-.navsheet-nav .nav-label { opacity: 1; transform: none; }
 .navsheet-nav hr { border: 0; border-block-start: 1px solid var(--line); margin: .5rem 0; }
 .navsheet-nav .dash-group {
   margin: .4rem 0 .1rem; padding-inline: 0;

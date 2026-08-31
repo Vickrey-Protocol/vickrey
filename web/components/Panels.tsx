@@ -19,6 +19,7 @@ import {
   STRK_DECIMALS, config, countdown, formatUnits, hasAnonymizer, priceAt, utcDate,
 } from "@/lib/config";
 import { markRevealed, saveBid, toPrivateBid, type StoredBid } from "@/lib/vault";
+import { railUsable, submitBlocked } from "@/lib/rails";
 import type { Connection } from "@/lib/wallet";
 import { Ladder } from "./Ladder";
 import { useWallet } from "@/components/WalletProvider";
@@ -69,9 +70,22 @@ export function BidPanel({
 
   const canPrivate = !!connection?.strk20Declared && hasAnonymizer() && strk20Proof !== "failed";
 
+  /* A rail selected before a real call failed would otherwise stay selected after it —
+     the rail's own button greys out and explains itself while the submit button beside
+     it still reads "Bid privately" and still fires. */
+  useEffect(() => {
+    if (!canPrivate && rail === "private") setRail("public");
+  }, [canPrivate, rail]);
+
   async function submit() {
     if (!connection) return setError("Connect a wallet first.");
     if (level === null) return setError("Pick a level on the ladder.");
+    /* Belt and braces with the effect above and the disabled button below: three ways to
+       reach this and only one of them needs to be missed. */
+    if (!railUsable(rail, canPrivate)) {
+      return setError("The private rail is unavailable with this wallet on this network. "
+        + "Switch to the public rail.");
+    }
     if (!(await ensureChain())) return;
     setError(null);
     try {
@@ -295,7 +309,8 @@ export function BidPanel({
           </dl>
 
           <div className="row">
-            <button className="primary" onClick={submit} disabled={!!busy || !connection}>
+            <button className="primary" onClick={submit}
+                    disabled={submitBlocked({ rail, canPrivate, busy: !!busy, connected: !!connection })}>
               {busy ? "Working…" : rail === "private" ? "Bid privately" : "Place sealed bid"}
             </button>
             {/* R5: name the wait before it starts. */}
@@ -483,6 +498,13 @@ export function ClaimPanel({
   const canPrivate = !!connection?.strk20Declared && hasAnonymizer() && strk20Proof !== "failed";
   const [rail, setRail] = useState<Rail>("public");
 
+  /* A rail selected before a real call failed would otherwise stay selected after it —
+     the rail's own button greys out and explains itself while the submit button beside
+     it still says "Bid privately" and still fires. */
+  useEffect(() => {
+    if (!canPrivate && rail === "private") setRail("public");
+  }, [canPrivate, rail]);
+
   /* `undefined` = still reading, `null` = the read failed. Distinguishing them matters:
      one is a spinner and the other has to fall back to offering both calls. */
   const [state, setState] = useState<Record<number, BidState | null | undefined>>({});
@@ -510,6 +532,10 @@ export function ClaimPanel({
 
   async function run(operation: ClaimOperation, stored: StoredBid) {
     if (!connection) return setErr("Connect a wallet first.");
+    if (!railUsable(rail, canPrivate)) {
+      return setErr("The private rail is unavailable with this wallet on this network. "
+        + "Collect on the public rail instead.");
+    }
     if (!(await ensureChain())) return;
     setErr(null); setMsg(null);
     try {
