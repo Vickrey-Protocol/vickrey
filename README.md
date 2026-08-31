@@ -108,6 +108,28 @@ for mainnet, which is why it is read and never hardcoded.
   remaining gap and the only one needing a human at a browser.
 - The helper has never run, because nothing is deployed.
 - Mainnet gas for `settle`, measured rather than estimated.
+### Disclosure — 30 Aug 2026: an endpoint that exposed every revealed bid
+
+The reveal relay at `/api/reveals` had an **unauthenticated read**. `GET
+/api/reveals?auctionId=N` returned every reveal posted for that auction — each carrying
+the bidder's exact level — to anyone who asked, and auction ids are sequential integers.
+For the window between a bidder revealing and the auctioneer settling, every bid amount
+was public. On a project whose claim is that losing bids are never published, that was
+the claim.
+
+It never held a claim secret, so no funds were reachable through it, and it could not
+change an outcome — reveals are re-checked against the anchors on chain. The exposure was
+of information, which is the part that matters here.
+
+Found by auditing the reveal *channel* rather than the contract. The route's own comment
+had reasoned about the write path — "the worst it can do is withhold a reveal" — and
+never asked what the read path returned. No contract audit would have caught it.
+
+**Fixed the same day:** the relay is off unless `REVEAL_RELAY=on`, which production does
+not set; both verbs return 503. Reveals travel by copy-and-paste over a channel the
+bidder picks. Authenticating the read is designed and deliberately unbuilt — see
+[/docs](https://vickrey.0xo.in/docs#disclosure).
+
 ### Answered: which wallets expose STRK20, and where
 
 Measured with `/wallet-check`, which makes a real `strk20Balances([STRK])` call rather

@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { shortString, walletV6 } from "starknet";
 import { readWalletError } from "@vickrey/client";
 import { config } from "@/lib/config";
+import { WAIT, withTimeout } from "@/lib/waiting";
 import {
   availableWallets, connect as connectWallet, forgetWallet, injectedWalletHints, reconnect,
   rememberWallet, waitForAnyWallet, waitForWallet,
@@ -31,7 +32,16 @@ export const CHAIN_ID = {
   mainnet: "0x534e5f4d41494e",
   sepolia: "0x534e5f5345504f4c4941",
 } as const;
+/** Friendly names for the chains we know, so one side of a sentence is not "SN_MAIN"
+ *  while the other reads "Sepolia (rehearsal)". Anything unknown falls back to the
+ *  decoded short string, which is still better than a felt. */
+const FRIENDLY: Record<string, string> = {
+  "0x534e5f4d41494e": "Starknet mainnet",
+  "0x534e5f5345504f4c4941": "Sepolia",
+};
+
 export const chainName = (id: string | null) => {
+  if (id && FRIENDLY[id]) return FRIENDLY[id]!;
   if (!id) return "unknown";
   try { return shortString.decodeShortString(id); } catch { return id; }
 };
@@ -108,6 +118,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
    */
   const [wrongChain, setWrongChain] = useState<string | null>(null);
   const [switching, setSwitching] = useState(false);
+  /** What to say when the ask did not end with the wallet on the right chain. */
+  const [switchNote, setSwitchNote] = useState<string | null>(null);
   const [walletChain, setWalletChain] = useState<string | null>(null);
   /** Set when a connect attempt found nothing to connect to. `hints` names any extension
    *  that put something on `window` without announcing itself. */
@@ -155,7 +167,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           setConnection(c);
           const w = await waitForWallet(c.walletName).catch(() => null);
           if (w) {
-            const id = await walletV6.requestChainId(w as never).catch(() => null);
+            const got = await withTimeout(walletV6.requestChainId(w as never), WAIT.read);
+            const id = got.outcome === "answered" ? got.value : null;
             if (id && id !== CHAIN_ID[config.network]) setWrongChain(id);
           }
         }
@@ -171,7 +184,12 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
          snapshot taken too early answers "no wallet", which here reads as "will not say
          which chain it is on" and silently skips the mismatch guard. */
       const w = connection?.walletName ? await waitForWallet(connection.walletName) : null;
-      const id = w ? await walletV6.requestChainId(w as never) : null;
+      if (!w) { setWalletChain(null); return null; }
+      const got = await withTimeout(walletV6.requestChainId(w as never), WAIT.read);
+      /* Rule 11 again: no answer is not "on the wrong chain", and it is not "on the right
+         one" either. Null means unknown, and `ensureChain` already lets unknown through
+         rather than blocking a wallet that simply does not report. */
+      const id = got.outcome === "answered" ? got.value : null;
       setWalletChain(id);
       return id;
     } catch { setWalletChain(null); return null; }
@@ -180,6 +198,51 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   /* Read once on connect and after a switch. The wrong-chain banner is dismissible, so
      it cannot double as "which network is the wallet on" for the wallet menu. */
   useEffect(() => { if (connection) void readChain(); }, [connection, readChain]);
+
+  /**
+   * The wallet telling us it moved, which is the answer that does not depend on our
+   * request being replied to.
+   *
+   * `subscribeWalletEvent` maps the legacy `networkChanged` / `accountsChanged` events
+   * onto the standard "change" event. It covers the case our own promise cannot: the user
+   * switching network in the extension directly, with no request of ours outstanding.
+   */
+  useEffect(() => {
+    if (!connection) return;
+    let live = true;
+    let stop: (() => void) | undefined;
+    void (async () => {
+      const w = await waitForWallet(connection.walletName).catch(() => null);
+      if (!w || !live) return;
+      try {
+        stop = walletV6.subscribeWalletEvent(w as never, () => { void readChain(); });
+      } catch { /* a wallet without the events feature; the re-check below covers it */ }
+    })();
+    return () => { live = false; stop?.(); };
+  }, [connection, readChain]);
+
+  /**
+   * A bounded re-check, and only while the mismatch modal is actually on screen.
+   *
+   * Not blind polling: it runs when a modal is telling the user to go and change
+   * something, which is exactly the window in which they will, and it stops the moment
+   * the chain is right. A wallet that neither replies to the request nor emits an event
+   * would otherwise leave the modal up over a wallet that had already moved.
+   */
+  useEffect(() => {
+    if (!wrongChain || !connection) return;
+    const t = setInterval(() => { void readChain(); }, 2_500);
+    return () => clearInterval(t);
+  }, [wrongChain, connection, readChain]);
+
+  /* One place decides the modal is done, so every route to the right chain closes it —
+     our button, the wallet's event, the re-check, or a reconnect. */
+  useEffect(() => {
+    if (walletChain && walletChain === CHAIN_ID[config.network]) {
+      setWrongChain(null);
+      setSwitchNote(null);
+    }
+  }, [walletChain]);
 
   /**
    * The account's shielded balance, and the one number this app asks the wallet for.
@@ -216,7 +279,17 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     setShieldedErr(null);
     setShieldedPending(true);
     try {
-      const entries = await connection.account.strk20Balances([config.strkAddress]);
+      const got = await withTimeout(
+        connection.account.strk20Balances([config.strkAddress]), WAIT.balance);
+      if (got.outcome === "no-answer") {
+        /* Not a failure and not a refusal — see lib/waiting.ts. `strk20Proof` stays
+           untouched, because silence proves nothing about the capability either way. */
+        setShieldedErr("Your wallet has not answered. If a prompt is waiting in the "
+          + "extension, approve it and try again.");
+        return;
+      }
+      if (got.outcome === "failed") throw got.error;
+      const entries = got.value;
       const hit = entries.find((e) => BigInt(e.token) === BigInt(config.strkAddress))
         ?? entries[0];
       setShielded(hit ? BigInt(hit.balance) : 0n);
@@ -253,15 +326,49 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     return false;
   }, [connection, readChain]);
 
+  /**
+   * Asks the wallet to move, and never waits forever for an answer.
+   *
+   * Ready X approved the switch and did not resolve `wallet_switchStarknetChain`. The
+   * `await` never returned, so the `finally` that clears `switching` never ran and the
+   * modal stayed on "Asking the wallet…" — while the wallet was already on the right
+   * chain. The switch is bounded now, and silence is reported as silence rather than as
+   * a refusal.
+   *
+   * Whether it resolved or not, the chain gets re-read: a wallet that answers late is
+   * indistinguishable from one that never answers, and both end with the same question.
+   */
   const switchChain = useCallback(async () => {
     setSwitching(true);
+    setSwitchNote(null);
     try {
       const w = connection?.walletName ? await waitForWallet(connection.walletName) : null;
-      if (w) await walletV6.switchStarknetChain(w as never, CHAIN_ID[config.network]);
+      if (!w) { setSwitchNote("Could not reach the wallet to ask."); return; }
+
+      const asked = await withTimeout(
+        walletV6.switchStarknetChain(w as never, CHAIN_ID[config.network]),
+        WAIT.switch,
+      );
+
       const id = await readChain();
-      if (!id || id === CHAIN_ID[config.network]) setWrongChain(null);
-    } catch { /* the banner stays up; the wallet refused */ }
-    finally { setSwitching(false); }
+      if (!id || id === CHAIN_ID[config.network]) { setWrongChain(null); return; }
+
+      if (asked.outcome === "no-answer") {
+        setSwitchNote(
+          "We asked, and your wallet has not confirmed. Check for a pending prompt in the "
+          + "extension — some wallets switch without replying to the request, in which "
+          + "case this closes on its own once they report the new network.",
+        );
+      } else if (asked.outcome === "failed") {
+        setSwitchNote("Your wallet declined the switch. You can change network in the "
+          + "extension instead.");
+      } else {
+        setSwitchNote("Your wallet reported the switch, but still says it is on "
+          + `${chainName(id)}. Changing network in the extension usually settles it.`);
+      }
+    } finally {
+      setSwitching(false);
+    }
   }, [connection?.walletName, readChain]);
 
   /**
@@ -303,7 +410,14 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     setConnecting(true);
     setError(null);
     try {
-      const c = await connectWallet(w);
+      const got = await withTimeout(connectWallet(w), WAIT.connect);
+      if (got.outcome === "no-answer") {
+        setError("Your wallet has not answered the connection request. Check for a "
+          + "pending prompt in the extension, then try again.");
+        return;
+      }
+      if (got.outcome === "failed") throw got.error;
+      const c = got.value;
       setConnection(c);
       rememberWallet(c.walletName);
       // Checked on connect too, so the mismatch is visible before anything is attempted.
@@ -349,19 +463,33 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           <div className="picker">
             <p className="eyebrow">Wrong network</p>
             <p style={{ margin: ".5rem 0 0" }}>
-              This app is reading <b>{config.label}</b>. Your wallet is on{" "}
-              <b>{chainName(wrongChain)}</b>.
+              {/* Both halves friendly. One side read "Sepolia (rehearsal)" and the other
+                  "SN_MAIN" in the same sentence, which made them look like different
+                  kinds of thing. */}
+              This app is reading <b>{FRIENDLY[CHAIN_ID[config.network]] ?? config.label}</b>.
+              Your wallet is on <b>{chainName(wrongChain)}</b>.
             </p>
             <p className="note" style={{ marginTop: ".5rem" }}>
               Nothing has been signed. Signing from the wrong network fails inside the
               wallet after you have approved it, which is a worse place to find out.
             </p>
+            {switchNote && (
+              /* Shown when the ask did not end with the wallet on the right chain. It
+                 never claims a refusal it cannot see — silence is reported as silence. */
+              <p className="note" style={{ marginTop: ".6rem" }}>{switchNote}</p>
+            )}
             <div className="row" style={{ gap: ".6rem", marginTop: "1.1rem" }}>
               <button className="primary" onClick={() => void switchChain()} disabled={switching}>
-                {switching ? "Asking the wallet…" : `Switch to ${config.label}`}
+                {switching
+                  ? "Asking the wallet…"
+                  : `Switch to ${FRIENDLY[CHAIN_ID[config.network]] ?? config.label}`}
               </button>
               <button onClick={() => setWrongChain(null)}>Dismiss</button>
             </div>
+            <p className="note" style={{ marginTop: ".7rem" }}>
+              You can also change network in the extension — this closes itself either
+              way, as soon as your wallet reports the new one.
+            </p>
           </div>
         </div>
       )}

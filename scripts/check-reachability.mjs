@@ -12,6 +12,17 @@
  *   every external entrypoint is either reached by the app, or declared here as
  *   deliberately not user-facing, with a reason.
  *
+ * And a second, because the first one passed while a real gap was open. `seal` and
+ * `finalize` have no caller check in the contract — anyone may call them, which is what
+ * stops an auctioneer stalling an auction by refusing to seal it — but the action queue
+ * offered both only to the auctioneer. The entrypoint was reachable; it was not
+ * reachable *by the person who needs it*. Reachability alone cannot see that, so:
+ *
+ *   for every entrypoint, the role the UI offers it to matches the role the contract
+ *   admits.
+ *
+ * The contract side is read from the Cairo rather than declared, so it cannot drift.
+ *
  * Adding an entrypoint therefore forces a decision. Forgetting to wire one up fails the
  * build; deciding it should not be wired up costs one line and an explanation.
  *
@@ -36,6 +47,47 @@ const NOT_USER_FACING = {
     "Callable only by the STRK20 pool — the helper asserts the caller. A user reaches it " +
     "indirectly by bidding on the private rail; a button would be a call that always reverts.",
 };
+
+/**
+ * Who the interface offers each entrypoint to. Declared, because no static read of React
+ * can tell you who a button is *for* — and asserted below against what the contract
+ * actually restricts, so a mismatch in either direction fails.
+ *
+ *   "anyone"     — no caller check in the contract; the app must not narrow it
+ *   "auctioneer" — the contract asserts `get_caller_address() == config.auctioneer`
+ *   "holder"     — gated on holding the bid's claim secret, not on an address
+ */
+const UI_ROLE = {
+  create_auction: "anyone",
+  place_bid: "anyone",
+  seal: "anyone",
+  settle: "auctioneer",
+  dispute: "anyone",
+  finalize: "anyone",
+  abandon: "anyone",
+  claim_refund: "holder",
+  redeem_forfeit: "holder",
+  claim_lot: "holder",
+};
+
+/**
+ * What the Cairo actually restricts: an entrypoint is auctioneer-only exactly when its
+ * body asserts the caller against `config.auctioneer`.
+ */
+function contractRoles(src) {
+  const roles = {};
+  const re = /fn\s+(\w+)\s*\(\s*ref self: ContractState/g;
+  const starts = [];
+  for (let m; (m = re.exec(src)); ) starts.push([m[1], m.index]);
+  for (let i = 0; i < starts.length; i++) {
+    const [name, at] = starts[i];
+    const body = src.slice(at, i + 1 < starts.length ? starts[i + 1][1] : src.length);
+    roles[name] = /get_caller_address\(\)\s*==\s*config\.auctioneer/.test(body)
+      ? "auctioneer"
+      : "anyone";
+  }
+  return roles;
+}
 
 /** Views are reads. They are reachable by definition or the pages would not render. */
 const isExternal = (fn) => fn.state_mutability !== "view";
@@ -130,4 +182,47 @@ if (unreachable) {
   );
   process.exit(1);
 }
-console.log("\n  every external entrypoint is reachable, or declared as not user-facing.");
+/* ── roles ──────────────────────────────────────────────────────────────────
+   Reachability said yes to `seal` and `finalize` while the queue offered both only to
+   the auctioneer, and the contract restricts neither. Reached-by-someone is not
+   reached-by-whoever-needs-it. */
+const cairo = readFileSync("packages/auction/src/auction.cairo", "utf8");
+const actual = contractRoles(cairo);
+const roleProblems = [];
+
+console.log("\n  entrypoint            contract allows   UI offers to\n");
+for (const { fn } of entrypoints()) {
+  if (NOT_USER_FACING[fn]) continue;
+  const allows = actual[fn];
+  const offers = UI_ROLE[fn];
+  if (!offers) {
+    roleProblems.push(`${fn}: no UI_ROLE declared — say who this is for.`);
+    continue;
+  }
+  if (allows === undefined) continue;   // not on the auction contract
+  /* `holder` is a claim-secret gate rather than an address one, and the contract's own
+     check is the commitment, not the caller — so "anyone" on both sides is the match. */
+  const narrowed = allows === "anyone" && offers === "auctioneer";
+  const widened = allows === "auctioneer" && offers !== "auctioneer";
+  const mark = narrowed || widened ? "FAIL " : "ok   ";
+  console.log(`  ${mark} ${fn.padEnd(16)} ${String(allows).padEnd(17)} ${offers}`);
+  if (narrowed) {
+    roleProblems.push(
+      `${fn}: the contract lets anyone call it, the app offers it only to the auctioneer. ` +
+      `Permissionless steps exist so nobody can stall an auction; hiding them defeats that.`);
+  }
+  if (widened) {
+    roleProblems.push(
+      `${fn}: the contract restricts this to the auctioneer, the app offers it to ${offers}. ` +
+      `That is a button that reverts for everyone else.`);
+  }
+}
+
+if (roleProblems.length) {
+  console.log("\n  ROLE MISMATCH\n");
+  for (const p of roleProblems) console.log(`    ${p}`);
+  console.log("");
+  process.exit(1);
+}
+
+console.log("\n  every external entrypoint is reachable, by a role the contract admits.");

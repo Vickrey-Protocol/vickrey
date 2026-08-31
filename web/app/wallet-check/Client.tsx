@@ -8,6 +8,7 @@ import {
   REAL_READ_LABEL, reachabilityAnswered, reachabilityRejected, realReadFailed, realReadPassed,
 } from "@/lib/walletCheck";
 import { availableWallets, injectedWalletHints, waitForAnyWallet } from "@/lib/wallet";
+import { WAIT, withTimeout } from "@/lib/waiting";
 import { STRK_DECIMALS, config, formatUnits } from "@/lib/config";
 import { PublicShell } from "@/components/PublicShell";
 import { useWallet } from "@/components/WalletProvider";
@@ -160,7 +161,10 @@ export default function Client() {
 
       /* 1. The call the app actually makes. */
       try {
-        const entries = await call.call(acct, [config.strkAddress]);
+        const got = await withTimeout(call.call(acct, [config.strkAddress]), WAIT.balance);
+        if (got.outcome === "no-answer") throw new Error("no answer from the wallet");
+        if (got.outcome === "failed") throw got.error;
+        const entries = got.value;
         setBalProbe(realReadPassed(Array.isArray(entries) ? entries.length : 0, onNet));
       } catch (e) {
         setBalProbe(realReadFailed(e, onNet));
@@ -169,7 +173,9 @@ export default function Client() {
       /* 2. The old probe, kept so the discrepancy is visible rather than inferred. Its
             verdict is written separately on purpose — see lib/walletCheck.ts. */
       try {
-        await call.call(acct);
+        const reach = await withTimeout(call.call(acct), WAIT.balance);
+        if (reach.outcome === "failed") throw reach.error;
+        if (reach.outcome === "no-answer") throw new Error("no answer from the wallet");
         setReachProbe(reachabilityAnswered());
       } catch (e) {
         setReachProbe(reachabilityRejected(e));
@@ -192,8 +198,13 @@ export default function Client() {
       const ws = await availableWallets();
       const w = ws.find((x) => x.name === connection.walletName) ?? ws[0];
       if (!w) return;
-      await walletV6.switchStarknetChain(w as never, CHAIN_ID[config.network]);
-      setWalletChain(await walletV6.requestChainId(w as never));
+      /* Bounded, and the read happens whether or not the switch replied — a wallet that
+         moves without answering the request is the failure this page exists to surface,
+         not one it should hang on. */
+      await withTimeout(
+        walletV6.switchStarknetChain(w as never, CHAIN_ID[config.network]), WAIT.switch);
+      const after = await withTimeout(walletV6.requestChainId(w as never), WAIT.read);
+      setWalletChain(after.outcome === "answered" ? after.value : null);
     } catch (e) {
       setWalletChain(`refused: ${e instanceof Error ? e.message : String(e)}`);
     } finally { setSwitching(false); }

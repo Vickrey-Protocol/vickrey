@@ -19,6 +19,7 @@ const SECTIONS = [
   ["escrow", "Escrow, silence, and exclusion"],
   ["strk20", "How it uses STRK20"],
   ["reveal", "The reveal channel"],
+  ["disclosure", "Disclosure: the relay"],
   ["lifecycle", "Lifecycle and time gates"],
   ["unshipped", "What didn't ship"],
   ["source", "Source, tests, runbook"],
@@ -549,8 +550,67 @@ down_anchor = step^(P−1−ℓ)    a depth-(P−1−t) preimage proves  ℓ ≤
           </section>
 
           {/* ── 6 ─────────────────────────────────────────────────────────── */}
+          <section id="disclosure">
+            <h2>Disclosure: we shipped an endpoint that exposed every revealed bid</h2>
+            <p className="note">Found and fixed 30 August 2026.</p>
+            <p>
+              The reveal relay described above had a read endpoint —{" "}
+              <code>GET /api/reveals?auctionId=N</code> — with <b>no authentication of any
+              kind</b>. It returned every reveal posted for that auction, each carrying the
+              bidder&rsquo;s exact level, in plaintext, to anyone who asked. Auction ids are
+              sequential integers, so finding them required no guessing worth the name.
+            </p>
+            <p>
+              For the window between a bidder revealing and the auctioneer settling, on any
+              auction whose bidders used the relay, <b>every bid amount was public</b> — on
+              a site whose central claim is that losing bids are never published. The chain
+              never held those amounts. We did.
+            </p>
+
+            <h3>What was affected, and what was not</h3>
+            <p>
+              Only reveals posted through the relay, and only after sealing. It never held
+              a claim secret, so no funds were ever reachable through it, and it could not
+              alter an outcome: every reveal is re-checked against the anchors the chain
+              stores. The exposure was of information, not of money — but the information
+              is the product.
+            </p>
+
+            <h3>How it was found</h3>
+            <p>
+              By auditing the reveal <i>channel</i> rather than the contract, after a
+              lifecycle review asked where <code>{"{ index, seed, level }"}</code> actually
+              goes. The route&rsquo;s own comment claimed &ldquo;the worst it can do is
+              withhold a reveal&rdquo; — reasoning carefully about the write path and never
+              asking what the read path exposed. Every contract audit we had run would have
+              passed, because the defect was not in the contract.
+            </p>
+
+            <h3>What changed</h3>
+            <p>
+              The relay is disabled unless <code>REVEAL_RELAY=on</code>, which production
+              does not set; both verbs return 503 with an explanation. Reveals travel by
+              copy-and-paste over a channel the bidder chooses, which was always the durable
+              path. Authenticating the read is designed and deliberately not built — see
+              below.
+            </p>
+          </section>
+
           <section id="unshipped">
             <h2 className="section">What didn&rsquo;t ship</h2>
+            <h3>Authenticated reads on the reveal relay</h3>
+            <p>
+              Designed, not built, deliberately. The auctioneer would sign a challenge and
+              the route would verify it against the auction&rsquo;s <code>auctioneer</code>
+              address via <code>is_valid_signature</code>. It is perhaps sixty lines.
+            </p>
+            <p className="note">
+              It is not built because an authentication scheme written under deadline, on
+              the one path that carries bid amounts, is the wrong thing to rush — and
+              because copy-and-paste already works and leaks nothing to us. The relay
+              stays off. See the disclosure above.
+            </p>
+
             <p>
               An entry that states its own gaps is worth more than one that hides them.
             </p>

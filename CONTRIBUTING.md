@@ -85,6 +85,19 @@ These are not style preferences. Each one is here because skipping it cost somet
    an entrypoint forces the decision; forgetting to wire one up fails CI. Running it the
    first time immediately found a second instance — a public-rail bidder could not claim
    their own refund, because the claim panel only offered the STRK20 path.
+
+    **And reachable is not reachable *by the right person*.** `seal` and `finalize` have
+    no caller check — anyone may call them, which is exactly what stops an auctioneer
+    stalling an auction by refusing to seal it. The action queue offered both only to the
+    auctioneer, so a bidder waiting on a stalled auction was never told they could move
+    it themselves. The guarantee existed in the contract and was unreachable by the
+    person it exists for, and `check-reachability.mjs` passed, because something in the
+    app did call them.
+
+    It now checks the second property too: for every entrypoint, the role the UI offers
+    it to against the role the contract admits, with the contract side read from the
+    Cairo so it cannot drift. Narrowing a permissionless step fails, and so does widening
+    a restricted one — the latter is a button that reverts for everyone else.
 10. **A truthiness guard on a number is not a boolean.** `tick && 0` evaluates to `0`,
     not `false`, and `0 && x` short-circuits to `0` rather than running `x`.
 
@@ -191,6 +204,32 @@ These are not style preferences. Each one is here because skipping it cost somet
     So: `git log -S`, or walk the revisions and count. It costs a minute, it is the same
     habit as reading the chain instead of the docs, and the premise being wrong is common
     enough to be worth checking every time.
+
+15. **Examining one direction of a path is not examining the path.** Ask what each
+    direction *exposes*, not only what it *accepts*.
+
+    `/api/reveals` shipped with a careful docstring reasoning about the write path: what
+    a bidder could post, when they could post it, why a forged reveal is caught by the
+    anchors on chain. It concluded "the worst it can do is withhold a reveal". Nobody
+    asked the other question. `GET /api/reveals?auctionId=N` had no authentication at
+    all and returned every revealed bid amount in plaintext, at a URL whose only
+    parameter is a sequential integer — on a project whose claim is that losing bids are
+    never published.
+
+    One direction was examined in detail and the other was assumed to inherit its
+    safety. It is the same shape as rule 8: there, every `pull` was covered by tests and
+    every `push` was invisible, and both defects were about where money went on the way
+    *out*. Entries get scrutinised because they are where input arrives and where you
+    imagine an attacker. Exits are where the leak is.
+
+    So, for anything with two directions — a route, a channel, a store, a contract —
+    write down what each end gives to whom, and who is allowed to be at each end. A
+    handler with no auth check has an answer to that question whether or not anyone wrote
+    it down.
+
+    The corollary is where to audit. The contract had been reviewed repeatedly; this was
+    never going to be found there, because it was not there. **Audit the channels between
+    the parts, not only the parts.**
 
 ## Before you push
 
