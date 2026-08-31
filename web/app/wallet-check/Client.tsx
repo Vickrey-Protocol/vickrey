@@ -7,7 +7,7 @@ import { probeMissing } from "@vickrey/client";
 import {
   REAL_READ_LABEL, reachabilityAnswered, reachabilityRejected, realReadFailed, realReadPassed,
 } from "@/lib/walletCheck";
-import { availableWallets } from "@/lib/wallet";
+import { availableWallets, injectedWalletHints, waitForAnyWallet } from "@/lib/wallet";
 import { STRK_DECIMALS, config, formatUnits } from "@/lib/config";
 import { PublicShell } from "@/components/PublicShell";
 import { useWallet } from "@/components/WalletProvider";
@@ -51,7 +51,17 @@ export default function Client() {
   const [walletChain, setWalletChain] = useState<string | null>(null);
   const [switching, setSwitching] = useState(false);
 
-  useEffect(() => { void availableWallets().then((w) => setDetected(w.map((x) => x.name))); }, []);
+  /* Waited for, not snapshotted. Discovery is an announcement protocol, so reading the
+     store on mount reports "none" for a browser that has a wallet which has not replied
+     yet — and reporting that on the page whose entire job is telling you what you have
+     is the worst place in the app to get it wrong. */
+  const [detecting, setDetecting] = useState(true);
+  useEffect(() => {
+    void waitForAnyWallet().then((w) => {
+      setDetected(w.map((x) => x.name));
+      setDetecting(false);
+    });
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -245,7 +255,15 @@ export default function Client() {
           </>
         ) : (
           <p className="note">
-            Detected in this browser: {detected.length ? <b>{detected.join(", ")}</b> : "none"}
+            Detected in this browser:{" "}
+            {detecting ? "looking…"
+              : detected.length ? <b>{detected.join(", ")}</b>
+              /* Something on `window` that never announced is a different state with a
+                 different fix — usually locked, or too old for wallet-standard
+                 discovery — so it is not reported as "none". */
+              : injectedWalletHints().length
+                ? <b>none answered, though something is installed ({injectedWalletHints().join(", ")})</b>
+                : "none"}
           </p>
         )}
         {!connection ? (

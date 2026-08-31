@@ -123,6 +123,65 @@ export const rememberedWallet = (): string | null => {
 };
 
 /**
+ * Waits for *any* wallet to announce itself, rather than snapshotting.
+ *
+ * Same announcement race as `waitForWallet`, and the same rule: an empty list on a cold
+ * click means "nobody has replied yet", not "nothing is installed". Concluding the second
+ * from the first is how a user with Xverse installed gets told they have no wallet.
+ *
+ * Resolves the moment the first wallet appears, so the common case costs nothing.
+ */
+export function waitForAnyWallet(timeoutMs = 1200): Promise<WalletWithStarknetFeatures[]> {
+  return new Promise((resolve) => {
+    void (async () => {
+      const { createStore } = await import("@starknet-io/get-starknet-discovery");
+      const store = createStore();
+
+      let done = false;
+      const finish = (w: WalletWithStarknetFeatures[]) => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        stop?.();
+        resolve(w);
+      };
+
+      const timer = setTimeout(() => finish(store.getWallets()), timeoutMs);
+      const stop = store.subscribe((wallets) => {
+        if (wallets.length) finish([...wallets]);
+      });
+
+      store._refreshInjectedWallets();
+      const now = store.getWallets();
+      if (now.length) finish(now);
+    })();
+  });
+}
+
+/**
+ * Extensions that put something on `window` but never announced through the standard.
+ *
+ * The distinction is worth drawing because the fixes differ: nothing installed means
+ * install one, whereas something installed and silent usually means it is locked, or
+ * disabled for this site, or predates the wallet-standard discovery this app uses. Told
+ * the wrong one, a user with a locked wallet goes and installs a second.
+ *
+ * Names only — never the objects, which are wallet APIs we have no business touching
+ * before the user has chosen one.
+ */
+export function injectedWalletHints(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    return Object.keys(window)
+      .filter((k) => /^starknet(_|$)/i.test(k))
+      .map((k) => k.replace(/^starknet_?/i, "") || "starknet")
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Re-attaches to an already-authorised wallet without any prompt.
  *
  * `silent_mode` tells the wallet not to show its unlock UI for a locked wallet, nor its

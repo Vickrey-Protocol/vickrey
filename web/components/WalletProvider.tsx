@@ -3,13 +3,14 @@
 import {
   createContext, useCallback, useContext, useEffect, useMemo, useRef, useState,
 } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { shortString, walletV6 } from "starknet";
 import { readWalletError } from "@vickrey/client";
 import { config } from "@/lib/config";
 import {
-  availableWallets, connect as connectWallet, forgetWallet, reconnect, rememberWallet,
-  waitForWallet,
+  availableWallets, connect as connectWallet, forgetWallet, injectedWalletHints, reconnect,
+  rememberWallet, waitForAnyWallet, waitForWallet,
   rememberedWallet, type Connection,
 } from "@/lib/wallet";
 import type { WalletWithStarknetFeatures } from "@starknet-io/get-starknet-wallet-standard/features";
@@ -108,6 +109,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [wrongChain, setWrongChain] = useState<string | null>(null);
   const [switching, setSwitching] = useState(false);
   const [walletChain, setWalletChain] = useState<string | null>(null);
+  /** Set when a connect attempt found nothing to connect to. `hints` names any extension
+   *  that put something on `window` without announcing itself. */
+  const [noWallet, setNoWallet] = useState<{ hints: string[] } | null>(null);
   /* Session-only, deliberately: see `requestShielded`. */
   const [shielded, setShielded] = useState<bigint | null>(null);
   const [shieldedPending, setShieldedPending] = useState(false);
@@ -260,18 +264,37 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     finally { setSwitching(false); }
   }, [connection?.walletName, readChain]);
 
+  /**
+   * Opens the picker, or explains why there is nothing to pick.
+   *
+   * With no extension installed this used to set an `error` string that the public
+   * masthead never rendered — so the button did nothing at all, in silence. A judge
+   * without a Starknet wallet clicks Connect, sees no response, and concludes the site is
+   * broken. The explanation is a panel rendered by this provider rather than a message
+   * each caller has to remember to display, which is what let one caller forget.
+   *
+   * It also waits. Discovery is an announcement protocol, so an empty list on a cold
+   * click is "nobody has replied yet", and flashing "no wallet found" at someone who has
+   * one is the same defect as the reconnect that forgot a locked wallet — Rule 11.
+   */
   const connect = useCallback(async (goTo?: string) => {
     goToRef.current = goTo ?? null;
     setError(null);
+    setNoWallet(null);
+    setConnecting(true);
     try {
-      const found = await availableWallets();
+      const found = await waitForAnyWallet();
       if (found.length === 0) {
-        setError("No Starknet wallet detected in this browser.");
+        /* Something on `window` but nothing announced is a different problem with a
+           different fix, so the two are not collapsed into one message. */
+        setNoWallet({ hints: injectedWalletHints() });
         return;
       }
       setChoices(found);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setConnecting(false);
     }
   }, []);
 
@@ -342,6 +365,73 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       )}
+      {noWallet && (
+        /* Rendered here rather than by each caller. The masthead's Connect button set an
+           error string that only the dashboard gate knew how to display, so on the public
+           site the click produced nothing at all. */
+        <div className="picker-veil" role="dialog" aria-modal="true"
+             aria-label="No Starknet wallet found" onClick={() => setNoWallet(null)}>
+          <div className="picker" onClick={(e) => e.stopPropagation()}>
+            <p className="eyebrow">
+              {noWallet.hints.length ? "A wallet is installed but did not answer" : "No Starknet wallet found"}
+            </p>
+
+            {noWallet.hints.length ? (
+              <>
+                <p style={{ margin: ".5rem 0 0" }}>
+                  Something Starknet-shaped is in this browser
+                  {noWallet.hints.length <= 3 ? ` (${noWallet.hints.join(", ")})` : ""}, but it
+                  did not respond to the discovery request.
+                </p>
+                <p className="note" style={{ marginTop: ".5rem" }}>
+                  Usually that means it is <b>locked</b>, or disabled for this site, or too
+                  old for the wallet standard this app uses. Unlock it and try again — this
+                  needs Wallet API 0.10.3 or later for the private rail.
+                </p>
+              </>
+            ) : (
+              <>
+                <p style={{ margin: ".5rem 0 0" }}>
+                  Bidding needs a Starknet wallet extension. Two support the STRK20 privacy
+                  pool this app uses:
+                </p>
+                <div className="stack" style={{ gap: ".5rem", marginTop: ".9rem" }}>
+                  <a className="rail" href="https://www.xverse.app/download" target="_blank"
+                     rel="noreferrer">
+                    <span className="rail-name">Xverse <span className="rail-tag">recommended</span></span>
+                    <span className="note">
+                      The only wallet we have measured working on both Sepolia and mainnet.
+                    </span>
+                  </a>
+                  <a className="rail" href="https://www.ready.co/download" target="_blank"
+                     rel="noreferrer">
+                    <span className="rail-name">Ready</span>
+                    <span className="note">
+                      Works on mainnet. Its Sepolia pool reads fail, so the private rail is
+                      unavailable on testnet.
+                    </span>
+                  </a>
+                </div>
+              </>
+            )}
+
+            {/* The important half: nothing about reading this site needs a wallet, and a
+                visitor who came to check a claim can check all of it. */}
+            <p className="note" style={{ marginTop: "1rem" }}>
+              <b>You do not need one to look.</b> Every auction, every proof and every
+              clearing price is public and readable without connecting anything.
+            </p>
+            <div className="row" style={{ gap: ".6rem", marginTop: "1rem", flexWrap: "wrap" }}>
+              <Link className="primary" href="/auctions" onClick={() => setNoWallet(null)}
+                    style={{ textDecoration: "none" }}>
+                Browse auctions
+              </Link>
+              <button onClick={() => setNoWallet(null)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {choices && (
         <div className="picker-veil" role="dialog" aria-modal="true" aria-label="Choose a wallet"
              onClick={() => setChoices(null)}>

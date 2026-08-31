@@ -366,7 +366,11 @@ h2.section { font-size: var(--s-3); margin-block: 1.3rem .7rem; }
 @keyframes wipe { to { transform: scaleX(1); } }
 
 /* ── controls ───────────────────────────────────────────────────────── */
-button, .btn {
+/* `a.primary` is here because three links are styled as primary buttons — the action
+   queue's CTA among them — and `:is(button, a).primary` is element-scoped, so all three rendered
+   as plain underlined text. Rule 13's cousin: the selector was doing less than it read
+   as doing. */
+button, .btn, a.primary {
   font: inherit; font-size: var(--s--1); font-weight: 600; letter-spacing: .02em;
   padding: .55rem 1rem; border-radius: 10px; border: 1px solid var(--line);
   background: var(--glass-2); color: var(--ink); cursor: pointer;
@@ -374,11 +378,13 @@ button, .btn {
 }
 button:hover:not(:disabled) { border-color: var(--accent-edge); }
 button:disabled { opacity: .42; cursor: not-allowed; }
-button.primary {
+:is(button, a).primary {
+  display: inline-flex; align-items: center; justify-content: center;
+  text-decoration: none;
   background: var(--accent); color: #17100E; border-color: transparent;
   box-shadow: 0 6px 18px -8px rgba(226, 81, 60, .7);
 }
-button.primary:hover:not(:disabled) { filter: brightness(1.07); }
+:is(button, a).primary:hover:not(:disabled) { filter: brightness(1.07); }
 
 label { display: block; font-size: var(--s--1); color: var(--muted); margin-block-end: .25rem; }
 input, select, textarea {
@@ -770,21 +776,21 @@ footer {
 /* A travelling ember edge on the primary action. Restyled from the
    hover-border-gradient idea; the fill stays solid so the label never loses
    contrast. */
-button.primary { position: relative; }
-button.primary::before {
+:is(button, a).primary { position: relative; }
+:is(button, a).primary::before {
   content: "";
   position: absolute; inset: -1px; border-radius: inherit; z-index: -1;
   background: conic-gradient(from var(--a, 0deg),
     transparent 0deg, var(--ember) 40deg, transparent 110deg, transparent 360deg);
   opacity: 0; transition: opacity .3s ease;
 }
-button.primary:hover::before { opacity: .9; animation: spinEdge 2.4s linear infinite; }
+:is(button, a).primary:hover::before { opacity: .9; animation: spinEdge 2.4s linear infinite; }
 @property --a { syntax: "<angle>"; initial-value: 0deg; inherits: false; }
 @keyframes spinEdge { to { --a: 360deg; } }
 
 @media (prefers-reduced-motion: reduce) {
   .masthead { transition: none; }
-  button.primary:hover::before { animation: none; }
+  :is(button, a).primary:hover::before { animation: none; }
 }
 
 /* ── reveals ──────────────────────────────────────────────────────────
@@ -959,6 +965,10 @@ button.primary:hover::before { opacity: .9; animation: spinEdge 2.4s linear infi
   background: var(--glass); color: var(--ink); cursor: pointer;
 }
 .rail:hover:not(:disabled):not(.muted) { border-color: var(--line-lit); }
+/* The install choices in the no-wallet panel are anchors wearing `.rail`; without this
+   the description text carries a link underline and the card reads as broken. */
+a.rail, a.rail:hover { text-decoration: none; }
+a.rail .note, a.rail .rail-name { text-decoration: none; }
 .rail.on { border-color: var(--accent-edge); background: var(--accent-dim); }
 .rail:disabled, .rail.muted { opacity: .5; cursor: not-allowed; }
 .rail-name { font-weight: 600; }
@@ -1203,20 +1213,20 @@ select {
 select:hover { background-color: rgba(0, 0, 0, .32); }
 
 /* ── text on a filled accent surface ──────────────────────────────────────
-   `button.primary` paints the ember gradient and sets a near-black label, but
+   `:is(button, a).primary` paints the ember gradient and sets a near-black label, but
    a muted child re-asserts its own grey and becomes illegible on orange — the
    dispute-window presets were unreadable exactly this way. Muted has to mean
    "quieter than its surroundings", not one fixed grey, so it is re-stated
    wherever the surface changes underneath it. */
-button.primary .note,
-button.primary .undisclosed,
-button.primary .rail-cost,
-button.primary small,
+:is(button, a).primary .note,
+:is(button, a).primary .undisclosed,
+:is(button, a).primary .rail-cost,
+:is(button, a).primary small,
 .primary .dash-group {
   color: rgba(23, 16, 14, .72);
 }
-button.primary b,
-button.primary strong { color: inherit; }
+:is(button, a).primary b,
+:is(button, a).primary strong { color: inherit; }
 
 
 /* ─────────────────────────────────────────────────────────────────────────

@@ -172,6 +172,26 @@ These are not style preferences. Each one is here because skipping it cost somet
     what containing block a descendant resolves against, and what the parent's layout
     algorithm still considers a child.
 
+14. **A reported regression is a hypothesis, not a fact.** Verify the thing was ever
+    there before restoring it.
+
+    The dashboard's background grid was reported as having gone missing in a build, and
+    the obvious response is to find what removed it. Six revisions of `DashShell` back,
+    the count of `backdrop` occurrences in the connected branch was zero every time: the
+    grid had never been on that screen at all, only on the public routes and the shell's
+    own logged-out states. What the build *had* changed was the sidebar going from
+    translucent to opaque, which flattened the surface and read as the same loss.
+
+    "Restore it" and "add it" produce the same diff here, so nothing would have caught
+    the mistake — but the commit message would have claimed a regression that never
+    happened, and the next person reading it would look for a culprit that does not
+    exist. Where the answer changes the record rather than the code, it still has to be
+    right.
+
+    So: `git log -S`, or walk the revisions and count. It costs a minute, it is the same
+    habit as reading the chain instead of the docs, and the premise being wrong is common
+    enough to be worth checking every time.
+
 ## Before you push
 
 ```shell
