@@ -57,7 +57,10 @@ describe("live auction — what each party's queue shows right now", () => {
     const now = Math.floor(Date.now() / 1000);
     const graceEnds = a.sealedAtTime > 0 ? a.sealedAtTime + a.disputeWindow : null;
 
-    console.log(`\n  auction #${ID}  status ${Status[a.status] ?? a.status}  bids ${a.bidCount}`);
+    /* `Status` is a const object, not a TS enum, so there is no reverse mapping. */
+    const NAME: Record<number, string> =
+      Object.fromEntries(Object.entries(Status).map(([k, v]) => [v as number, k]));
+    console.log(`\n  auction #${ID}  status ${NAME[a.status] ?? a.status}  bids ${a.bidCount}`);
     console.log(`  now            ${utc(now)}`);
     console.log(`  bid deadline   ${utc(a.bidDeadline)}  ${now >= a.bidDeadline ? "(passed)" : "(future)"}`);
     if (a.sealedAtTime) console.log(`  sealed at      ${utc(a.sealedAtTime)}`);
