@@ -18,6 +18,7 @@ const SECTIONS = [
   ["thermometer", "The thermometer commitment"],
   ["escrow", "Escrow, silence, and exclusion"],
   ["strk20", "How it uses STRK20"],
+  ["reveal", "The reveal channel"],
   ["lifecycle", "Lifecycle and time gates"],
   ["unshipped", "What didn't ship"],
   ["source", "Source, tests, runbook"],
@@ -30,14 +31,14 @@ const PROPERTIES = [
     how: "Placing a bid transfers collateral into the contract in the same transaction that records it. A bid that is not funded does not exist.",
   },
   {
-    n: 2, title: "Sealed from everyone, including the auctioneer",
+    n: 2, title: "The chain never learns a bid. The auctioneer learns them only after the set is frozen",
     hard: "Designs with a trusted auctioneer leak every bid to whoever runs the server, from the moment it arrives.",
-    how: "During bidding the chain holds two hashes per bid and nothing else. Nobody — not the auctioneer, not us — can read an amount, because no amount was sent.",
+    how: "During bidding the chain holds two hashes per bid and nothing else, and nobody — auctioneer included — has been sent an amount. After `seal()` freezes the set, bidders send their seeds and the auctioneer does learn every exact bid. That ordering is the whole protection: by then the set cannot change, no bid can be added or dropped, and the clearing price is already determined by bids nobody could edit. What the auctioneer never gets is the ability to act on the knowledge — or to publish it, since the amounts never touch the chain.",
   },
   {
     n: 3, title: "The bid set is frozen before any amount can be read",
     hard: "If the party producing the result picks the set after seeing the contents, they can drop a rival's high bid and claim it never arrived.",
-    how: "`seal()` stamps the block number and freezes the set on-chain. Only afterwards do bidders send their seeds. Excluding a bid that arrived is provable, and slashes the auctioneer's bond.",
+    how: "`seal()` stamps the block number and freezes the set on-chain. Only afterwards do bidders send their seeds. Excluding a bid that arrived is provable, and slashes the auctioneer's bond. Sealing is permissionless — the contract checks only that the bid deadline has passed — so an auctioneer cannot stall an auction by refusing to seal it, and any bidder can start the clock themselves.",
     star: true,
   },
   {
@@ -474,6 +475,49 @@ down_anchor = step^(P−1−ℓ)    a depth-(P−1−t) preimage proves  ℓ ≤
           </section>
 
           {/* ── 5 ─────────────────────────────────────────────────────────── */}
+          <section id="reveal">
+            <h2>The reveal channel, and what it costs</h2>
+            <p>
+              After <code>seal()</code>, each bidder sends the auctioneer{" "}
+              <code>{"{ index, seed, level }"}</code>. That is the whole payload, and it
+              carries the level <b>explicitly</b> — so the auctioneer learns the exact bid.
+              Removing the level would change nothing: the seed walks the hash chains, so
+              anyone holding it can find the level by trying all of them.
+            </p>
+            <p>
+              <b>There is no on-chain reveal step.</b> The word &ldquo;seed&rdquo; does not
+              appear in the contract. Nothing enforces when a bidder sends it or to whom,
+              and nothing can — the contract never sees it. What the contract enforces is
+              the part that matters: <code>settle</code> requires the auction to be{" "}
+              <code>Sealed</code>, so the bid set is fixed before any seed is legitimately
+              in the auctioneer&rsquo;s hands. A bidder who reveals earlier harms only
+              themselves.
+            </p>
+
+            <h3>How it actually travels</h3>
+            <p>
+              The bid screen copies the payload as text and you send it to the auctioneer
+              over a channel you choose; the auctioneer console accepts it pasted in. That
+              is the real mechanism, and it is the least convenient step in the product.
+              We would rather say so than dress it up.
+            </p>
+            <p>
+              There is also a relay at <code>/api/reveals</code> — an in-memory map on this
+              site — and it is <b>disabled in production</b>. Its reads had no
+              authentication: <code>GET /api/reveals?auctionId=N</code> returned every
+              revealed bid for that auction to anyone who asked, and auction ids are
+              sequential integers. For a site whose claim is that losing bids are never
+              published, a plaintext bid feed at a guessable URL is the claim itself. It
+              stays off until the read is authenticated against the auction&rsquo;s
+              auctioneer address, which is not built.
+            </p>
+            <p className="note">
+              Whatever channel you use, treat the reveal as the bid: anyone holding it can
+              read the amount. It never contains your claim secret, so it cannot move your
+              money — only reveal what you bid.
+            </p>
+          </section>
+
           <section id="lifecycle">
             <h2 className="section">Lifecycle and time gates</h2>
             <p>

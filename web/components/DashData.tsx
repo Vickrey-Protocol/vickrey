@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { readAll, type AuctionView } from "@/lib/chain";
+import { Status } from "@vickrey/client";
+import { readAll, readBidState, type AuctionView, type BidState } from "@/lib/chain";
 import { isDeployed } from "@/lib/config";
 import { allBids, type StoredBid } from "@/lib/vault";
 import { sameAddress } from "@/lib/wallet";
@@ -19,6 +20,8 @@ import { useWallet } from "@/components/WalletProvider";
 export interface DashData {
   auctions: AuctionView[];
   mine: StoredBid[];
+  /** On-chain state for this browser's own bids, keyed `auctionId:index`. */
+  bidStates: Map<string, BidState>;
   actions: DueAction[];
   ownsAuctions: boolean;
   loading: boolean;
@@ -30,6 +33,7 @@ export function useDashData(): DashData {
   const { connection } = useWallet();
   const [auctions, setAuctions] = useState<AuctionView[]>([]);
   const [mine, setMine] = useState<StoredBid[]>([]);
+  const [bidStates, setBidStates] = useState<Map<string, BidState>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
@@ -54,6 +58,30 @@ export function useDashData(): DashData {
 
   useEffect(() => { setMine(allBids()); }, [tick, auctions.length]);
 
+  /* Whether a bid has been collected is not in `AuctionView` — it is per-bid, and the
+     queue needs it. Without it a winner who claimed the lot was told nothing more, and
+     their surplus sat in the contract unmentioned: `finalize` had already taken the
+     clearing price out of that escrow, so what remains is theirs.
+
+     Only for finished auctions this browser holds bids in, so it is a handful of reads. */
+  useEffect(() => {
+    const done: Status[] = [Status.Finalized, Status.Cancelled];
+    const wanted = mine.filter((b) =>
+      auctions.some((a) => a.terms.auctionId === BigInt(b.auctionId) && done.includes(a.status)));
+    if (!wanted.length) return;
+    let live = true;
+    void Promise.all(wanted.map(async (b) => {
+      try {
+        const st = await readBidState(BigInt(b.auctionId), b.index);
+        return [`${b.auctionId}:${b.index}`, st] as const;
+      } catch { return null; }
+    })).then((rows) => {
+      if (!live) return;
+      setBidStates(new Map(rows.filter(Boolean) as Array<readonly [string, BidState]>));
+    });
+    return () => { live = false; };
+  }, [mine, auctions, tick]);
+
   useEffect(() => {
     const t = setInterval(() => setTick((n) => n + 1), 20_000);
     return () => clearInterval(t);
@@ -63,8 +91,9 @@ export function useDashData(): DashData {
      appears once a grace period has actually expired, and a memo frozen at mount would
      never show it. */
   const actions = useMemo(
-    () => actionsFor(auctions, mine, connection?.address ?? null, Math.floor(Date.now() / 1000)),
-    [auctions, mine, connection?.address, tick],
+    () => actionsFor(auctions, mine, connection?.address ?? null,
+                     Math.floor(Date.now() / 1000), bidStates),
+    [auctions, mine, connection?.address, tick, bidStates],
   );
   const ownsAuctions = useMemo(
     () => !!connection && auctions.some((a) => sameAddress(connection.address, a.auctioneer)),
@@ -72,7 +101,7 @@ export function useDashData(): DashData {
   );
 
   return {
-    auctions, mine, actions, ownsAuctions, loading, error,
+    auctions, mine, bidStates, actions, ownsAuctions, loading, error,
     refresh: () => setTick((n) => n + 1),
   };
 }

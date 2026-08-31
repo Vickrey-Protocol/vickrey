@@ -30,6 +30,7 @@
  */
 import { Status } from "@vickrey/client";
 import type { AuctionView } from "@/lib/chain";
+import type { BidState } from "@/lib/chain";
 import type { StoredBid } from "@/lib/vault";
 import { sameAddress } from "@/lib/wallet";
 
@@ -66,6 +67,8 @@ export function actionsFor(
   address: string | null,
   /** Seconds since epoch. Every window gate below is measured against it. */
   now: number = Math.floor(Date.now() / 1000),
+  /** On-chain per-bid state, keyed `auctionId:index`. Absent means not read yet. */
+  bidStates: Map<string, BidState> = new Map(),
 ): DueAction[] {
   if (!address) return [];
   const out: DueAction[] = [];
@@ -91,11 +94,19 @@ export function actionsFor(
           title: unsent.length === 1
             ? `Send your seed — Auction #${id}`
             : `Send ${unsent.length} seeds — Auction #${id}`,
+          /* This said "a bound, never the amount", which is false. The reveal is
+             `{index, seed, level}` and carries the level explicitly — and even without
+             it, the seed walks the chain, so any holder can find the level by trying all
+             P of them. "A bound, never the amount" describes what goes *on chain*, and
+             borrowing it for what the bidder hands the auctioneer overstated the
+             property in the one place a bidder decides whether to hand it over. */
           detail: unsent.length === 1
-            ? "Hands the auctioneer the seed that lets them prove where your bid sits "
-              + "without opening it — a bound, never the amount."
-            : `${unsent.length} of your bids still need a seed. Each one lets the `
-              + "auctioneer prove where that bid sits without opening it.",
+            ? "Hands the auctioneer your seed and level. They learn your exact bid — "
+              + "safely, because the bid set is already frozen, so knowing it cannot "
+              + "change which bids exist. The chain still never sees an amount."
+            : `${unsent.length} of your bids still need a seed. The auctioneer learns `
+              + "each exact bid, after the set was frozen, so the knowledge cannot change "
+              + "which bids exist. The chain still never sees an amount.",
           consequence:
             "The auctioneer settles without you and the bid is marked forfeited. That is "
             + "recoverable, not lost: at or below the clearing price you take the whole "
@@ -120,10 +131,35 @@ export function actionsFor(
           kind: "claim-lot", auctionId: id, role: "bidder",
           title: `Claim your lot — Auction #${id}`,
           detail: "You won. This transfers the lot to you and is final — the auction is "
-            + "already settled, so nothing about your bid becomes public by claiming it.",
+            + "already settled, so nothing about your bid becomes public by claiming it. "
+            + "It is one of two collections, not both.",
           consequence: "Nothing expires. The lot waits in the contract until you take it, "
             + "but only this browser's claim secret can release it.",
           cta: "Claim lot", href: bidHref, deadline: null, deadlineKind: "hard",
+        });
+      }
+      /* The winner's surplus. `claim-refund` used to be guarded by `!won`, so a winner
+         was told to collect the lot and nothing else — and `finalize` had already taken
+         the clearing price out of their escrow, leaving the remainder sitting in the
+         contract with nothing in the app ever mentioning it.
+
+         Listed only once the chain says it is still unclaimed, so it disappears when
+         taken rather than offering a call that would revert. */
+      const winnerBid = won ? bids.find((b) => b.index === a.winnerIndex) : undefined;
+      const winnerState = winnerBid
+        ? bidStates.get(`${winnerBid.auctionId}:${winnerBid.index}`)
+        : undefined;
+      if (won && winnerState && !winnerState.claimed) {
+        out.push({
+          kind: "claim-refund", auctionId: id, role: "bidder",
+          title: `Claim your surplus — Auction #${id}`,
+          detail: "You escrowed the top of the ladder and paid the clearing price, which "
+            + "came out of that escrow when the auction was finalized. The difference is "
+            + "yours and is still in the contract.",
+          consequence: "Nothing expires, and claiming the lot does not collect this — they "
+            + "are two separate calls. It waits until you take it, and only this browser's "
+            + "claim secret can release it.",
+          cta: "Claim surplus", href: bidHref, deadline: null, deadlineKind: "hard",
         });
       }
       if (!won) {
@@ -173,23 +209,32 @@ export function actionsFor(
       });
     }
 
-    if (isAuctioneer) {
+    /* `seal` and `finalize` have no caller check in the contract — only status and time
+       — and `AuctioneerSection` already offers both to anyone. The queue was gating them
+       behind `isAuctioneer`, so a bidder waiting on a stalled auction was never told they
+       could move it themselves. That is the whole point of the step being permissionless:
+       nobody can hold an auction hostage by declining to seal it. */
+    const stake = iBid || isAuctioneer;
+
+    if (stake) {
       /* `seal` reverts before the bid deadline. Listing it from the moment the auction
          opened offered a button that could only fail for the whole bidding period. */
       if (a.status === Status.Open && a.bidDeadline > 0 && now >= a.bidDeadline) {
         out.push({
-          kind: "seal", auctionId: id, role: "auctioneer",
+          kind: "seal", auctionId: id, role: isAuctioneer ? "auctioneer" : "bidder",
           title: `Seal Auction #${id}`,
           detail: "Freezes the bid set and stamps the block — before any seed can be sent, "
             + "so before anyone can read an amount. That ordering is what stops a bid being "
             + "dropped once its value is known.",
           consequence: "Bidding has closed but the set is not frozen, so no seed can be "
-            + "sent and nothing can settle. No clock runs and nobody else can move it: "
-            + "every bidder's escrow stays locked in the contract until you seal.",
+            + "sent and nothing can settle, and every bidder's escrow stays locked. "
+            + "Sealing is permissionless — if the auctioneer does not do it, any bidder "
+            + "can, which is what stops an auction being stalled by inaction.",
           cta: "Seal", href: manageHref, deadline: null, deadlineKind: "hard",
         });
       }
-      if (a.status === Status.Sealed) {
+      /* `settle` *is* auctioneer-only — it is the one step with a caller check. */
+      if (isAuctioneer && a.status === Status.Sealed) {
         out.push({
           kind: "settle", auctionId: id, role: "auctioneer",
           title: `Settle Auction #${id}`,
@@ -208,12 +253,13 @@ export function actionsFor(
       /* `finalize` reverts until the dispute window has closed. */
       if (a.status === Status.Settled && now >= a.disputeDeadline) {
         out.push({
-          kind: "finalize", auctionId: id, role: "auctioneer",
+          kind: "finalize", auctionId: id, role: isAuctioneer ? "auctioneer" : "bidder",
           title: `Finalize Auction #${id}`,
           detail: "The dispute window closed clean, so this releases the funds: the clearing "
             + "price and your bond to the seller, the lot to the winner.",
-          consequence: "Nothing expires, but nobody is paid until you do it — the proceeds, "
-            + "your bond and the winner's lot all stay in the contract.",
+          consequence: "Nothing expires, but nobody is paid until someone does it — the "
+            + "proceeds, the bond and the winner's lot all stay in the contract. This is "
+            + "permissionless too, so a winner need not wait on the auctioneer.",
           cta: "Finalize", href: manageHref, deadline: null, deadlineKind: "hard",
         });
       }

@@ -371,36 +371,51 @@ export function RevealPanel({ auction, bids }: { auction: AuctionView; bids: Sto
       <h3 style={{ fontSize: "var(--step-1)" }}>Send your seed to the auctioneer</h3>
       <p className="note">
         Safe now, and not before. The bid set is frozen on chain, so the auctioneer
-        committed to exactly these bids before it could read any of them. Your claim
-        secret is not included and never leaves this browser.
+        committed to exactly these bids before being able to read any of them.
       </p>
-      <div className="stack" style={{ gap: ".5rem", marginTop: ".8rem" }}>
-        {bids.map((b) => (
-          <div className="row" key={b.index}>
-            <span className="note">Bid #{b.index}</span>
-            <button onClick={() => reveal(b)} disabled={state[b.index] === "sending"}>
-              {state[b.index] === "sent" ? "Sent" : "Send seed"}
-            </button>
-            {state[b.index] && !["sent", "sending"].includes(state[b.index]!) && (
-              <span className="err">{state[b.index]}</span>
-            )}
-          </div>
-        ))}
-      </div>
+      {/* Said plainly at the moment of handing it over, because this is where a bidder
+          decides. The seed and level together are the bid; there is no version of this
+          step where the auctioneer does not learn the amount. */}
+      <p className="note" style={{ marginTop: ".5rem" }}>
+        <b>This tells the auctioneer your exact bid.</b> It has to — they cannot prove
+        where it sits without it. What it does not do is put an amount on chain, and it
+        does not include your claim secret, which never leaves this browser.
+      </p>
 
-      <div className="row" style={{ marginTop: ".9rem" }}>
-        <button
-          onClick={() => {
-            navigator.clipboard?.writeText(blob);
-            setCopied(true);
-          }}
-        >
-          {copied ? "Copied" : "Copy as text"}
+      {/* Copy first. The relay is off by default and cannot survive a cold start even
+          when it is on, so the channel the bidder chooses is the real one. */}
+      <div className="row" style={{ marginTop: "1rem", gap: ".6rem", flexWrap: "wrap" }}>
+        <button className="primary"
+          onClick={() => { navigator.clipboard?.writeText(blob); setCopied(true); }}>
+          {copied ? "Copied" : "Copy reveal for the auctioneer"}
         </button>
         <span className="note">
-          A fallback that needs no server. Hand it over any way you like.
+          Send it however you and the auctioneer already talk. Anyone holding it can read
+          your bid, so pick the channel accordingly.
         </span>
       </div>
+
+      <details style={{ marginTop: ".9rem" }}>
+        <summary className="note">Or post it to the site&rsquo;s relay</summary>
+        <p className="note" style={{ marginTop: ".5rem" }}>
+          A convenience for demos, and <b>disabled in production</b>: its reads were
+          unauthenticated, so anyone who guessed the auction id could have read every
+          revealed bid. It is in-memory either way and a cold start loses it.
+        </p>
+        <div className="stack" style={{ gap: ".5rem", marginTop: ".6rem" }}>
+          {bids.map((b) => (
+            <div className="row" key={b.index}>
+              <span className="note">Bid #{b.index}</span>
+              <button onClick={() => reveal(b)} disabled={state[b.index] === "sending"}>
+                {state[b.index] === "sent" ? "Sent" : "Post to relay"}
+              </button>
+              {state[b.index] && !["sent", "sending"].includes(state[b.index]!) && (
+                <span className="err">{state[b.index]}</span>
+              )}
+            </div>
+          ))}
+        </div>
+      </details>
     </div>
   );
 }
@@ -629,20 +644,53 @@ export function ClaimPanel({
                   </button>
                   <span className="note">Could not read this bid, so both are offered.</span>
                 </>
+              ) : won ? (
+                /* Two separate collections, and the lot is the one that looks like
+                   finishing. `finalize` already took the clearing price out of this
+                   escrow and paid the seller, so what is left is the winner's surplus —
+                   and a winner who claims the lot and leaves reads the screen as done.
+                   Both are listed, each with its own state. */
+                <div className="stack" style={{ gap: ".45rem", flex: 1 }}>
+                  <p className="note" style={{ margin: 0 }}>
+                    <b>You won.</b> Two things to collect, and the lot is not both of
+                    them. The clearing price already came out of your escrow when the
+                    auction was finalized.
+                  </p>
+                  <div className="row" style={{ gap: ".5rem", flexWrap: "wrap" }}>
+                    {auction.lotClaimed ? (
+                      <span className="note">1 · Lot — collected</span>
+                    ) : (
+                      <button className="primary"
+                              onClick={() => run(AuctionOperation.ClaimLot, b)}>
+                        1 · Claim the lot
+                      </button>
+                    )}
+                    {st.claimed ? (
+                      <span className="note">2 · Surplus — collected</span>
+                    ) : (
+                      <button className={auction.lotClaimed ? "primary" : ""}
+                              onClick={() => run(AuctionOperation.ClaimRefund, b)}>
+                        2 · Claim your surplus
+                        {st.escrow > 0n
+                          ? ` · ${formatUnits(st.escrow, auction.paymentDecimals)} ${auction.paymentSymbol}`
+                          : ""}
+                      </button>
+                    )}
+                  </div>
+                  {auction.lotClaimed && !st.claimed && (
+                    <p className="note" style={{ margin: 0 }}>
+                      The lot is yours. Your surplus is still in the contract — it needs
+                      this browser&rsquo;s claim secret, the same one the lot needed.
+                    </p>
+                  )}
+                </div>
               ) : st.claimed ? (
                 <span className="note">Already collected.</span>
               ) : (
-                <>
-                  <button className={won ? "" : "primary"}
-                          onClick={() => run(collectOp(st, auction.status), b)}>
-                    {collectLabel(st, auction.status)}
-                  </button>
-                  {won && (
-                    <button className="primary" onClick={() => run(AuctionOperation.ClaimLot, b)}>
-                      Claim the lot
-                    </button>
-                  )}
-                </>
+                <button className="primary"
+                        onClick={() => run(collectOp(st, auction.status), b)}>
+                  {collectLabel(st, auction.status)}
+                </button>
               )}
             </div>
           );

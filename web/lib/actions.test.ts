@@ -159,3 +159,67 @@ describe("counts mean what their label says", () => {
 function asBidless(): AuctionView[] {
   return [auction({ auctioneer: ME })];
 }
+
+describe("permissionless steps are offered to whoever can take them", () => {
+  /* `seal` and `finalize` have no caller check in the contract, and the manage panel
+     already offered both to anyone. The queue gated them behind being the auctioneer, so
+     a bidder waiting on a stalled auction was never told they could move it themselves —
+     which is precisely the guarantee the permissionlessness exists to provide. */
+  const theirs = { auctioneer: "0x9" };
+
+  it("offers seal to a bidder when the auctioneer has not done it", () => {
+    const a = auction({ ...theirs, status: Status.Open, bidDeadline: SEALED_AT });
+    const seal = actionsFor([a], [myBid()], ME, SEALED_AT + 1).find((x) => x.kind === "seal");
+    expect(seal).toBeDefined();
+    expect(seal!.role).toBe("bidder");
+    expect(seal!.consequence).toMatch(/permissionless/i);
+  });
+
+  it("offers finalize to a bidder once the window has closed", () => {
+    const a = auction({ ...theirs, status: Status.Settled, disputeDeadline: SEALED_AT });
+    const fin = actionsFor([a], [myBid()], ME, SEALED_AT + 1).find((x) => x.kind === "finalize");
+    expect(fin).toBeDefined();
+    expect(fin!.role).toBe("bidder");
+  });
+
+  it("still keeps settle to the auctioneer, which is the one step with a caller check", () => {
+    const a = auction({ ...theirs });
+    expect(actionsFor([a], [myBid()], ME, SEALED_AT + 1).map((x) => x.kind))
+      .not.toContain("settle");
+  });
+
+  it("does not offer either to someone with no stake in the auction", () => {
+    const a = auction({ ...theirs, status: Status.Open, bidDeadline: SEALED_AT });
+    expect(actionsFor([a], [], ME, SEALED_AT + 1)).toHaveLength(0);
+  });
+});
+
+describe("the winner is told about the surplus, not only the lot", () => {
+  /* `claim-refund` was guarded by `!won`, so a winner got "Claim your lot" and nothing
+     else. `finalize` has already taken the clearing price out of their escrow, so the
+     remainder is theirs and was sitting in the contract unmentioned — the exact failure
+     of a screen that reads as finished when it is half done. */
+  const finalized = () => auction({ status: Status.Finalized, winnerIndex: 0, lotClaimed: true });
+  const key = "1:0";
+
+  it("offers the surplus once the chain says it is unclaimed", () => {
+    const states = new Map([[key, { index: 0, escrow: 5n, disposition: 3, claimed: false }]]);
+    const kinds = actionsFor([finalized()], [myBid()], ME, SEALED_AT, states as never)
+      .map((x) => x.kind);
+    expect(kinds).toContain("claim-refund");
+  });
+
+  it("withdraws it once collected, rather than offering a call that would revert", () => {
+    const states = new Map([[key, { index: 0, escrow: 0n, disposition: 3, claimed: true }]]);
+    const kinds = actionsFor([finalized()], [myBid()], ME, SEALED_AT, states as never)
+      .map((x) => x.kind);
+    expect(kinds).not.toContain("claim-refund");
+  });
+
+  it("says the lot does not collect it", () => {
+    const states = new Map([[key, { index: 0, escrow: 5n, disposition: 3, claimed: false }]]);
+    const a = actionsFor([finalized()], [myBid()], ME, SEALED_AT, states as never)
+      .find((x) => x.kind === "claim-refund")!;
+    expect(a.consequence).toMatch(/claiming the lot does not collect this/i);
+  });
+});

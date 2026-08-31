@@ -403,7 +403,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
                       The only wallet we have measured working on both Sepolia and mainnet.
                     </span>
                   </a>
-                  <a className="rail" href="https://www.ready.co/download" target="_blank"
+                  <a className="rail" href="https://www.ready.co" target="_blank"
                      rel="noreferrer">
                     <span className="rail-name">Ready</span>
                     <span className="note">
