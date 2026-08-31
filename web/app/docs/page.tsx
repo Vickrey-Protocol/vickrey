@@ -586,6 +586,23 @@ down_anchor = step^(P−1−ℓ)    a depth-(P−1−t) preimage proves  ℓ ≤
               passed, because the defect was not in the contract.
             </p>
 
+            <h3>The bar this failed</h3>
+            <p>
+              Worth stating plainly, because otherwise a reader cannot tell whether the
+              standard we fell short of was one anybody holds. <b>The other entries in
+              this RFP publish every bid at reveal, by design.</b> Commit&ndash;reveal ends
+              with each bid posted on chain so the contract can check it against its hash;
+              that is not a defect in those designs, it is how they work.
+            </p>
+            <p>
+              So the property we broke for a few days is one nobody else in the category is
+              attempting at all. That cuts both ways and we would rather say both. It is
+              not an excuse — we shipped a leak on the one path we claim to protect, and a
+              claim you only keep by accident is not a claim. It is the context: the bar
+              was ours, we set it higher than the field, we failed it in a place we had
+              not looked, and we found it by going looking.
+            </p>
+
             <h3>What changed</h3>
             <p>
               The relay is disabled unless <code>REVEAL_RELAY=on</code>, which production

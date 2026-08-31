@@ -24,12 +24,17 @@ export function SeedTracker({
 }: { auction: AuctionView; bids: PublicBid[]; now: number }) {
   const [arrived, setArrived] = useState<Set<number> | null>(null);
   const [failed, setFailed] = useState(false);
+  /* 503 is the relay saying it is switched off, which is terminal — polling a deliberate
+     decision every ten seconds forever is noise, and calling it "could not reach" reads
+     as a fault when nothing is wrong. */
+  const [relayOff, setRelayOff] = useState(false);
 
   useEffect(() => {
     let live = true;
     const poll = async () => {
       try {
         const res = await fetch(`/api/reveals?auctionId=${auction.terms.auctionId}`);
+        if (res.status === 503) { if (live) { setRelayOff(true); clearInterval(t); } return; }
         const { reveals } = (await res.json()) as { reveals: Array<{ index: number }> };
         if (!live) return;
         /* Only the index is read out of the payload. The level travels with it and is
@@ -41,8 +46,8 @@ export function SeedTracker({
         if (live) setFailed(true);
       }
     };
+    const t = setInterval(() => void poll(), 10_000);
     void poll();
-    const t = setInterval(poll, 10_000);
     return () => { live = false; clearInterval(t); };
   }, [auction.terms.auctionId]);
 
@@ -67,7 +72,12 @@ export function SeedTracker({
         every bid is refunded.
       </p>
 
-      {failed ? (
+      {relayOff ? (
+        <p className="note" style={{ marginTop: ".8rem" }}>
+          The relay is switched off — it exposed every revealed bid to anyone who asked.
+          Bidders send you their reveal directly; paste them below and this tracks them.
+        </p>
+      ) : failed ? (
         <p className="note" style={{ marginTop: ".8rem" }}>
           Could not reach the relay. Pasted reveals still work.
         </p>

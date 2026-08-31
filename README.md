@@ -121,6 +121,13 @@ It never held a claim secret, so no funds were reachable through it, and it coul
 change an outcome — reveals are re-checked against the anchors on chain. The exposure was
 of information, which is the part that matters here.
 
+Worth the context, since otherwise the bar is unreadable: **the other entries in this RFP
+publish every bid at reveal, by design** — commit–reveal posts each bid on chain so the
+contract can check it against its hash. The property we broke for a few days is one nobody
+else in the category is attempting. That is not an excuse; a claim you keep only by
+accident is not a claim. It is the measure: the bar was ours, we set it above the field,
+and we failed it somewhere we had not looked.
+
 Found by auditing the reveal *channel* rather than the contract. The route's own comment
 had reasoned about the write path — "the worst it can do is withhold a reveal" — and
 never asked what the read path returned. No contract audit would have caught it.
