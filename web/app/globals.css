@@ -379,10 +379,20 @@ button, .btn, a.primary {
 button:hover:not(:disabled) { border-color: var(--accent-edge); }
 button:disabled { opacity: .42; cursor: not-allowed; }
 :is(button, a).primary {
-  display: inline-flex; align-items: center; justify-content: center;
-  text-decoration: none;
   background: var(--accent); color: #17100E; border-color: transparent;
   box-shadow: 0 6px 18px -8px rgba(226, 81, 60, .7);
+}
+/* Only the anchor needs help. An `<a>` is inline, so it ignores vertical padding and
+   will not centre — a `<button>` does both by default.
+
+   This was written as `:is(button, a).primary` and it broke every *multi-line* primary
+   button: `display: inline-flex` turns the children into flex items, so a preset card
+   reading "<b>Suggested</b> — 86400s" above a note laid its label, dash, value and
+   description out in a row. Rule 13 — the declaration set a value, and what it changed
+   was the children's layout role. */
+a.primary {
+  display: inline-flex; align-items: center; justify-content: center;
+  text-decoration: none;
 }
 :is(button, a).primary:hover:not(:disabled) { filter: brightness(1.07); }
 

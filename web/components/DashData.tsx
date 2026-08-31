@@ -35,6 +35,20 @@ export function useDashData(): DashData {
   const [mine, setMine] = useState<StoredBid[]>([]);
   const [bidStates, setBidStates] = useState<Map<string, BidState>>(new Map());
   const [loading, setLoading] = useState(true);
+  /**
+   * Everything an action can come from, and whether it has arrived.
+   *
+   * `loading` used to mean "the chain read finished", and the queue rendered the moment
+   * it did — but this browser's own bids are read in a *later* effect, and per-bid
+   * on-chain state in a later one still. So there was a render with auctions loaded and
+   * `mine` still empty, which derives to no actions, which draws "Nothing needs you
+   * right now" for a beat before the real queue replaced it.
+   *
+   * Announcing an empty result before the inputs are in is the same mistake as reading a
+   * discovery store too early: absence of data is not the answer "none".
+   */
+  const [vaultRead, setVaultRead] = useState(false);
+  const [statesRead, setStatesRead] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
 
@@ -56,7 +70,7 @@ export function useDashData(): DashData {
     return () => { live = false; };
   }, [tick]);
 
-  useEffect(() => { setMine(allBids()); }, [tick, auctions.length]);
+  useEffect(() => { setMine(allBids()); setVaultRead(true); }, [tick, auctions.length]);
 
   /* Whether a bid has been collected is not in `AuctionView` — it is per-bid, and the
      queue needs it. Without it a winner who claimed the lot was told nothing more, and
@@ -68,7 +82,9 @@ export function useDashData(): DashData {
     const done: Status[] = [Status.Finalized, Status.Cancelled];
     const wanted = mine.filter((b) =>
       auctions.some((a) => a.terms.auctionId === BigInt(b.auctionId) && done.includes(a.status)));
-    if (!wanted.length) return;
+    /* Nothing to fetch is an answer, not a pending state — otherwise the queue would
+       wait forever for reads it is never going to make. */
+    if (!wanted.length) { setStatesRead(true); return; }
     let live = true;
     void Promise.all(wanted.map(async (b) => {
       try {
@@ -78,6 +94,7 @@ export function useDashData(): DashData {
     })).then((rows) => {
       if (!live) return;
       setBidStates(new Map(rows.filter(Boolean) as Array<readonly [string, BidState]>));
+      setStatesRead(true);
     });
     return () => { live = false; };
   }, [mine, auctions, tick]);
@@ -101,7 +118,10 @@ export function useDashData(): DashData {
   );
 
   return {
-    auctions, mine, bidStates, actions, ownsAuctions, loading, error,
+    auctions, mine, bidStates, actions, ownsAuctions, error,
+    /* True until every source of an action has reported. The queue must not say "nothing"
+       on the strength of a partial read. */
+    loading: loading || !vaultRead || !statesRead,
     refresh: () => setTick((n) => n + 1),
   };
 }
