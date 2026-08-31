@@ -112,8 +112,12 @@ export function useDashData(): DashData {
                      Math.floor(Date.now() / 1000), bidStates),
     [auctions, mine, connection?.address, tick, bidStates],
   );
+  /* Sellers too, not only auctioneers. A seller can seal, finalize and abandon their own
+     auction — all three live on the manage page — and gating the link on `auctioneer`
+     hid the page from the person whose lot is inside it. */
   const ownsAuctions = useMemo(
-    () => !!connection && auctions.some((a) => sameAddress(connection.address, a.auctioneer)),
+    () => !!connection && auctions.some((a) =>
+      sameAddress(connection.address, a.auctioneer) || sameAddress(connection.address, a.seller)),
     [auctions, connection],
   );
 

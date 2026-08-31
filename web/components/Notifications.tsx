@@ -44,6 +44,7 @@ const Bell = () => (
 const ROLE: Record<DueAction["role"], string> = {
   bidder: "As bidder",
   auctioneer: "As auctioneer",
+  seller: "As seller",
 };
 
 function Deadline({ a, now }: { a: DueAction; now: number }) {
@@ -106,7 +107,11 @@ export function Notifications({ actions }: { actions: DueAction[] }) {
      is the thing the reader needs, and a gradient of red does not state it. */
   const soon = actions.filter((a) => isUrgent(a, now));
   const dated = actions.filter((a) => !isUrgent(a, now) && a.deadline !== null);
-  const undated = actions.filter((a) => a.deadline === null);
+  /* Assets locked with no clock running. Its own group, above "when you are ready",
+     because nothing makes these happen and the cost of nobody acting falls on whoever is
+     reading — an auction sitting Open past its deadline holds the lot indefinitely. */
+  const held = actions.filter((a) => a.deadline === null && a.blocking);
+  const undated = actions.filter((a) => a.deadline === null && !a.blocking);
 
   const label = count === 0
     ? "Nothing needs you"
@@ -162,6 +167,14 @@ export function Notifications({ actions }: { actions: DueAction[] }) {
                 <section className="sheet-group urgent">
                   <h3>Closing within the hour</h3>
                   {soon.map((a) => (
+                    <Item key={`${a.kind}-${a.auctionId}`} a={a} now={now} onGo={close} />
+                  ))}
+                </section>
+              )}
+              {held.length > 0 && (
+                <section className="sheet-group held">
+                  <h3>Nothing moves until this</h3>
+                  {held.map((a) => (
                     <Item key={`${a.kind}-${a.auctionId}`} a={a} now={now} onGo={close} />
                   ))}
                 </section>

@@ -521,10 +521,35 @@ down_anchor = step^(P−1−ℓ)    a depth-(P−1−t) preimage proves  ℓ ≤
               value when it rebases up — the surplus belongs to no bid, and no path sweeps
               it. So do tokens that transfer less than asked for any other reason.
             </p>
+            <h3>It contaminates other auctions, not just its own</h3>
+            <p>
+              This is the part worth reading twice. <b>One contract holds every
+              auction&rsquo;s funds in one balance per token.</b> There is no per-auction
+              vault and no per-auction accounting of what actually arrived.
+            </p>
+            <p>
+              So the shortfall is not paid by whoever caused it. The claims that happen to
+              come first succeed out of the pooled balance, and the deficit lands on
+              whoever claims last — <b>on an auction that may never have touched the
+              offending token</b>. A seller who listed a perfectly ordinary ERC-20 can find
+              their payout failing because somebody else listed a deflationary one against
+              the same payment token.
+            </p>
+            <p>
+              Which means the obvious defence does not fully work: <b>choosing a
+              well-behaved token protects you from your own mistake, not from someone
+              else&rsquo;s.</b> On a shared deployment your exposure includes every other
+              auction denominated in the same token.
+            </p>
             <p className="note">
-              <b>No test covers this.</b> The mock ERC-20 in the suite transfers exactly
-              what it is told, so the conservation invariant passes and would keep passing.
-              We are stating the hazard rather than claiming coverage we do not have.
+              <b>No test covers this, and the invariant we have would not catch it.</b>{" "}
+              <code>a_full_lifecycle_conserves_value</code> asserts what the contract holds
+              at each stage and that it holds nothing once an ordinary auction has been
+              claimed out — and it passes under a hostile token, because the mock ERC-20 in
+              the suite transfers exactly what it is told. The invariant proves the
+              contract&rsquo;s arithmetic; it says nothing about whether its counterparties
+              behave. We are stating the hazard rather than claiming coverage we do not
+              have.
             </p>
             <p>
               This is <b>not</b> being fixed in the contract. An allowlist would be the

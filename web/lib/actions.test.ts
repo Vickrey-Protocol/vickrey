@@ -223,3 +223,54 @@ describe("the winner is told about the surplus, not only the lot", () => {
     expect(a.consequence).toMatch(/claiming the lot does not collect this/i);
   });
 });
+
+describe("the party whose assets are locked is told they can act", () => {
+  /* `seal` is permissionless from the bid deadline, so an auction left Open holds the lot
+     with no path out until *somebody* acts — and nothing compels anyone. The queue offered
+     it to the auctioneer and to bidders, and never to the seller, who is the one whose lot
+     is sitting in the contract. Permission was right; incentive was not addressed. */
+  const openPastDeadline = (over = {}) => auction({
+    status: Status.Open, bidDeadline: SEALED_AT, auctioneer: "0x9", seller: "0x9", ...over,
+  });
+
+  it("offers seal to the seller of their own auction", () => {
+    const a = openPastDeadline({ seller: ME });
+    const seal = actionsFor([a], [], ME, SEALED_AT + 1).find((x) => x.kind === "seal");
+    expect(seal).toBeDefined();
+    expect(seal!.role).toBe("seller");
+  });
+
+  it("offers abandon and finalize to the seller too", () => {
+    const sealed = auction({ auctioneer: "0x9", seller: ME, sealedAtTime: SEALED_AT,
+      disputeWindow: WINDOW });
+    expect(actionsFor([sealed], [], ME, SEALED_AT + WINDOW + 1).map((x) => x.kind))
+      .toContain("abandon");
+    const settled = auction({ auctioneer: "0x9", seller: ME, status: Status.Settled,
+      disputeDeadline: SEALED_AT });
+    expect(actionsFor([settled], [], ME, SEALED_AT + 1).map((x) => x.kind))
+      .toContain("finalize");
+  });
+
+  it("marks an action holding assets with no clock as blocking", () => {
+    const seal = actionsFor([openPastDeadline({ seller: ME })], [], ME, SEALED_AT + 1)
+      .find((x) => x.kind === "seal")!;
+    expect(seal.blocking).toBe(true);
+    expect(seal.deadline).toBeNull();
+  });
+
+  it("ranks a blocking action above undated work that is merely waiting", () => {
+    /* Otherwise "seal this or nobody's money moves" sorts alongside "collect your refund
+       whenever", which is where it used to land. */
+    const stuck = openPastDeadline({ seller: ME });
+    const done = auction({
+      terms: { ...auction().terms, auctionId: 2n },
+      status: Status.Finalized, winnerIndex: 99, seller: "0x9", auctioneer: "0x9",
+    });
+    const all = actionsFor([done, stuck], [myBid({ auctionId: "2" })], ME, SEALED_AT + 1);
+    const seal = all.findIndex((x) => x.kind === "seal");
+    const refund = all.findIndex((x) => x.kind === "claim-refund");
+    expect(seal).toBeGreaterThanOrEqual(0);
+    expect(refund).toBeGreaterThanOrEqual(0);
+    expect(seal).toBeLessThan(refund);
+  });
+});

@@ -231,6 +231,28 @@ These are not style preferences. Each one is here because skipping it cost somet
     never going to be found there, because it was not there. **Audit the channels between
     the parts, not only the parts.**
 
+16. **An invariant test proves the contract's arithmetic, not its counterparties'
+    behaviour.** It is only as good as the mocks beneath it.
+
+    `a_full_lifecycle_conserves_value` is the strongest test in this repo. It asserts what
+    the contract holds at every stage and that it holds *nothing* once an ordinary auction
+    has been claimed out, and it was written precisely because a checklist of paths only
+    covers what somebody thought to list. It also passes cleanly against a fee-on-transfer
+    token that would break the accounting entirely — because the mock ERC-20 transfers
+    exactly what it is told, so the arithmetic the test checks is never the arithmetic that
+    fails.
+
+    The invariant is true. Its scope is the contract's own bookkeeping, and every external
+    call it makes is a promise by somebody else: `transfer_from` returning `true` is not
+    the same as the tokens arriving, and a `balanceOf` today is not a `balanceOf`
+    tomorrow. Conservation of *recorded* value is not conservation of value.
+
+    So when an invariant depends on an external contract, either mock the misbehaviour and
+    let the test fail — which is the honest version, and would have failed here — or write
+    down in the docs that the property is conditional and on what. What is not acceptable
+    is quoting the passing invariant as though it covered the counterparty, which is what
+    a reader will assume unless told otherwise.
+
 ## Before you push
 
 ```shell

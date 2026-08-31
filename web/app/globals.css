@@ -1394,6 +1394,10 @@ select:hover { background-color: rgba(0, 0, 0, .32); }
   letter-spacing: .1em; text-transform: uppercase; color: var(--muted);
 }
 .sheet-group.urgent h3 { color: var(--seal); }
+/* Held assets are not an emergency and not routine. Amber rather than red: nothing is
+   expiring, but nothing is moving either. */
+.sheet-group.held h3 { color: var(--ember); }
+.sheet-group.held .note-item { box-shadow: inset 2px 0 0 var(--ember); }
 
 /* Each entry is one link. A card with a button inside gives two targets for one
    intention, and on a phone the wrong one is always the easier to hit. */

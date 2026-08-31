@@ -58,7 +58,20 @@ export interface DueAction {
   /** Absolute, seconds since epoch. Null when the step has no deadline of its own. */
   deadline: number | null;
   deadlineKind: DeadlineKind;
-  role: "bidder" | "auctioneer";
+  /**
+   * Whose stake this is. The seller was missing entirely, and the seller is the party
+   * whose lot is locked — for `seal`, `finalize` and `abandon` they have the strongest
+   * incentive of anyone and were the only one never told.
+   */
+  role: "bidder" | "auctioneer" | "seller";
+  /**
+   * True when assets are locked until somebody does this and no clock is running.
+   *
+   * Without it these sort and group with "when you are ready", which is exactly wrong for
+   * an auction sitting Open past its deadline with the lot inside it. Nothing compels the
+   * action; the point is to tell the person it costs.
+   */
+  blocking: boolean;
 }
 
 export function actionsFor(
@@ -79,6 +92,9 @@ export function actionsFor(
     const bids = byAuction(id);
     const iBid = bids.length > 0;
     const isAuctioneer = sameAddress(address, a.auctioneer);
+    /* Distinct from the auctioneer, and often a different address. The bond is pulled
+       from the seller and the lot is theirs until someone wins it. */
+    const isSeller = sameAddress(address, a.seller);
     const bidHref = `/auction/${id}`;
     const manageHref = `/app/manage/${id}`;
     /* The auctioneer's outer limit. `abandon` becomes callable here, so it bounds the
@@ -112,7 +128,7 @@ export function actionsFor(
             + "recoverable, not lost: at or below the clearing price you take the whole "
             + "escrow back after finalize with Redeem forfeit; above it you dispute "
             + "instead, which voids the settlement and pays you the auctioneer's bond.",
-          cta: "Send seed", href: bidHref,
+          cta: "Send seed", href: bidHref, blocking: false,
           /* `dispute_deadline` is written by `settle`, so during `Sealed` — the only
              status this fires in — it is still 0, and the old `|| null` turned the
              tightest window in the protocol into "No deadline", which sorts last.
@@ -136,6 +152,8 @@ export function actionsFor(
           consequence: "Nothing expires. The lot waits in the contract until you take it, "
             + "but only this browser's claim secret can release it.",
           cta: "Claim lot", href: bidHref, deadline: null, deadlineKind: "hard",
+          /* Waiting *for* the winner, not blocked *by* anyone. */
+          blocking: false,
         });
       }
       /* The winner's surplus. `claim-refund` used to be guarded by `!won`, so a winner
@@ -160,6 +178,7 @@ export function actionsFor(
             + "are two separate calls. It waits until you take it, and only this browser's "
             + "claim secret can release it.",
           cta: "Claim surplus", href: bidHref, deadline: null, deadlineKind: "hard",
+          blocking: false,
         });
       }
       if (!won) {
@@ -171,6 +190,7 @@ export function actionsFor(
           consequence: "Nothing expires. The escrow waits in the contract until you claim "
             + "it, but only this browser's claim secret can release it.",
           cta: "Claim refund", href: bidHref, deadline: null, deadlineKind: "hard",
+          blocking: false,
         });
       }
     }
@@ -187,7 +207,7 @@ export function actionsFor(
           + "only window in the protocol that shuts on the bidder, and the only one where "
           + "being late actually costs you the money.",
         cta: "Review", href: bidHref,
-        deadline: a.disputeDeadline, deadlineKind: "hard",
+        deadline: a.disputeDeadline, deadlineKind: "hard", blocking: false,
       });
     }
 
@@ -195,10 +215,11 @@ export function actionsFor(
        auctioneer — the whole point is that it works when the auctioneer has gone. It
        appears only once the grace has actually expired, so it is never a button that
        merely refuses. */
-    if (a.status === Status.Sealed && (iBid || isAuctioneer)
+    if (a.status === Status.Sealed && (iBid || isAuctioneer || isSeller)
         && settleBy !== null && now >= settleBy) {
       out.push({
-        kind: "abandon", auctionId: id, role: iBid ? "bidder" : "auctioneer",
+        kind: "abandon", auctionId: id,
+        role: iBid ? "bidder" : isSeller ? "seller" : "auctioneer",
         title: `Auction #${id} was never settled`,
         detail: "The auctioneer's time to settle has run out. Anyone can cancel it now: "
           + "every bidder is refunded in full and takes an equal share of the forfeited "
@@ -206,6 +227,8 @@ export function actionsFor(
         consequence: "Nothing gets worse and nothing expires — the auction simply stays "
           + "stuck, with everyone's escrow in it, until somebody does this.",
         cta: "Abandon", href: bidHref, deadline: null, deadlineKind: "hard",
+        /* Every escrow and the lot are stuck in a dead auction until somebody calls it. */
+        blocking: true,
       });
     }
 
@@ -214,14 +237,18 @@ export function actionsFor(
        behind `isAuctioneer`, so a bidder waiting on a stalled auction was never told they
        could move it themselves. That is the whole point of the step being permissionless:
        nobody can hold an auction hostage by declining to seal it. */
-    const stake = iBid || isAuctioneer;
+    /* The seller belongs here as much as anyone: `seal` unlocks their lot, `finalize`
+       pays them, and `abandon` returns it. They could always call all three — nothing in
+       the app said so. */
+    const stake = iBid || isAuctioneer || isSeller;
 
     if (stake) {
       /* `seal` reverts before the bid deadline. Listing it from the moment the auction
          opened offered a button that could only fail for the whole bidding period. */
       if (a.status === Status.Open && a.bidDeadline > 0 && now >= a.bidDeadline) {
         out.push({
-          kind: "seal", auctionId: id, role: isAuctioneer ? "auctioneer" : "bidder",
+          kind: "seal", auctionId: id,
+          role: isSeller ? "seller" : isAuctioneer ? "auctioneer" : "bidder",
           title: `Seal Auction #${id}`,
           detail: "Freezes the bid set and stamps the block — before any seed can be sent, "
             + "so before anyone can read an amount. That ordering is what stops a bid being "
@@ -231,6 +258,9 @@ export function actionsFor(
             + "Sealing is permissionless — if the auctioneer does not do it, any bidder "
             + "can, which is what stops an auction being stalled by inaction.",
           cta: "Seal", href: manageHref, deadline: null, deadlineKind: "hard",
+          /* The lot and every escrow sit in the contract with no path out until this
+             runs — and no clock makes it happen. The whole reason it is permissionless. */
+          blocking: true,
         });
       }
       /* `settle` *is* auctioneer-only — it is the one step with a caller check. */
@@ -247,13 +277,14 @@ export function actionsFor(
           cta: "Settle", href: manageHref,
           /* The auctioneer's own clock, and it is enforced: `abandon` becomes callable
              at exactly this moment. It was showing as no deadline at all. */
-          deadline: settleBy, deadlineKind: "hard",
+          deadline: settleBy, deadlineKind: "hard", blocking: false,
         });
       }
       /* `finalize` reverts until the dispute window has closed. */
       if (a.status === Status.Settled && now >= a.disputeDeadline) {
         out.push({
-          kind: "finalize", auctionId: id, role: isAuctioneer ? "auctioneer" : "bidder",
+          kind: "finalize", auctionId: id,
+          role: isSeller ? "seller" : isAuctioneer ? "auctioneer" : "bidder",
           title: `Finalize Auction #${id}`,
           detail: "The dispute window closed clean, so this releases the funds: the clearing "
             + "price and your bond to the seller, the lot to the winner.",
@@ -261,6 +292,8 @@ export function actionsFor(
             + "proceeds, the bond and the winner's lot all stay in the contract. This is "
             + "permissionless too, so a winner need not wait on the auctioneer.",
           cta: "Finalize", href: manageHref, deadline: null, deadlineKind: "hard",
+          /* Proceeds, bond and the winner's lot are all held until this runs. */
+          blocking: true,
         });
       }
     }
@@ -269,10 +302,14 @@ export function actionsFor(
   // Soonest first; anything without a deadline sinks below everything that has one,
   // because a dated obligation is the one that can be missed.
   return out.sort((x, y) => {
-    if (x.deadline === null && y.deadline === null) return 0;
-    if (x.deadline === null) return 1;
-    if (y.deadline === null) return -1;
-    return x.deadline - y.deadline;
+    if (x.deadline !== null && y.deadline !== null) return x.deadline - y.deadline;
+    if (x.deadline !== null) return -1;
+    if (y.deadline !== null) return 1;
+    /* Both undated. Something holding assets outranks something merely waiting for you —
+       "seal this or nobody's money moves" is not the same kind of item as "collect your
+       refund whenever". */
+    if (x.blocking !== y.blocking) return x.blocking ? -1 : 1;
+    return 0;
   });
 }
 
