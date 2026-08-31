@@ -18,7 +18,8 @@
     "contracts:test": "snforge test",
     "check:links": "node scripts/check-links.mjs",
     "check:reachability": "node scripts/check-reachability.mjs",
-    "check:mobile": "node scripts/mobile-audit.mjs"
+    "check:mobile": "node scripts/mobile-audit.mjs",
+    "verify:private": "node scripts/verify-private-tx.mjs"
   },
   "engines": {
     "node": ">=22"
