@@ -12,6 +12,8 @@ import { Ladder } from "@/components/Ladder";
 import { CountUp } from "@/components/CountUp";
 import { TrustStatement } from "@/components/TrustStatement";
 import { AbandonPanel, BidPanel, ClaimPanel, DisputePanel, RevealPanel } from "@/components/Panels";
+import { AuctioneerSection } from "@/components/AuctioneerSection";
+import { sameAddress } from "@/lib/wallet";
 
 /**
  * The auction view, rendered once and used by both the public route and the dashboard.
@@ -145,9 +147,24 @@ export function AuctionDetail({
             <>
               {auction.status === Status.Open && (
                 <div className="panel">
-                  <BidPanel auction={auction} connection={connection} onPlaced={onRefresh} />
+                  <BidPanel auction={auction} connection={connection} now={now} onPlaced={onRefresh} />
                 </div>
               )}
+              {/*
+                Seal and finalize live here as well as on the manage page, because both
+                are permissionless and this is the page anyone actually lands on. Their
+                absence is what sent a seal attempt through the bid form: the auction page
+                offered no seal control at all, so the only live button was "Place sealed
+                bid" — which the chain then refused.
+
+                `isAuctioneer` is passed honestly. It only governs `settle`, which is the
+                one step with a caller check, and the section hides that rather than
+                hiding itself.
+              */}
+              <AuctioneerSection
+                auction={auction} connection={connection} bids={bids} now={now}
+                isAuctioneer={!!connection && sameAddress(connection.address, auction.auctioneer)}
+              />
               <AbandonPanel auction={auction} connection={connection} now={now} onDone={onRefresh} />
               <RevealPanel auction={auction} bids={mine} />
               <DisputePanel auction={auction} bids={mine} connection={connection} now={now} />

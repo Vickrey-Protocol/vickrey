@@ -54,10 +54,13 @@ type Rail = "public" | "private";
 export function BidPanel({
   auction,
   connection,
+  now,
   onPlaced,
 }: {
   auction: AuctionView;
   connection: Connection | null;
+  /** Seconds since epoch. `place_bid` reverts past the deadline; so does this panel. */
+  now: number;
   onPlaced: () => void;
 }) {
   const { ensureChain, strk20Proof, noteStrk20Error } = useWallet();
@@ -139,6 +142,37 @@ export function BidPanel({
   }
 
   // R3: losing this loses the refund, and there is no recovery. It gets a wall.
+  /**
+   * Bidding closes on the clock, not on the status.
+   *
+   * `place_bid` asserts `timestamp < bid_deadline`, but the auction stays `Open` until
+   * somebody seals it — and nothing forces that to happen promptly. So between the
+   * deadline and the seal, which has no upper bound, this panel was fully live and every
+   * submission reverted `BIDDING_CLOSED`. A judge arriving in that window finds a form
+   * that takes their input, asks their wallet to sign, and fails.
+   *
+   * It refuses in place rather than disappearing: a blank column does not explain
+   * anything, and the next step is a thing they can actually do.
+   */
+  if (now >= auction.bidDeadline) {
+    return (
+      <div className="stack" style={{ gap: ".5rem" }}>
+        <h3 style={{ fontSize: "var(--step-1)" }}>Bidding has closed</h3>
+        <p className="note">
+          The deadline passed {utcDate(auction.bidDeadline)}. The chain refuses a bid from
+          that moment, so this form is closed too rather than letting you sign one that
+          cannot land.
+        </p>
+        <p className="note">
+          The auction stays <b>Open</b> until someone seals it, which freezes the bid set
+          and starts the settlement. <b>Anyone can do that</b> — it is not the
+          auctioneer&rsquo;s alone, precisely so nobody can stall an auction by declining.
+          The control is below.
+        </p>
+      </div>
+    );
+  }
+
   if (placed) {
     return (
       <div className="secret">

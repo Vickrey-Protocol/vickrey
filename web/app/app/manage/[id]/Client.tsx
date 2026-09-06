@@ -64,14 +64,27 @@ export default function Client({ id }: { id: string }) {
             {error ? `Could not read auction #${id}: ${error}` : `Reading auction #${id}…`}
           </p>
         </div>
-      ) : !isAuctioneer ? (
-        <div className="banner">
-          <b>You are not the auctioneer for #{id}.</b> Only{" "}
-          <span className="mono">{auction.auctioneer.slice(0, 10)}…</span> can seal, settle
-          or finalize it. <Link href={`/auction/${id}`}>Open the public view</Link>.
-        </div>
       ) : (
         <>
+          {!isAuctioneer && (
+            /*
+              This said "Only 0x… can seal, settle or finalize it" and then hid everything.
+              It was wrong about two of the three: `settle` has a caller check, `seal` and
+              `finalize` have none. So the interface denied in words a guarantee the
+              contract grants — the whole point of those steps being permissionless is
+              that nobody can stall an auction, and a bidder was told they could not act.
+            */
+            <div className="banner" style={{ marginBottom: "1rem" }}>
+              <b>You are not the auctioneer for #{id}</b>, so <b>settle</b> is not yours to
+              call — only{" "}
+              <span className="mono">{auction.auctioneer.slice(0, 10)}…</span> can do that.
+              <b> Seal and finalize are permissionless</b> and you can run either below, or
+              from <Link href={`/auction/${id}`}>the auction page</Link>. That is
+              deliberate: it is what stops an auction stalling if the auctioneer goes
+              quiet.
+            </div>
+          )}
+          {isAuctioneer && (
           <div className="panel" style={{ marginBottom: "1rem" }}>
             <p className="eyebrow">Your bond</p>
             <p style={{ marginTop: ".4rem" }}>
@@ -84,6 +97,7 @@ export default function Client({ id }: { id: string }) {
               only way to get it back.
             </p>
           </div>
+          )}
 
           <AuctioneerSection
             auction={auction} bids={bids} connection={connection}
