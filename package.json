@@ -20,12 +20,16 @@
     "check:reachability": "node scripts/check-reachability.mjs",
     "check:mobile": "node scripts/mobile-audit.mjs",
     "verify:private": "node scripts/verify-private-tx.mjs",
-    "check:submission": "node scripts/check-submission.mjs"
+    "check:submission": "node scripts/check-submission.mjs",
+    "shots": "node scripts/shots.mjs",
+    "pixel-diff": "node scripts/pixel-diff.mjs"
   },
   "engines": {
     "node": ">=22"
   },
   "devDependencies": {
+    "pixelmatch": "^7.2.0",
+    "pngjs": "^7.0.0",
     "puppeteer-core": "^25.9.0"
   }
 }
