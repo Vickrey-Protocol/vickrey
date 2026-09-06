@@ -1,0 +1,27 @@
+/**
+ * Tailwind v4, deliberately partial.
+ *
+ * This project's design is 1,800 lines of hand-written CSS on its own token system, closed
+ * after nine review rounds. Tailwind is here so sections from bought templates can be
+ * adopted without hand-porting every class string — not to take over layout. Two things
+ * make that safe, and both are omissions rather than settings.
+ *
+ * **Preflight is never imported.** v4's reset re-bases margins, font sizes, borders and
+ * form controls across every element on the page. Importing it would silently restyle
+ * every existing surface, which is exactly the drift this setup exists to avoid. The
+ * layers are imported individually so that one can be left out — `@import "tailwindcss"`
+ * would pull it in.
+ *
+ * **Every utility is prefixed `tw:`.** So `tw:flex`, `tw:gap-4`. Nothing Tailwind
+ * generates can collide with `.panel`, `.rail`, `.act` or any other existing class, and
+ * a search for `tw:` finds every place a bought component has been introduced.
+ *
+ * The theme layer is imported for the utilities to resolve against, but nothing here
+ * writes to our token names: Tailwind's variables are `--color-*`, `--spacing-*`,
+ * `--text-*`; ours are `--ink`, `--seal`, `--s-0`, `--rung`. Different namespaces, so the
+ * two sets coexist without either shadowing the other.
+ */
+@layer theme, base, components, utilities;
+
+@import "tailwindcss/theme.css" layer(theme) prefix(tw);
+@import "tailwindcss/utilities.css" layer(utilities) prefix(tw);

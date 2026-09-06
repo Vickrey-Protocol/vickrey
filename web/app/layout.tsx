@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Bodoni_Moda, IBM_Plex_Mono, Instrument_Sans } from "next/font/google";
+import "./tailwind.css";
 import "./globals.css";
 import { WalletProvider } from "@/components/WalletProvider";
 
