@@ -146,11 +146,17 @@ edit to `strk20.json`.
 > its calldata, or `mine` becomes `false` and that transaction **stops counting**.
 >
 > So filling in `contracts` can turn three passing transactions into zero. Both are
-> correct behaviour on the hub's part; the failure is declaring contracts and then listing
-> a plain shield that never touched them. Every hash in `transactions` must route through
-> the auction or the anonymizer — which is what `npm run verify:private` already asserts,
-> and why the three qualifying transactions come from the private rail rather than from
-> any pool activity.
+> correct behaviour on the hub's part. **Declaring contracts is a commitment, not a
+> protection**, and the rule that follows is absolute:
+>
+> **Declare the contracts AND make every hash in `transactions` a private-rail bid.**
+> Never list a bare shield alongside declared contracts — that is the exact combination
+> that turns three passing transactions into zero.
+>
+> This is no longer something to remember. `npm run check:submission` **fails** if
+> `contracts` is non-empty and any listed transaction is not a private-rail bid, naming
+> the offending hashes, even when enough others would still satisfy the hub. A hash that
+> does not belong in the list is a mistake worth failing on.
 
 **Do this now, not later.** If everything after this goes wrong, the deployed addresses
 are still worth having in the entry.
