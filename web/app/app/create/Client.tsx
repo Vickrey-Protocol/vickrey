@@ -4,7 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { CallData, RpcProvider, num, shortString } from "starknet";
 import { AuctionKind, Status } from "@vickrey/client";
-import { config, formatUnits, utcDate } from "@/lib/config";
+import { config, utcDate } from "@/lib/config";
+import { nameOf, symbolOf } from "@/lib/chain";
+import {
+  addPay, lotDecimals as asLotDecimals, payDecimals as asPayDecimals, showLot, showPay,
+  toLotUnits, toPayUnits, type LotDecimals, type PayDecimals,
+} from "@/lib/amounts";
 import { DashShell } from "@/components/DashShell";
 import { useDashData } from "@/components/DashData";
 import { Ladder } from "@/components/Ladder";
@@ -27,26 +32,76 @@ const DISPUTE_PRESETS = [
 ];
 
 /**
- * Human amount to token units, at the token's **own** decimals.
+ * The payment token is chosen from a list, never typed.
  *
- * Hardcoding 18 works for STRK and ETH and is wrong for USDC, which has six — an
- * auction created that way would escrow a millionth of what the form displayed. The
- * decimals are read from the token below, not assumed here.
+ * Its decimals govern every price on the screen — reserve, tick, cap, escrow, bond — so
+ * an address that answers `decimals()` with something unexpected mis-scales all of them
+ * at once. The lot token is free entry because the lot is whatever you are selling and
+ * we cannot know it; the thing prices are denominated in is a much shorter list, and
+ * curating it removes the failure mode entirely rather than validating around it.
  */
-const toUnits = (s: string | undefined, decimals: number): bigint => {
-  if (!s) throw new Error("required");
-  const [w = "", f = ""] = s.trim().split(".");
-  if (!/^\d*$/.test(w) || !/^\d*$/.test(f)) throw new Error("not a number");
-  return BigInt(w || "0") * 10n ** BigInt(decimals)
-    + BigInt((f + "0".repeat(decimals)).slice(0, decimals));
-};
+const PAYMENT_TOKENS = [
+  { symbol: "STRK", address: config.strkAddress, note: "The fee token. 18 decimals." },
+  {
+    symbol: "USDC",
+    address: config.network === "mainnet"
+      ? "0x053c91253bc9682c04929ca02ed00b3e423f6710d2ee7e0d5ebb06f3ecf368a8"
+      : "0x053b40a647cedfca6ca84f542a0fe36736031905a9639a7f19a3c1e66bfd5080",
+    note: "Six decimals, not eighteen — the case that breaks a hardcoded scale.",
+  },
+  /* Sepolia only: a six-decimal token we deployed so the two-token path could be
+     rehearsed against a lot token with eight. Neither is 18, so a crossed scale shows up
+     as a figure that is wrong by a factor of a hundred rather than as a coincidence. */
+  ...(config.network === "sepolia"
+    ? [{
+        symbol: "TUSD",
+        address: "0x068feffcc2b4264ea13f8e7f29ee198bbbccd2632bd094df1983e1faeb2d3663",
+        note: "Rehearsal token, six decimals.",
+      }] as const
+    : []),
+] as const;
+
+/** What a token says about itself. Both are read the same way; only entry differs. */
+interface TokenInfo { decimals: number; symbol: string; name: string }
+
+async function readToken(address: string): Promise<TokenInfo> {
+  const p = new RpcProvider({ nodeUrl: config.rpcUrl });
+  const call = (entrypoint: string) =>
+    p.callContract({ contractAddress: address, entrypoint, calldata: [] });
+
+  const dr = await call("decimals");
+  const dec = Number(BigInt(dr[0]!));
+  if (!Number.isFinite(dec) || dec < 0 || dec > 32) throw new Error("decimals out of range");
+
+  /*
+    Symbols are decoded by `symbolOf` in lib/chain.ts rather than here, because this file
+    had its own copy and the copy was wrong. A ByteArray return is
+    `[num_full_words, …words, pending_word, pending_len]`, so a three-felt symbol has the
+    text at index 1 — and reading `r[length - 3]` lands on `num_full_words`, which is
+    `0x0`, which decodes to the string "0", which passes a printable-character test.
+
+    STRK has been rendering in this form as symbol "0" the whole time. Nothing failed;
+    the wrong answer was simply printable. One decoder now, and it is the one that was
+    already right.
+  */
+  const [symbol, name] = await Promise.all([
+    symbolOf(p, address),
+    nameOf(p, address),
+  ]);
+
+  return { decimals: dec, symbol, name };
+}
 
 export default function Client() {
   const { connection, ensureChain } = useWallet();
   const d = useDashData();
   const [step, setStep] = useState(0);
 
-  const [lotToken, setLotToken] = useState(config.strkAddress ?? "");
+  /* Free entry: the lot is whatever you are selling. Validated on input, and the form
+     refuses to proceed until the address answers. */
+  const [lotToken, setLotToken] = useState("");
+  /* Chosen, never typed — see PAYMENT_TOKENS. */
+  const [payToken, setPayToken] = useState<string>(PAYMENT_TOKENS[0].address);
   const [lotAmount, setLotAmount] = useState("0.001");
   const [title, setTitle] = useState("ONE RARE THING");
   const [reserve, setReserve] = useState("0.001");
@@ -58,41 +113,55 @@ export default function Client() {
   const [kind, setKind] = useState<AuctionKind>(AuctionKind.Vickrey);
   /* Read from the token the moment it is entered. Everything the form computes —
      spacing, cap, escrow, the preview ladder — is denominated in these. */
-  const [decimals, setDecimals] = useState(18);
-  const [symbol, setSymbol] = useState("");
-  const [tokenErr, setTokenErr] = useState<string | null>(null);
+  /* Branded, so the compiler refuses a crossing. There is deliberately no variable
+     called `decimals` anywhere in this file. */
+  const [lotInfo, setLotInfo] = useState<TokenInfo | null>(null);
+  const [payInfo, setPayInfo] = useState<TokenInfo | null>(null);
+  const [lotErr, setLotErr] = useState<string | null>(null);
+  const [reading, setReading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!/^0x[0-9a-fA-F]{10,}$/.test(lotToken)) { setTokenErr(null); return; }
+    if (!/^0x[0-9a-fA-F]{10,}$/.test(lotToken)) { setLotInfo(null); setLotErr(null); return; }
     let live = true;
-    (async () => {
-      try {
-        const p = new RpcProvider({ nodeUrl: config.rpcUrl });
-        const r = await p.callContract({ contractAddress: lotToken, entrypoint: "decimals", calldata: [] });
+    setReading(true);
+    readToken(lotToken)
+      .then((info) => { if (live) { setLotInfo(info); setLotErr(null); } })
+      .catch(() => {
         if (!live) return;
-        const d = Number(BigInt(r[0]!));
-        setDecimals(Number.isFinite(d) && d >= 0 && d <= 32 ? d : 18);
-        /* The preview draws prices, and a price without its unit is one of the things
-           this project keeps saying it will not render. */
-        try {
-          const sr = await p.callContract({ contractAddress: lotToken, entrypoint: "symbol", calldata: [] });
-          const raw = shortString.decodeShortString(sr[sr.length - 3] ?? sr[0]!);
-          if (/^[\x20-\x7e]{1,12}$/.test(raw)) setSymbol(raw);
-        } catch { setSymbol(""); }
-        setTokenErr(null);
-      } catch {
-        if (live) setTokenErr("Could not read this token's decimals. Check the address.");
-      }
-    })();
+        setLotInfo(null);
+        setLotErr("This address did not answer as an ERC-20. Check it — the form will "
+          + "not create an auction against a token it cannot read.");
+      })
+      .finally(() => { if (live) setReading(false); });
     return () => { live = false; };
   }, [lotToken]);
 
+  /* Curated, so this cannot fail on a typo — but still read rather than assumed, because
+     a hardcoded 18 for USDC is the exact bug this file exists to avoid. */
+  useEffect(() => {
+    let live = true;
+    readToken(payToken)
+      .then((info) => { if (live) setPayInfo(info); })
+      .catch(() => { if (live) setPayInfo(null); });
+    return () => { live = false; };
+  }, [payToken]);
+
+  const payD: PayDecimals | null = payInfo ? asPayDecimals(payInfo.decimals) : null;
+  const lotD: LotDecimals | null = lotInfo ? asLotDecimals(lotInfo.decimals) : null;
+  const paySym = payInfo?.symbol || "—";
+  const lotSym = lotInfo?.symbol || "—";
+
+  /**
+   * The ladder, entirely in payment units. Reserve, top, tick and cap are prices, and a
+   * price is denominated in what you pay with — never in the lot.
+   */
   const derived = useMemo(() => {
+    if (!payD) return { error: "Reading the payment token…" };
     try {
-      const r = toUnits(reserve, decimals), t = toUnits(top, decimals);
+      const r = toPayUnits(reserve, payD), t = toPayUnits(top, payD);
       if (levels < 2) return { error: "A ladder needs at least two levels." };
       if (t <= r) return { error: "The top of the ladder must be above the reserve." };
       const tick = (t - r) / BigInt(levels - 1);
@@ -101,32 +170,59 @@ export default function Client() {
          stores reserve, tick and level count — never a "top" — and derives the cap as
          reserve + (levels-1)*tick. Silently accepting a top nobody can bid would let an
          auctioneer believe they had listed a range they had not. */
-      const cap = r + tick * BigInt(levels - 1);
-      return { reserve: r, tick, cap, shortfall: t - cap, error: null as string | null };
+      const cap = addPay(r, (tick * BigInt(levels - 1)) as typeof r);
+      return {
+        reserve: r, tick: tick as typeof r, cap,
+        shortfall: (t - cap) as typeof r, error: null as string | null,
+      };
     } catch { return { error: "Reserve and top must be numbers." }; }
-  }, [reserve, top, levels, decimals]);
+  }, [reserve, top, levels, payD]);
+
+  const ready = !!payD && !!lotD && !derived.error && !!derived.reserve && !lotErr;
 
   const submit = async () => {
-    if (!connection || derived.error || !derived.reserve) return;
+    if (!connection || !ready || !payD || !lotD) return;
     // Blocks on a chain mismatch rather than letting the wallet throw after approval.
     if (!(await ensureChain())) return;
     setBusy(true); setErr(null);
     try {
       const deadline = Math.floor(Date.now() / 1000) + closeIn;
+      const lot = toLotUnits(lotAmount, lotD);
+      const bondUnits = toPayUnits(bond, payD);
+
       const calldata = CallData.compile([
-        connection.address, connection.address, lotToken, lotToken,
-        num.toHex(toUnits(lotAmount, decimals)),
+        connection.address, connection.address,
+        /* payment_token, then lot_token. They were the same address until now, which is
+           why the order never mattered and why getting it wrong would have been
+           invisible. */
+        payToken, lotToken,
+        num.toHex(lot),
         num.toHex(kind === AuctionKind.Vickrey ? 1 : 0),
-        num.toHex(derived.reserve), num.toHex(derived.tick!),
+        num.toHex(derived.reserve!), num.toHex(derived.tick!),
         num.toHex(levels), num.toHex(deadline), num.toHex(window_),
-        num.toHex(toUnits(bond, decimals)), shortString.encodeShortString(title.slice(0, 31)),
+        num.toHex(bondUnits), shortString.encodeShortString(title.slice(0, 31)),
       ]);
-      const { transaction_hash } = await connection.account.execute([
+
+      /*
+        Two approvals, because `create_auction` makes two pulls from two different
+        tokens: the lot from `lot_token` and the bond from `payment_token`. With one
+        token these collapsed into a single approval for the sum, which is why this is a
+        three-call multicall that has never run anywhere before.
+
+        Approving exactly what will be pulled, not the sum and not an unbounded
+        allowance: an approval left over is an approval somebody else can use.
+      */
+      const calls = [
         { contractAddress: lotToken, entrypoint: "approve",
-          calldata: CallData.compile([config.auctionAddress,
-            num.toHex(toUnits(lotAmount, decimals) + toUnits(bond, decimals)), "0x0"]) },
+          calldata: CallData.compile([config.auctionAddress, num.toHex(lot), "0x0"]) },
+        ...(bondUnits > 0n
+          ? [{ contractAddress: payToken, entrypoint: "approve",
+               calldata: CallData.compile([config.auctionAddress, num.toHex(bondUnits), "0x0"]) }]
+          : []),
         { contractAddress: config.auctionAddress, entrypoint: "create_auction", calldata },
-      ]);
+      ];
+
+      const { transaction_hash } = await connection.account.execute(calls);
       setDone(transaction_hash);
       d.refresh();
     } catch (e) {
@@ -176,9 +272,42 @@ export default function Client() {
             <>
               {field("Lot token", <input value={lotToken}
                 onChange={(e) => setLotToken(e.target.value)} placeholder="0x…" />,
-                tokenErr ?? `The ERC-20 being auctioned. Escrow and payment use the same token. Decimals read from the token: ${decimals}. It must transfer exactly what it is told: fee-on-transfer and rebasing tokens break the accounting, and the contract does not check.`)}
+                "The ERC-20 being auctioned. It must transfer exactly what it is told: "
+                + "fee-on-transfer and rebasing tokens break the accounting, and the "
+                + "contract does not check.")}
+
+              {/* Read back, so the address is confirmed by the token rather than by the
+                  person typing it. Nothing proceeds until this answers. */}
+              {lotErr && <p className="err" style={{ marginTop: "-.6rem" }}>{lotErr}</p>}
+              {reading && !lotErr && <p className="note" style={{ marginTop: "-.6rem" }}>Reading the token…</p>}
+              {lotInfo && (
+                <div className="panel" style={{ marginTop: "-.4rem", marginBottom: "1rem" }}>
+                  <p className="note" style={{ margin: 0 }}>
+                    <b>{lotInfo.name || "(no name)"}</b> · <b>{lotInfo.symbol || "(no symbol)"}</b>
+                    {" · "}{lotInfo.decimals} decimals
+                  </p>
+                </div>
+              )}
+
+              {field("Payment token", (
+                <select value={payToken} onChange={(e) => setPayToken(e.target.value)}>
+                  {PAYMENT_TOKENS.map((t) => (
+                    <option key={t.address} value={t.address}>
+                      {t.symbol} — {t.note}
+                    </option>
+                  ))}
+                </select>
+              ), payInfo
+                ? `Every price on this screen is in ${payInfo.symbol}, at ${payInfo.decimals} decimals. `
+                  + "Chosen from a list rather than typed: its decimals scale the reserve, the "
+                  + "tick, the cap and the bond all at once."
+                : "Reading…")}
+
               {field("Lot amount", <input value={lotAmount}
-                onChange={(e) => setLotAmount(e.target.value)} />, "Transferred to the contract on create.")}
+                onChange={(e) => setLotAmount(e.target.value)} />,
+                lotD && lotInfo
+                  ? `Transferred to the contract on create — ${showLot(toLotUnits(lotAmount || "0", lotD), lotD, lotInfo.symbol || "units")}.`
+                  : "Transferred to the contract on create.")}
               {field("Title", <input value={title} maxLength={31}
                 onChange={(e) => setTitle(e.target.value)} />, "Up to 31 characters — it is stored as a short string.")}
               {field("Kind", (
@@ -205,11 +334,11 @@ export default function Client() {
               ) : (
                 <>
                   <p className="note">
-                    Spacing <b>{formatUnits(derived.tick!, decimals, decimals)}</b> per rung
+                    Spacing <b>{showPay(derived.tick!, payD!, paySym)}</b> per rung
                   </p>
                   <p className="note">
                     Highest bid anyone can place:{" "}
-                    <b>{formatUnits(derived.cap!, decimals, decimals)}</b>
+                    <b>{showPay(derived.cap!, payD!, paySym)}</b>
                   </p>
                   {derived.shortfall! > 0n && (
                     <div className="panel" style={{ borderColor: "var(--accent-edge)",
@@ -218,8 +347,8 @@ export default function Client() {
                         <b>{top} is not on this ladder.</b> Rungs are evenly spaced, and{" "}
                         {levels} of them cannot divide this range exactly — the spacing is
                         rounded down, so the top rung lands{" "}
-                        <b>{formatUnits(derived.shortfall!, decimals, decimals)}</b> short at{" "}
-                        <b>{formatUnits(derived.cap!, decimals, decimals)}</b>.
+                        <b>{showPay(derived.shortfall!, payD!, paySym)}</b> short at{" "}
+                        <b>{showPay(derived.cap!, payD!, paySym)}</b>.
                       </p>
                       <p className="note" style={{ marginTop: ".5rem" }}>
                         Nothing has been adjusted for you. Change the top, or the level
@@ -243,7 +372,7 @@ export default function Client() {
                 <p className="eyebrow">Why escrow is the same for everyone</p>
                 <p className="note" style={{ marginTop: ".4rem" }}>
                   Every bidder escrows the top of the ladder — {derived.cap
-                    ? formatUnits(derived.cap, decimals) : "…"} — regardless of what they bid.
+                    ? showPay(derived.cap, payD!, paySym) : "…"} — regardless of what they bid.
                   The withdrawal from the pool is a public ERC-20 transfer, so an escrow
                   that matched the bid would publish the bid. A uniform cap reveals
                   nothing, and the difference is refunded.
@@ -287,19 +416,34 @@ export default function Client() {
                 <div className="fact"><dt>Lot</dt><dd>{lotAmount} · {title}</dd></div>
                 <div className="fact"><dt>Kind</dt>
                   <dd>{kind === AuctionKind.Vickrey ? "Vickrey" : "First price"}</dd></div>
-                <div className="fact"><dt>Reserve</dt><dd>{reserve}</dd></div>
-                <div className="fact"><dt>Top requested</dt><dd>{top}</dd></div>
+                <div className="fact"><dt>Lot</dt>
+                  <dd>{lotD && lotInfo
+                    ? showLot(toLotUnits(lotAmount || "0", lotD), lotD, lotInfo.symbol || "units")
+                    : "—"}
+                    <span className="note" style={{ display: "block" }}>
+                      {lotInfo?.name || lotToken.slice(0, 14) + "…"}
+                    </span></dd></div>
+                <div className="fact"><dt>Priced in</dt>
+                  <dd>{paySym}
+                    <span className="note" style={{ display: "block" }}>
+                      {payInfo ? `${payInfo.decimals} decimals` : "—"}
+                    </span></dd></div>
+                <div className="fact"><dt>Reserve</dt>
+                  <dd>{payD ? showPay(toPayUnits(reserve || "0", payD), payD, paySym) : "—"}</dd></div>
+                <div className="fact"><dt>Top requested</dt>
+                  <dd>{payD ? showPay(toPayUnits(top || "0", payD), payD, paySym) : "—"}</dd></div>
                 <div className="fact"><dt>Highest bid possible</dt>
-                  <dd>{derived.cap ? formatUnits(derived.cap, decimals, decimals) : "—"}
+                  <dd>{derived.cap ? showPay(derived.cap, payD!, paySym) : "—"}
                     {derived.shortfall! > 0n && (
                       <span className="note" style={{ display: "block" }}>
-                        {formatUnits(derived.shortfall!, decimals, decimals)} below the top you asked for
+                        {showPay(derived.shortfall!, payD!, paySym)} below the top you asked for
                       </span>
                     )}</dd></div>
                 <div className="fact"><dt>Levels</dt><dd>{levels}</dd></div>
                 <div className="fact"><dt>Escrow, everyone</dt>
-                  <dd>{derived.cap ? formatUnits(derived.cap, decimals) : "—"}</dd></div>
-                <div className="fact"><dt>Your bond</dt><dd>{bond}</dd></div>
+                  <dd>{derived.cap ? showPay(derived.cap, payD!, paySym) : "—"}</dd></div>
+                <div className="fact"><dt>Your bond</dt>
+                  <dd>{payD ? showPay(toPayUnits(bond || "0", payD), payD, paySym) : "—"}</dd></div>
                 <div className="fact"><dt>Bidding closes</dt>
                   <dd>{utcDate(Math.floor(Date.now() / 1000) + closeIn)}</dd></div>
                 <div className="fact"><dt>Dispute window</dt><dd>{window_}s</dd></div>
@@ -310,7 +454,7 @@ export default function Client() {
               </p>
               {err && <p className="err" style={{ marginTop: ".6rem" }}>{err}</p>}
               <button className="primary" style={{ marginTop: "1rem" }}
-                      onClick={() => void submit()} disabled={busy || !!derived.error}>
+                      onClick={() => void submit()} disabled={busy || !ready}>
                 {busy ? "Waiting for your wallet…" : "Create auction"}
               </button>
             </>
@@ -320,7 +464,8 @@ export default function Client() {
             <button onClick={() => setStep((s) => Math.max(0, s - 1))} disabled={step === 0}>Back</button>
             {step < STEPS.length - 1 && (
               <button className="primary" onClick={() => setStep((s) => s + 1)}
-                      disabled={step === 1 && !!derived.error}>Next</button>
+                      disabled={(step === 0 && (!lotInfo || !!lotErr || reading))
+                                || (step === 1 && !!derived.error)}>Next</button>
             )}
           </div>
         </div>
@@ -335,7 +480,7 @@ export default function Client() {
             <p className="note" style={{ marginTop: ".6rem" }}>{derived.error}</p>
           ) : (
             <Ladder numLevels={levels} reservePrice={derived.reserve!} tick={derived.tick!}
-                    symbol={symbol} decimals={decimals} bidCount={0} status={Status.Open} />
+                    symbol={paySym} decimals={payD ?? 18} bidCount={0} status={Status.Open} />
           )}
           {/* It is live, but only three inputs feed it — and they are all on one step.
               Without saying so it reads as frozen on the other four. */}

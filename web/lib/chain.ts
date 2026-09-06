@@ -56,10 +56,19 @@ const n = (x: string) => BigInt(x);
  * single felt252 short string. Reading the last felt of a ByteArray yields its
  * *length*, which renders as a plausible-looking "4" rather than an obvious error.
  */
-async function symbolOf(p: RpcProvider, token: string): Promise<string> {
+/** `name()`, decoded the same way as `symbol()` — the ByteArray trap is identical. */
+export async function nameOf(p: RpcProvider, token: string): Promise<string> {
+  return textOf(p, token, "name");
+}
+
+export async function symbolOf(p: RpcProvider, token: string): Promise<string> {
+  return textOf(p, token, "symbol");
+}
+
+async function textOf(p: RpcProvider, token: string, entrypoint: string): Promise<string> {
   const printable = (s: string) => (/^[\x20-\x7e]{1,16}$/.test(s) ? s : null);
   try {
-    const r = await p.callContract({ contractAddress: token, entrypoint: "symbol", calldata: [] });
+    const r = await p.callContract({ contractAddress: token, entrypoint, calldata: [] });
     if (r.length === 1) return printable(shortString.decodeShortString(r[0]!)) ?? "tokens";
     const numFullWords = Number(BigInt(r[0]!));
     const data = r.slice(1, 1 + numFullWords);
