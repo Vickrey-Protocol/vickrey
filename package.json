@@ -22,7 +22,8 @@
     "verify:private": "node scripts/verify-private-tx.mjs",
     "check:submission": "node scripts/check-submission.mjs",
     "shots": "node scripts/shots.mjs",
-    "pixel-diff": "node scripts/pixel-diff.mjs"
+    "pixel-diff": "node scripts/pixel-diff.mjs",
+    "check:motion": "node scripts/motion-check.mjs"
   },
   "engines": {
     "node": ">=22"

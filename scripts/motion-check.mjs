@@ -1,0 +1,132 @@
+/**
+ * Asserts the hero's motion actually happens.
+ *
+ *   node scripts/motion-check.mjs [port]
+ *
+ * `npm run pixel-diff` compares settled pages, and a settled page looks exactly the
+ * same whether its animation ran, ran wrong, or never ran at all. Every rule that
+ * drives this page's motion is a *hidden* start state — `opacity: 0`, `scaleX(0)` —
+ * so losing one leaves the finished frame untouched and pixel-identical. That is the
+ * blind spot this file exists to cover: it records the whole way there, frame by
+ * frame, and fails if a beat never moved.
+ *
+ * The three beats are the argument the landing page makes, so each is checked by
+ * name rather than by "something animated":
+ *
+ *   rungs    the ladder resolves in            .rung            opacity 0 → 1
+ *   wipe     the clearing line crosses         .is-clearing     scaleX  0 → 1
+ *   brace    the band annotation arrives       .brace           opacity 0 → 1
+ *   reveals  section content rises into view   [data-reveal]    opacity 0 → 1
+ *
+ * Reveals are counted only while they are on screen: one below the fold is meant to
+ * wait at opacity 0 for a scroll, and folding those into the minimum reports a
+ * working page as stuck.
+ *
+ * A beat whose element is not on the page is reported NOT EXERCISED and fails the
+ * run. Absence of an answer is not a negative answer (CONTRIBUTING rule 11): a page
+ * served without auction data has no clearing rung and no brace, so two of the three
+ * beats silently cannot be observed — and a check that passed on that would be
+ * certifying the thing it never looked at.
+ */
+import puppeteer from "puppeteer-core";
+
+const port = process.argv[2] ?? "3000";
+const url = `http://localhost:${port}/`;
+
+/* Sampling happens inside the page, once per frame. Polling over the wire from Node
+   lands wherever the round trip lands and routinely steps straight over a 500ms beat. */
+const RECORDER = () => {
+  const seen = { rung: [], wipe: [], brace: [], reveal: [], motion: [] };
+  const num = (v) => (v === "" || v == null ? null : parseFloat(v));
+  const scaleX = (t) => (t && t !== "none" ? num(t.slice(t.indexOf("(") + 1)) : null);
+  const tick = () => {
+    const rung = document.querySelector(".rung");
+    const clearing = document.querySelector(".rung.is-clearing");
+    const brace = document.querySelector(".brace");
+    /* Only the ones on screen. A reveal below the fold is *supposed* to sit at
+       opacity 0 waiting for a scroll that has not happened, and folding those into
+       the minimum reports the page as stuck when it is working exactly as designed. */
+    const reveals = [...document.querySelectorAll("[data-reveal]")].filter((n) => {
+      const r = n.getBoundingClientRect();
+      return r.top < innerHeight && r.bottom > 0;
+    });
+    if (rung) seen.rung.push(num(getComputedStyle(rung).opacity));
+    if (clearing) seen.wipe.push(scaleX(getComputedStyle(clearing, "::after").transform));
+    if (brace) seen.brace.push(num(getComputedStyle(brace).opacity));
+    if (reveals.length) seen.reveal.push(Math.min(...reveals.map((r) => num(getComputedStyle(r).opacity))));
+    seen.motion.push(document.documentElement.dataset.motion ?? "-");
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+  Object.defineProperty(window, "__motion", { get: () => seen });
+  window.__resetMotion = () => { for (const k of Object.keys(seen)) seen[k].length = 0; };
+};
+
+const b = await puppeteer.launch({
+  executablePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+  headless: "new", args: ["--no-sandbox", "--hide-scrollbars"],
+});
+
+const results = [];
+const check = (name, ok, detail) => { results.push({ name, ok, detail }); };
+
+/* ── first load ─────────────────────────────────────────────────────────── */
+const p = await b.newPage();
+await p.setViewport({ width: 1440, height: 900 });
+await p.evaluateOnNewDocument(RECORDER);
+await p.goto(url, { waitUntil: "domcontentloaded" });
+await new Promise((r) => setTimeout(r, 3000));
+const load = await p.evaluate(() => window.__motion);
+
+const beat = (label, samples, floor = 0.5) => {
+  if (!samples.length) return check(label, false, "NOT EXERCISED — no such element on the page");
+  const lo = Math.min(...samples), hi = Math.max(...samples), end = samples.at(-1);
+  const moved = lo < floor && end > 0.99;
+  check(label, moved, `min ${lo.toFixed(2)} → end ${end.toFixed(2)} over ${samples.length} frames` +
+    (moved ? "" : lo >= floor ? "  (never started hidden — the start state was lost)"
+                              : "  (never finished — it is stuck part-way)"));
+  return hi;
+};
+
+check("motion engages", load.motion.includes("play"),
+  `data-motion saw [${[...new Set(load.motion)].join(", ")}]`);
+beat("beat 1 · rungs resolve in", load.rung);
+beat("beat 2 · clearing line wipes across", load.wipe);
+beat("beat 3 · brace arrives", load.brace);
+beat("reveals rise into view", load.reveal);
+
+/* ── replay ─────────────────────────────────────────────────────────────── */
+try {
+  if (!(await p.$(".rig-replay"))) throw new Error("no .rig-replay control on the page");
+  await p.evaluate(() => window.__resetMotion());
+  await p.click(".rig-replay");
+  await new Promise((r) => setTimeout(r, 2600));
+  beat("replay re-runs the rungs", (await p.evaluate(() => window.__motion)).rung);
+} catch (e) {
+  /* A thrown click is a failed check, not a crashed run — the other beats still
+     have something to say and the report is worth more whole than aborted. */
+  check("replay re-runs the rungs", false, `NOT EXERCISED — ${String(e.message).slice(0, 70)}`);
+}
+
+/* ── reduced motion ─────────────────────────────────────────────────────── */
+const q = await b.newPage();
+await q.setViewport({ width: 1440, height: 900 });
+await q.emulateMediaFeatures([{ name: "prefers-reduced-motion", value: "reduce" }]);
+await q.goto(url, { waitUntil: "domcontentloaded" });
+await new Promise((r) => setTimeout(r, 2000));
+const still = await q.evaluate(() => {
+  const hidden = [...document.querySelectorAll("[data-reveal]")]
+    .filter((n) => parseFloat(getComputedStyle(n).opacity) < 0.99).length;
+  return { motion: document.documentElement.dataset.motion, hidden };
+});
+check("reduced motion lands settled, hiding nothing",
+  still.motion === "still" && still.hidden === 0,
+  `data-motion=${still.motion}, ${still.hidden} reveal(s) left hidden`);
+
+await b.close();
+
+const pad = Math.max(...results.map((r) => r.name.length));
+for (const r of results) console.log(`${r.ok ? "ok  " : "FAIL"}  ${r.name.padEnd(pad)}  ${r.detail}`);
+const bad = results.filter((r) => !r.ok).length;
+console.log(bad ? `\n${bad} of ${results.length} checks failed` : `\nall ${results.length} beats verified`);
+process.exit(bad ? 1 : 0);
