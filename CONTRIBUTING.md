@@ -293,6 +293,35 @@ These are not style preferences. Each one is here because skipping it cost somet
     read. It stays a question a person has to ask, which is exactly why it is written
     down here.
 
+18. **A second implementation of a decoder is not a convenience. It is a place for the
+    two to disagree silently.** Import the one that exists.
+
+    `lib/chain.ts` decodes an ERC-20 symbol correctly: a ByteArray return is
+    `[num_full_words, …words, pending_word, pending_len]`, so it reads the count, slices
+    the words, and assembles them. The create form had its own copy that reached for
+    `r[length - 3]` — which on a three-felt symbol is index 0, which is
+    `num_full_words`, which is `0x0`, which decodes to the string `"0"`, **which passes a
+    printable-character test**.
+
+    So STRK rendered in that form as symbol `"0"` for as long as the copy existed. Nothing
+    threw, nothing was empty, no check failed. A wrong answer that is printable is
+    indistinguishable from a right one until somebody reads it against a token they know.
+
+    Two properties make this shape dangerous together, and a duplicated decoder supplies
+    both. The **failure is silent**, because a decoder's job is to produce a string and it
+    produced one. And the **correct version exists three files away**, so nobody looking
+    at either copy sees a discrepancy — you have to know to compare them.
+
+    The rule is the same one that put `actionsFor` in the live observation harness rather
+    than a transcription of it, and `qualifying.mjs` behind both submission checks rather
+    than a copy in each: **one definition, imported.** Two implementations of a rule is how
+    a checker comes to agree with itself while disagreeing with reality. If a second copy
+    seems necessary because the first is awkward to import, fix the export — that is a
+    smaller change than the bug it prevents.
+
+    And when you find a duplicate, do not just fix the wrong one. Delete it and import the
+    right one, or the next person adds a third.
+
 ## Before you push
 
 ```shell
