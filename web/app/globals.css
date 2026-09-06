@@ -651,12 +651,23 @@ td.undisclosed { color: var(--muted); font-style: italic; }
    document with or without JavaScript, and the disclosure itself costs
    no state, no listener and no bundle.
    ───────────────────────────────────────────────────────────────────── */
+/* The one centred section on the page, and centred on purpose rather than by
+   omission. A row has to stay near a readable measure, so the panel cannot fill
+   1440 the way the auction grid above it does; left-flush it stranded 500px of
+   dead space to its right and read as a layout bug. Centred — with the eyebrow's
+   rule running out to both sides and the heading over the middle of the panel —
+   the whole block is symmetric and the narrow measure looks chosen. */
+#faq .eyebrow { justify-content: center; }
+#faq .eyebrow::before {
+  content: ""; flex: 1; height: 1px; background: var(--line);
+}
+#faq h2.section { text-align: center; }
+
 .faq {
   display: grid;
   gap: 1px;
-  /* Capped rather than full-bleed: a 1440 row would set a 12-word question
-     against 900px of empty space and read as a layout bug. */
-  max-inline-size: 52rem;
+  max-inline-size: 54rem;
+  margin-inline: auto;
   background: var(--line);
   border: 1px solid var(--line);
   border-radius: 14px;
