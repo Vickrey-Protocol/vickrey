@@ -14,11 +14,11 @@ import {
   redeemWitness,
   Status,
 } from "@vickrey/client";
-import { readBidState, type AuctionView, type BidState } from "@/lib/chain";
+import { provider, readBidState, type AuctionView, type BidState } from "@/lib/chain";
 import {
   STRK_DECIMALS, config, countdown, formatUnits, hasAnonymizer, priceAt, utcDate,
 } from "@/lib/config";
-import { markRevealed, saveBid, toPrivateBid, type StoredBid } from "@/lib/vault";
+import { dropBid, markRevealed, reindexBid, saveBid, toPrivateBid, type StoredBid } from "@/lib/vault";
 import { railUsable, submitBlocked } from "@/lib/rails";
 import type { Connection } from "@/lib/wallet";
 import { Ladder } from "./Ladder";
@@ -91,11 +91,16 @@ export function BidPanel({
     }
     if (!(await ensureChain())) return;
     setError(null);
+    /* Outside the `try` so the catch can read them. `sent` is the whole of the rollback
+       rule: only while it is false may the vault entry be removed. */
+    const guessed = auction.bidCount;
+    let sent = false;
     try {
       const bid = createBid(auction.terms, level);
-      // Stored before submitting. If the transaction lands and the secret does not,
-      // the money is unreachable.
-      const stored = saveBid(auction.terms.auctionId, bid, auction.bidCount);
+      /* Written before the send, deliberately: a transaction that lands while the secret
+         does not is an escrow nobody can release. `auction.bidCount` is a *guess* at the
+         index — it comes from a poll — and is corrected from the receipt below. */
+      const stored = saveBid(auction.terms.auctionId, bid, guessed);
       let transaction_hash: string;
 
       if (rail === "public") {
@@ -128,12 +133,40 @@ export function BidPanel({
         ({ transaction_hash } = await connection.account.strk20InvokeTransaction(actions));
       }
 
-      setPlaced({ ...stored, txHash: transaction_hash });
+      sent = true;
+
+      /*
+        B: the index the chain actually assigned, read from `BidPlaced` in the receipt.
+        `index` is a keyed field, and the event is matched on our own `claim_commitment`
+        so that a transaction carrying several bids still resolves to ours.
+
+        Failure here is not fatal — the entry keeps the guessed index and the reconcile
+        pass on the dashboard corrects it later — so it never blocks showing the secret.
+      */
+      let index = guessed;
+      try {
+        const rcpt = await provider().waitForTransaction(transaction_hash);
+        const events = (rcpt as { events?: Array<{ from_address: string; keys: string[]; data: string[] }> }).events ?? [];
+        const mine = events.find((ev) =>
+          BigInt(ev.from_address) === BigInt(config.auctionAddress)
+          && ev.data?.[0] !== undefined
+          && BigInt(ev.data[0]) === bid.claimCommitment);
+        if (mine?.keys?.[2] !== undefined) {
+          index = Number(BigInt(mine.keys[2]));
+          reindexBid(auction.terms.auctionId, guessed, index);
+        }
+      } catch { /* keep the guess; the dashboard reconciles against the chain */ }
+
+      setPlaced({ ...stored, index, txHash: transaction_hash });
       onPlaced();
     } catch (e) {
       /* A private-rail failure is the same pool read failing. Recording it stops the
          rail being offered again, so the next attempt is a button that explains itself
          rather than a bid that fails. */
+      /* A: roll back only when the wallet threw before returning a hash. A timeout after
+         submission is silence, not a refusal — Rule 11 — and the transaction may still
+         land. */
+      if (!sent) dropBid(auction.terms.auctionId, guessed);
       if (rail === "private") noteStrk20Error(e);
       setError(errText(e));
     } finally {

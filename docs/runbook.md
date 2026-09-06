@@ -25,6 +25,22 @@ at zero. Only `pool → AuctionAnonymizer → SealedBidAuction` counts.
 
 ---
 
+## Dispute window: 86400 in production, 3600 to rehearse
+
+`dispute_window` does double duty — it is the challenge period *and* the auctioneer's
+grace before `abandon` becomes callable. **86400 (a day) is the production value**, and
+the reason is in the presets: it is the shortest window a bidder could reasonably be
+expected to catch.
+
+**180 is a demo value and it has already cost a run.** Sepolia auction #8 was sealed with
+180s, the seeds could not be gathered and pasted inside three minutes, the grace opened,
+and the auction was abandoned rather than settled — taking the settle, dispute, finalize
+and claim path with it.
+
+**For a rehearsal use 3600.** An hour to gather reveals and settle, an hour to wait out
+the window, and the whole lifecycle finishes in one sitting. Anything shorter is a race
+against a step that involves copying JSON between two browsers.
+
 ## THE DEADLINE IS A STATE, NOT AN EVENT
 
 There is **no submit step**. The hackathon README is explicit: *"Whatever your repository

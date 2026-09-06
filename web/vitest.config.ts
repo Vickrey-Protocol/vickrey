@@ -7,6 +7,7 @@ export default defineConfig({
     alias: { "@": fileURLToPath(new URL("./", import.meta.url)) },
   },
   test: {
+    environment: "jsdom",
     // `*.live.test.ts` reads the real chain and runs on demand, never in the suite.
     // A unit test that needs a network is not a unit test, and one that fails because
     // Sepolia is slow teaches people to ignore a red mark.

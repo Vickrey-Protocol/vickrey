@@ -201,6 +201,8 @@ export async function readBids(id: bigint, count: number): Promise<PublicBid[]> 
  */
 export interface BidState {
   index: number;
+  /** The bid's only identity. `poseidon([CLAIM_TAG, claim_secret])`. */
+  claimCommitment: bigint;
   escrow: bigint;
   disposition: Disposition;
   claimed: boolean;
@@ -214,10 +216,29 @@ export async function readBidState(id: bigint, index: number): Promise<BidState>
   });
   return {
     index,
+    claimCommitment: n(r[0]!),
     escrow: n(r[3]!),
     disposition: Number(n(r[4]!)) as Disposition,
     claimed: n(r[5]!) !== 0n,
   };
+}
+
+/**
+ * Where a commitment actually sits, asked of the chain.
+ *
+ * A stored index is a guess until this confirms it. Returns the index whose bid carries
+ * this commitment, or `null` if no bid in the auction does — which is what a phantom
+ * looks like. Throws on an unreadable chain rather than returning null, because "we could
+ * not ask" and "it is not there" must not collapse into one answer.
+ */
+export async function findBidIndex(
+  auctionId: bigint, bidCount: number, commitment: bigint,
+): Promise<number | null> {
+  for (let i = 0; i < bidCount; i++) {
+    const st = await readBidState(auctionId, i);
+    if (st.claimCommitment === commitment) return i;
+  }
+  return null;
 }
 
 export async function readAuctionCount(): Promise<number> {

@@ -62,6 +62,38 @@ export function saveBid(auctionId: bigint, bid: Omit<PrivateBid, "index">, index
   return entry;
 }
 
+/**
+ * Removes a stored bid. Used only when the transaction that would have created it is
+ * known not to have landed.
+ *
+ * The write happens *before* the send, deliberately: a transaction that lands while the
+ * secret does not is an escrow nobody can release. Nothing undid it when the send failed,
+ * so a reverted bid left an entry for an index the chain never assigned — a claim row
+ * against a bid that does not exist.
+ *
+ * Rule 11 governs when this may be called. Dropping is safe only if we know the
+ * transaction did not reach the chain, which in practice means the wallet threw *before*
+ * returning a hash. Once a hash exists the transaction may still land, and a vault entry
+ * removed on a guess is a secret destroyed.
+ */
+export function dropBid(auctionId: bigint, index: number) {
+  write(read().filter((b) => !(b.auctionId === auctionId.toString() && b.index === index)));
+}
+
+/**
+ * Corrects a stored bid's index to the one the chain actually assigned.
+ *
+ * The index was taken from `bidCount` on a polled view, which is a guess: anyone bidding
+ * between the poll and the send shifts it. `place_bid` returns the real index and
+ * `BidPlaced` carries it as a key, so the authoritative answer is available and was
+ * simply never read.
+ */
+export function reindexBid(auctionId: bigint, from: number, to: number) {
+  if (from === to) return;
+  write(read().map((b) =>
+    b.auctionId === auctionId.toString() && b.index === from ? { ...b, index: to } : b));
+}
+
 export function markRevealed(auctionId: bigint, index: number) {
   write(
     read().map((b) =>

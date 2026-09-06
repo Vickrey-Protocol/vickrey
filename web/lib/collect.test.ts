@@ -16,7 +16,7 @@ import { collectOp } from "@/components/Panels";
 import type { BidState } from "@/lib/chain";
 
 const bid = (disposition: Disposition): BidState =>
-  ({ index: 0, escrow: 10n, disposition, claimed: false });
+  ({ index: 0, claimCommitment: 1n, escrow: 10n, disposition, claimed: false });
 
 describe("collect routes to the call that will succeed", () => {
   it("sends a forfeited bid on a finalized auction to redeem_forfeit", () => {

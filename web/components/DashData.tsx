@@ -2,9 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Status } from "@vickrey/client";
-import { readAll, readBidState, type AuctionView, type BidState } from "@/lib/chain";
+import {
+  findBidIndex, readAll, readBidState, type AuctionView, type BidState,
+} from "@/lib/chain";
 import { isDeployed } from "@/lib/config";
-import { allBids, type StoredBid } from "@/lib/vault";
+import { allBids, dropBid, reindexBid, type StoredBid } from "@/lib/vault";
 import { sameAddress } from "@/lib/wallet";
 import { actionsFor, type DueAction } from "@/lib/actions";
 import { useWallet } from "@/components/WalletProvider";
@@ -71,6 +73,51 @@ export function useDashData(): DashData {
   }, [tick]);
 
   useEffect(() => { setMine(allBids()); setVaultRead(true); }, [tick, auctions.length]);
+
+  /**
+   * Reconcile this browser's vault against the chain, once the auctions are in.
+   *
+   * Two things put a stored bid out of step with reality. A transaction that reverted
+   * still left its entry behind, because the write happens before the send and nothing
+   * undid it — that is where a claim row for a bid the chain never assigned comes from.
+   * And the index was taken from a polled `bidCount`, so anyone bidding in the gap
+   * between the poll and the send shifted it.
+   *
+   * Both are corrected here rather than needing a manual purge: a commitment found at a
+   * different index is renumbered, and one found nowhere in an auction that *was* read
+   * successfully is dropped.
+   *
+   * The asymmetry is deliberate. Renumbering is safe. Dropping destroys a secret, so it
+   * happens only when the chain positively answered "no bid here carries this
+   * commitment" — never on a failed read, and never for an auction we could not load.
+   */
+  useEffect(() => {
+    if (!auctions.length || !mine.length) return;
+    let live = true;
+    void (async () => {
+      for (const b of mine) {
+        const a = auctions.find((x) => x.terms.auctionId === BigInt(b.auctionId));
+        if (!a || !live) continue;
+        try {
+          const here = b.index < a.bidCount
+            ? await readBidState(a.terms.auctionId, b.index)
+            : null;
+          if (here && here.claimCommitment === BigInt(b.claimCommitment)) continue;
+
+          const found = await findBidIndex(
+            a.terms.auctionId, a.bidCount, BigInt(b.claimCommitment));
+          if (!live) return;
+          if (found !== null) reindexBid(a.terms.auctionId, b.index, found);
+          else dropBid(a.terms.auctionId, b.index);
+        } catch {
+          /* Unreadable chain. Absence of an answer is not "this bid does not exist", so
+             nothing is dropped and the next poll tries again. */
+        }
+      }
+      if (live) setMine(allBids());
+    })();
+    return () => { live = false; };
+  }, [auctions, mine.length]);
 
   /* Whether a bid has been collected is not in `AuctionView` — it is per-bid, and the
      queue needs it. Without it a winner who claimed the lot was told nothing more, and
