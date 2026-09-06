@@ -1,6 +1,7 @@
 {
-  "$comment": "Top-level field names and TYPES follow the sprint's strk20.json spec exactly: `transactions` and `contracts` are arrays, not objects. An earlier version had `contracts` as an object keyed by contract name, which the hub would not have read \u2014 and the transaction check depends on it, because a qualifying hash must have run through a contract listed there. Fields that cannot be true yet are omitted rather than left empty, per 'add each field when you have it'; `pending` says what unblocks each one.",
+  "$comment": "Top-level field names and TYPES follow the sprint's strk20.json spec exactly: `transactions` and `contracts` are arrays, not objects. An earlier version had `contracts` as an object keyed by contract name, which the hub would not have read — and the transaction check depends on it, because a qualifying hash must have run through a contract listed there. Fields that cannot be true yet are omitted rather than left empty, per 'add each field when you have it'; `pending` says what unblocks each one.",
   "demo_url": "https://vickrey.0xo.in",
+  "x_handle": "jagadeeshftw",
   "name": "Vickrey",
   "tagline": "Sealed-bid auctions where the losing bids are never published",
   "description": "A Vickrey (second-price) auction on Starknet where no bid is ever revealed - not the losers', not the winner's. Bidders commit to a price level with two Poseidon hash chains that let the contract verify 'my bid is at least X' and 'my bid is at most X' without learning the bid. Settlement proves the Vickrey outcome from N+1 such witnesses: the winner is at or above the clearing level, the runner-up is exactly at it, everyone else is at or below. Funds move through the STRK20 privacy pool, so the bidder's identity is unlinked from the bid as well.",
@@ -39,7 +40,7 @@
     "cairo": "2.14.0",
     "scarb_profile": "release",
     "starknet_foundry": "0.53.0",
-    "note": "The RELEASE artifact is what ships, because that is what `sncast declare` builds \u2014 verified by clearing target/ and watching which directory it populates. An earlier note here said dev, which was wrong: the dev class hash is never declared by anything.",
+    "note": "The RELEASE artifact is what ships, because that is what `sncast declare` builds — verified by clearing target/ and watching which directory it populates. An earlier note here said dev, which was wrong: the dev class hash is never declared by anything.",
     "tests": "75 passing (66 auction + 9 anonymizer): snforge test",
     "scarb": "2.14.0",
     "sierra": "1.7.0"
@@ -48,11 +49,11 @@
   "freeze": {
     "_comment": "Contracts are CANDIDATE-FROZEN until the on-chain gates pass on Sepolia against the declared candidate. Mainnet declares only after that, because declaring twice pays twice.",
     "state": "candidate-frozen",
-    "gate_abandon": "PASS 6/6 \u2014 scripts/verify-abandon.mjs, Sepolia, against the bond fix",
-    "gate_events": "PASS 5/5 \u2014 scripts/verify-events.mjs, tx 0x1c5fb345\u2026fd0b27a",
-    "gate_browser_lifecycle": "outstanding \u2014 needs a human with a wallet extension",
+    "gate_abandon": "PASS 6/6 — scripts/verify-abandon.mjs, Sepolia, against the bond fix",
+    "gate_events": "PASS 5/5 — scripts/verify-events.mjs, tx 0x1c5fb345…fd0b27a",
+    "gate_browser_lifecycle": "outstanding — needs a human with a wallet extension",
     "cairo_changes_required_so_far": 1,
-    "change_log": "One change since the first candidate: abandon forfeits the auctioneer's bond to the bidders instead of returning it to the seller, and the bond is bounded to [tick, cap]. Found by audit, not by testing \u2014 the earlier build let a seller who was also the auctioneer discard a disappointing outcome for the cost of gas. See docs/proposal-bond.md."
+    "change_log": "One change since the first candidate: abandon forfeits the auctioneer's bond to the bidders instead of returning it to the seller, and the bond is bounded to [tick, cap]. Found by audit, not by testing — the earlier build let a seller who was also the auctioneer discard a disappointing outcome for the cost of gas. See docs/proposal-bond.md."
   },
   "rehearsals": [
     {
@@ -62,8 +63,8 @@
       "note": "The candidate build including the bond fix, declared and deployed on Sepolia. Freeze gates 5 and 6a verified against it, plus two full lifecycles (18-decimal and 6-decimal).",
       "SealedBidAuction": "0x0496dde31ec488f340fd21e4533206a8b0d36becd314728b8c212dcbf48c30d9",
       "AuctionAnonymizer": "0x06dfbdabc0c44c97c3227b8b5a829db9f0eb60e52c07dea13de02a049893f758",
-      "abandon_verified": "6/6 \u2014 scripts/verify-abandon.mjs",
-      "events_verified": "5/5 \u2014 scripts/verify-events.mjs, tx 0x1b9d71e1a5355b39f06c336a16b28f36b19862b9b8077d145282b2b10eeb9cb",
+      "abandon_verified": "6/6 — scripts/verify-abandon.mjs",
+      "events_verified": "5/5 — scripts/verify-events.mjs, tx 0x1b9d71e1a5355b39f06c336a16b28f36b19862b9b8077d145282b2b10eeb9cb",
       "six_decimal_auction": {
         "token": "0x01a1b37f8bded38e29e828dc95a8c10b9a069de0c9171ee7727eca84afdeff28",
         "symbol": "SIX",
@@ -96,7 +97,7 @@
   ],
   "pending": {
     "$comment": "Spec fields omitted because they cannot hold a true value yet. Each says what unblocks it.",
-    "transactions": "Array of at least three mainnet hashes, each having touched the STRK20 pool AND carried an event from a contract listed in `contracts`. Needs the mainnet declare and a shielded balance \u2014 see docs/runbook.md step 5.",
+    "transactions": "Array of at least three mainnet hashes, each having touched the STRK20 pool AND carried an event from a contract listed in `contracts`. Needs the mainnet declare and a shielded balance — see docs/runbook.md step 5.",
     "contracts": "Array of the two deployed mainnet addresses. Class hashes are already final and recorded under contract_details.",
     "demo_video": "Script written and timed at docs/demo-script.md. Records after the mainnet auction so the footage shows real hashes."
   }
