@@ -25,6 +25,26 @@ at zero. Only `pool → AuctionAnonymizer → SealedBidAuction` counts.
 
 ---
 
+## THE DEADLINE IS A STATE, NOT AN EVENT
+
+There is **no submit step**. The hackathon README is explicit: *"Whatever your repository
+shows at September 7, 23:59 UTC is your entry."* The hub polls every 30 minutes and reads
+`strk20.json` from `main`.
+
+Two consequences, and the second is the dangerous one.
+
+Nothing can be **submitted late** — there is nothing to submit, and no form that closes.
+A field filled in at 23:50 is in the entry.
+
+But **a broken `main` at 23:59 IS the entry.** No reviewer will notice it was fine an hour
+earlier, and there is no draft to fall back to. So:
+
+- **No risky changes in the final hours.** The last commit before the deadline should be
+  one you have already run `npm run check:submission` against.
+- Leave a margin for the 30-minute poll. A change landing at 23:55 may not be reflected on
+  the hub before it freezes, even though the repository state is what counts.
+- `npm run check:deployed` and `npm test` are the last things to run, not the first.
+
 ## Before you start
 
 ```
@@ -102,11 +122,35 @@ hub reads to decide whether a transaction ran through one of your contracts:
 "contracts": ["<auction address>", "<anonymizer address>"]
 ```
 
-Delete the matching line from `pending`. Then:
+Delete the matching line from `pending`. Then **verify it the way the hub will**, before
+committing:
 
 ```
-git add -A && git commit -m "deploy: mainnet" && git push
+npm run check:submission
 ```
+
+That reproduces `build-projects.mjs` function by function and prints the same
+`requirements` object the hub publishes. It has caught this file's shape twice: once when
+`contracts` was an object keyed by name where the spec wants an array, and once when the
+whole thing was checked against the spec's prose instead of its reader. Run it after every
+edit to `strk20.json`.
+
+> [!WARNING]
+> **Declaring contracts raises the bar for your own transactions.** This runs opposite to
+> intuition and it is worth reading twice.
+>
+> The hub counts `transactions.filter(t => t.ok && t.pool && t.mine !== false)`. `mine` is
+> **`null`** when a project declares no contracts — and `null !== false`, so a project with
+> an empty `contracts` array is credited on pool contact alone. The moment you declare
+> addresses, every transaction must *also* show one of them, in its events or anywhere in
+> its calldata, or `mine` becomes `false` and that transaction **stops counting**.
+>
+> So filling in `contracts` can turn three passing transactions into zero. Both are
+> correct behaviour on the hub's part; the failure is declaring contracts and then listing
+> a plain shield that never touched them. Every hash in `transactions` must route through
+> the auction or the anonymizer — which is what `npm run verify:private` already asserts,
+> and why the three qualifying transactions come from the private rail rather than from
+> any pool activity.
 
 **Do this now, not later.** If everything after this goes wrong, the deployed addresses
 are still worth having in the entry.

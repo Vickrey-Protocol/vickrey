@@ -19,7 +19,8 @@
     "check:links": "node scripts/check-links.mjs",
     "check:reachability": "node scripts/check-reachability.mjs",
     "check:mobile": "node scripts/mobile-audit.mjs",
-    "verify:private": "node scripts/verify-private-tx.mjs"
+    "verify:private": "node scripts/verify-private-tx.mjs",
+    "check:submission": "node scripts/check-submission.mjs"
   },
   "engines": {
     "node": ">=22"
