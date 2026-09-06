@@ -23,6 +23,18 @@
  *
  * The contract side is read from the Cairo rather than declared, so it cannot drift.
  *
+ * And a third, because the second passed while a bidder still could not seal. The queue
+ * offered `seal` to bidders and to the seller, and linked them to `/app/manage/[id]`,
+ * which rendered the control only for the auctioneer and told everyone else that "only
+ * 0x… can seal, settle or finalize it" — false for two of the three. The role check
+ * verified the *offer* and never the *arrival*:
+ *
+ *   for every entrypoint the app offers to anyone, at least one page renders its control
+ *   without gating on being the auctioneer.
+ *
+ * An entrypoint reachable only through an auctioneer-gated page is not reachable by the
+ * people the contract admits, however many buttons exist.
+ *
  * Adding an entrypoint therefore forces a decision. Forgetting to wire one up fails the
  * build; deciding it should not be wired up costs one line and an explanation.
  *
@@ -182,6 +194,67 @@ if (unreachable) {
   );
   process.exit(1);
 }
+/* ── arrival ────────────────────────────────────────────────────────────────
+   The control exists; can the role the queue offers it to actually get to one?
+
+   Deliberately coarse, and honest about it: it asks whether *every* page that renders a
+   control is auctioneer-gated. That is enough to catch the real defect — `seal`'s only
+   control lived on a page no bidder could see — without pretending to analyse JSX. A
+   subtler gate could still slip through, and the rule in CONTRIBUTING is what covers
+   that; this covers the shape that actually happened. */
+
+/** `isAuctioneer` used as a condition, not passed as a prop. `isAuctioneer={…}` is fine. */
+const AUCTIONEER_GATE = /(?:!\s*isAuctioneer\b|\bisAuctioneer\s*\?|\bisAuctioneer\s*&&)/;
+
+/** The component that owns a call site, by filename. */
+const componentOf = (file) => file.split("/").pop().replace(/\.tsx?$/, "");
+
+/** Files that render `<Name`, excluding the component's own file. */
+const renderedIn = (name) =>
+  sources
+    .filter(({ file, text }) =>
+      componentOf(file) !== name && new RegExp(`<${name}[\\s/>]`).test(stripComments(text)))
+    .map(({ file }) => file);
+
+const arrivalProblems = [];
+console.log("\n  entrypoint            control lives in        rendered by\n");
+for (const { fn } of entrypoints()) {
+  if (NOT_USER_FACING[fn]) continue;
+  if (UI_ROLE[fn] !== "anyone") continue;      // restricted steps may be gated
+  const sites = reachedBy(fn);
+  if (!sites.length) continue;                 // already failed above
+
+  /* A call site under `web/app/` is a route's own client: it *is* the page, so the gate
+     question is about that file and nothing else. Following the component name there
+     would be wrong as well as noisy — a dozen route clients are all called `Client`, so
+     `renderedIn("Client")` returns every page in the app. Shared components are followed
+     to whoever renders them. */
+  const hosts = new Set();
+  for (const site of sites) {
+    if (site.startsWith("web/app/")) { hosts.add(site); continue; }
+    const parents = renderedIn(componentOf(site));
+    for (const p of (parents.length ? parents : [site])) hosts.add(p);
+  }
+
+  const ungated = [...hosts].filter(
+    (h) => !AUCTIONEER_GATE.test(stripComments(readFileSync(h, "utf8"))));
+  const shown = [...hosts].map((h) => h.replace(/^web\//, "")).join(", ");
+  const mark = ungated.length ? "ok   " : "FAIL ";
+  console.log(`  ${mark} ${fn.padEnd(16)} ${componentOf(sites[0]).padEnd(22)} ${shown}`);
+  if (!ungated.length) {
+    arrivalProblems.push(
+      `${fn}: the contract lets anyone call it, but every page rendering its control ` +
+      `gates on \`isAuctioneer\`. The offer is reachable and the control is not.`);
+  }
+}
+
+if (arrivalProblems.length) {
+  console.log("\n  UNREACHABLE CONTROL\n");
+  for (const p of arrivalProblems) console.log(`    ${p}`);
+  console.log("");
+  process.exit(1);
+}
+
 /* ── roles ──────────────────────────────────────────────────────────────────
    Reachability said yes to `seal` and `finalize` while the queue offered both only to
    the auctioneer, and the contract restricts neither. Reached-by-someone is not

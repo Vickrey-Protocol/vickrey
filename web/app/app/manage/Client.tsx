@@ -14,8 +14,16 @@ export default function Client() {
   const { connection } = useWallet();
   const now = useNow();
   const d = useDashData();
-  const owned = d.auctions.filter(
-    (a) => connection && sameAddress(connection.address, a.auctioneer));
+  /*
+    Was `auctioneer` only, which hid an auction from the seller whose lot is in it and
+    from every bidder — the same people the queue tells they can seal or finalize. A
+    permissionless step is not reachable if the page listing the auction refuses to show
+    it to them.
+  */
+  const owned = d.auctions.filter((a) => connection && (
+    sameAddress(connection.address, a.auctioneer)
+    || sameAddress(connection.address, a.seller)
+    || d.mine.some((b) => BigInt(b.auctionId) === a.terms.auctionId)));
 
   const waitingOn = (s: Status) =>
     s === Status.Open ? "bidding to close"
