@@ -3,6 +3,18 @@
  *
  * Every answer has to agree with the trust statement — including the ones that are
  * unflattering. Overclaiming here costs more than it buys.
+ *
+ * Six answers open at once was a wall of prose in a two-column grid: nobody reads it,
+ * and the questions themselves — which are the scannable part — were buried inside it.
+ * One column of rows that open on click puts the six questions on screen at once and
+ * gives the reader the one they came for.
+ *
+ * Native <details> rather than an accordion component. Every answer is in the document
+ * whether or not any script ran, so the content is never conditional on hydration;
+ * open, close, keyboard and screen-reader semantics come from the browser; and
+ * `name` makes the group exclusive without a line of state. The height animation is
+ * ::details-content, which only some browsers have — where they do not, the rows open
+ * instantly, which is the correct thing to lose.
  */
 const QA: Array<{ q: string; a: React.ReactNode }> = [
   {
@@ -80,10 +92,24 @@ export function Faq() {
       <h2 className="section" style={{ marginTop: 0 }} data-reveal>Before you bid</h2>
       <div className="faq">
         {QA.map(({ q, a }, i) => (
-          <div className="faq-item glow" key={q} data-reveal style={{ ["--d" as string]: `${i * 0.05}s` }}>
-            <h3 className="faq-q">{q}</h3>
+          <details
+            className="faq-item glow"
+            /* One group, so opening an answer closes the last one. */
+            name="faq"
+            /* The first is open so the section reads as answers, not as six shut doors. */
+            open={i === 0}
+            key={q}
+            data-reveal
+            style={{ ["--d" as string]: `${i * 0.04}s` }}
+          >
+            <summary className="faq-q">
+              {q}
+              {/* A plus that loses its upright stroke when the row opens. Decoration:
+                  the state is already announced by the summary itself. */}
+              <span className="faq-mark" aria-hidden="true" />
+            </summary>
             <p className="faq-a">{a}</p>
-          </div>
+          </details>
         ))}
       </div>
     </section>

@@ -642,11 +642,21 @@ td.undisclosed { color: var(--muted); font-style: italic; }
   .masthead-burger { display: none; }
 }
 
-/* ── FAQ ────────────────────────────────────────────────────────────── */
+/* ── FAQ ────────────────────────────────────────────────────────────────
+   One column of rows, not a grid of cards. Six answers rendered open at
+   once was a wall the eye slid off; the questions are what a visitor
+   scans, so they get the width and the answers wait behind them.
+
+   Every row is a native <details>. That means the answers are in the
+   document with or without JavaScript, and the disclosure itself costs
+   no state, no listener and no bundle.
+   ───────────────────────────────────────────────────────────────────── */
 .faq {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
   gap: 1px;
+  /* Capped rather than full-bleed: a 1440 row would set a 12-word question
+     against 900px of empty space and read as a layout bug. */
+  max-inline-size: 52rem;
   background: var(--line);
   border: 1px solid var(--line);
   border-radius: 14px;
@@ -655,15 +665,68 @@ td.undisclosed { color: var(--muted); font-style: italic; }
 .faq-item {
   background: var(--glass);
   backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
-  padding: 1.15rem 1.3rem;
 }
 .faq-q {
+  display: flex; align-items: flex-start; gap: 1.4rem;
+  padding: 1.05rem 1.3rem;
+  cursor: pointer;
   font-family: var(--font-body), sans-serif;
   font-size: var(--s-0); font-weight: 600; color: var(--ink);
-  margin: 0 0 .45rem; letter-spacing: 0;
+  letter-spacing: 0;
+  transition: background .18s ease;
+  /* Both are needed: `list-style` covers Firefox, the pseudo-element Safari. */
+  list-style: none;
 }
-.faq-a { margin: 0; font-size: var(--s--1); line-height: 1.6; color: var(--ink-2); max-width: 46ch; }
+.faq-q::-webkit-details-marker { display: none; }
+.faq-q:hover { background: var(--glass-2); }
+/* The rows are clipped by the panel, so the ring is drawn inside them. */
+.faq-q:focus-visible { outline-offset: -3px; border-radius: 0; }
+
+/* A plus that loses its upright stroke when the row opens. */
+.faq-mark {
+  position: relative; flex: none;
+  margin-inline-start: auto; margin-block-start: .42rem;
+  inline-size: 11px; block-size: 11px;
+}
+.faq-mark::before, .faq-mark::after {
+  content: "";
+  position: absolute; inset-block-start: 5px; inset-inline-start: 0;
+  inline-size: 11px; block-size: 1px;
+  background: var(--muted);
+  transition: transform .24s cubic-bezier(.2, .7, .3, 1), background .24s ease;
+}
+.faq-mark::after { transform: rotate(90deg); }
+.faq-item[open] .faq-mark::before,
+.faq-item[open] .faq-mark::after { background: var(--ink); }
+.faq-item[open] .faq-mark::after { transform: rotate(0deg); }
+
+.faq-a {
+  margin: 0; padding: 0 1.3rem 1.25rem;
+  font-size: var(--s--1); line-height: 1.6; color: var(--ink-2);
+  max-inline-size: 62ch;
+}
 .faq-a strong { color: var(--ink); font-weight: 600; }
+
+/* Opening height is an enhancement, not the mechanism. Where the browser
+   cannot interpolate to `auto` the row still opens — instantly, which is
+   the right thing to lose. `interpolate-size` is scoped here rather than
+   set on :root so it cannot change how anything else transitions. */
+@supports (interpolate-size: allow-keywords) {
+  .faq { interpolate-size: allow-keywords; }
+  .faq-item::details-content {
+    block-size: 0;
+    overflow: clip;
+    transition: block-size .28s cubic-bezier(.2, .7, .3, 1), content-visibility .28s;
+    transition-behavior: allow-discrete;
+  }
+  .faq-item[open]::details-content { block-size: auto; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .faq-q,
+  .faq-mark::before, .faq-mark::after,
+  .faq-item::details-content { transition: none; }
+}
 
 /* ── footer ─────────────────────────────────────────────────────────── */
 footer {
