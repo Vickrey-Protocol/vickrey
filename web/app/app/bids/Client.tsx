@@ -109,7 +109,7 @@ export default function Client() {
         rather than by adjectives: its own register, the count as the largest figure on the
         page, the backup state stated as a fact, and exactly one obvious next action.
       */}
-      <section className="vault">
+      <section className="vault" data-tour="vault">
         <div className="vault-head">
           <p className="eyebrow">Claim secrets</p>
           <p className="vault-count">

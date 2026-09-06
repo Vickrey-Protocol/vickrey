@@ -53,7 +53,7 @@ export default function OverviewClient() {
     <DashShell title="Overview" actions={d.actions} ownsAuctions={d.ownsAuctions}>
       {/* ── Band 1 ─────────────────────────────────────────────────────────────── */}
       <section>
-        <h2 className="section" style={{ marginTop: 0 }}>Action required</h2>
+        <h2 className="section" style={{ marginTop: 0 }} data-tour="queue">Action required</h2>
         {d.loading ? (
           /* A skeleton shaped like the content, never a spinner where a number goes. */
           <div className="stack">

@@ -123,6 +123,7 @@ export function Notifications({ actions }: { actions: DueAction[] }) {
       <button
         ref={btn}
         className={`bell${open ? " on" : ""}`}
+        data-tour="bell"
         onClick={() => (open ? close() : setOpen(true))}
         aria-haspopup="dialog"
         aria-expanded={open}

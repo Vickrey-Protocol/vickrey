@@ -1776,6 +1776,21 @@ select:hover { background-color: rgba(0, 0, 0, .32); }
   background: rgba(4, 10, 9, .72);
   backdrop-filter: blur(3px);
 }
+/* When a step points at something, the dimming moves to the cutout below — a second
+   full-screen tint on top of it would darken the very thing being highlighted. */
+.tour-veil.anchored { background: none; backdrop-filter: none; place-items: start; }
+
+/* The hole. One element with an enormous spread: everything outside the box is dimmed,
+   the box itself is untouched, and there is no second overlay to keep in step. */
+.tour-spot {
+  position: fixed; z-index: 1;
+  border-radius: 12px;
+  box-shadow: 0 0 0 9999px rgba(4, 10, 9, .74), 0 0 0 2px var(--accent-edge) inset;
+  pointer-events: none;
+  transition: top .22s cubic-bezier(.2,.7,.3,1), left .22s cubic-bezier(.2,.7,.3,1),
+              width .22s, height .22s;
+}
+
 .tour {
   inline-size: min(34rem, 100%);
   max-block-size: calc(100dvh - 2.5rem);
@@ -1786,6 +1801,14 @@ select:hover { background-color: rgba(0, 0, 0, .32); }
   box-shadow: 0 30px 80px rgba(0, 0, 0, .6);
   animation: tour-in .22s cubic-bezier(.2, .7, .3, 1);
 }
+/* Anchored cards are smaller and positioned by script; the inline width wins. */
+.tour-anchored {
+  z-index: 2;
+  padding: 1.1rem 1.2rem 1rem;
+  max-block-size: min(60vh, 26rem);
+}
+.tour-anchored .tour-title { font-size: var(--s-1); }
+.tour-why { border-block-start: 1px solid var(--line); padding-block-start: .6rem; margin-block-start: .7rem; }
 @keyframes tour-in { from { opacity: 0; transform: translateY(8px); } }
 
 .tour-top { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
@@ -1823,8 +1846,16 @@ select:hover { background-color: rgba(0, 0, 0, .32); }
 
 @media (max-width: 30rem) {
   .tour-veil { padding: 0; place-items: end stretch; }
-  .tour {
-    inline-size: 100%; max-block-size: 88dvh;
+  .tour-veil.anchored { place-items: end stretch; }
+  /* Anchoring a card *beside* a target does not work at 390px — there is no beside. The
+     highlight stays, so the subject is still identified, and the card becomes a sheet on
+     the edge the thumb is already near. The inline position from the script is overridden
+     rather than fought with. */
+  .tour, .tour-anchored {
+    position: static !important;
+    inset: auto !important;
+    inline-size: 100% !important;
+    max-block-size: 62dvh;
     border-radius: 16px 16px 0 0; border-inline: none; border-block-end: none;
   }
   .tour-foot { flex-direction: column-reverse; align-items: stretch; gap: .8rem; }
