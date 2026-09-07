@@ -1,6 +1,7 @@
 {
   "$comment": "Top-level field names and TYPES follow the sprint's strk20.json spec exactly: `transactions` and `contracts` are arrays, not objects. An earlier version had `contracts` as an object keyed by contract name, which the hub would not have read — and the transaction check depends on it, because a qualifying hash must have run through a contract listed there. Fields that cannot be true yet are omitted rather than left empty, per 'add each field when you have it'; `pending` says what unblocks each one.",
   "demo_url": "https://vickrey.0xo.in",
+  "demo_video": "https://www.youtube.com/watch?v=VngKo7Ud1r0",
   "x_handle": "jagadeeeshftw",
   "name": "Vickrey",
   "tagline": "Sealed-bid auctions where the losing bids are never published",
@@ -103,10 +104,6 @@
       "transactions": "docs/sepolia-run-1.json"
     }
   ],
-  "pending": {
-    "$comment": "Spec fields omitted because they cannot hold a true value yet. Each says what unblocks it.",
-    "demo_video": "Script written and timed at docs/demo-script.md. Records after the mainnet auction so the footage shows real hashes."
-  },
   "contracts": [
     "0x02d893acf290c61be4afb6999d6fa39244fba514267c1ccea9e124af64bb6831",
     "0x04628cabde44481d1264d9b701147340b32df63172dbad05368178e18e9764ff"
