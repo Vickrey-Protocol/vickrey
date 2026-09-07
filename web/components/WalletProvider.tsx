@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  createContext, useCallback, useContext, useEffect, useMemo, useRef, useState,
+  createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState,
 } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -99,12 +99,18 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [connection, setConnection] = useState<Connection | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
-  const [reconnecting, setReconnecting] = useState(() => {
-    /* Seeded synchronously so the very first paint already knows a reconnect is coming.
-       Starting at false and flipping in an effect is what produces the flash. */
-    if (typeof window === "undefined") return false;
-    try { return !!window.localStorage.getItem("vickrey.wallet"); } catch { return false; }
-  });
+  const [reconnecting, setReconnecting] = useState(false);
+  /* The first paint must already know a reconnect is coming, or the dashboard shows
+     "Connect to act" and replaces it a moment later. This used to be seeded straight
+     from localStorage in the initializer, which the server cannot read — so the server
+     said "Connect", the client said "Reconnecting", and React recovered from the
+     mismatch by rendering the whole tree again from the root. That reset <html>'s
+     attributes and dropped the theme a visitor had chosen, on every dashboard load.
+     A layout effect runs after hydration and *before* paint: the first paint is still
+     "Reconnecting…", and the server and client agree on the tree. */
+  useLayoutEffect(() => {
+    try { if (window.localStorage.getItem("vickrey.wallet")) setReconnecting(true); } catch { /* private mode */ }
+  }, []);
   const [choices, setChoices] = useState<WalletWithStarknetFeatures[] | null>(null);
 
   /**

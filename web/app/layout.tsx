@@ -4,6 +4,7 @@ import "./tailwind.css";
 import "./globals.css";
 import "./worlds.css";
 import { WalletProvider } from "@/components/WalletProvider";
+import { ThemeGuard } from "@/components/ThemeGuard";
 
 /* Self-hosted by Next, so the page makes no third-party font request.
    Bodoni is display-only and never below 30px — see docs/typography.md. */
@@ -86,6 +87,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             default, and it means a page with no script is exactly the page with one. */}
         <script dangerouslySetInnerHTML={{ __html:
           'try{if(localStorage.getItem("theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}' }} />
+        <ThemeGuard />
         <WalletProvider>{children}</WalletProvider>
       </body>
     </html>
