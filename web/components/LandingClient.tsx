@@ -62,12 +62,34 @@ export default function LandingClient({ initial }: { initial: WireAuction[] }) {
     })();
   }, []);
 
-  /** Lead with a settled auction — it is the one that proves the claim. */
-  const showcase = useMemo(
-    () => all.find((a) => a.status === Status.Finalized)
-       ?? all.find((a) => a.status === Status.Settled) ?? null,
-    [all],
-  );
+  /**
+   * The auction the hero shows: whichever makes the argument best, not whichever has
+   * settled.
+   *
+   * This used to demand a settled auction and fall back to an empty frame when none
+   * existed. So the site went live on mainnet with three sealed bids on chain and a
+   * hero reading "No auction loaded" — the strongest thing on the page showing nothing,
+   * because every auction was still taking bids.
+   *
+   * An auction still open makes half the argument and makes it well: every rung
+   * hatched, "3 bids somewhere in here", not one position knowable. That is exactly the
+   * sealed half of "The bids stay sealed. The price does not." A settled one makes both
+   * halves, so it still ranks higher — but an empty frame makes neither.
+   *
+   * Bids are the gate, not status: an auction nobody has bid in has nothing to hatch,
+   * and drawing it would be an empty frame with extra steps.
+   */
+  const showcase = useMemo(() => {
+    const rank = (a: AuctionView) =>
+      a.bidCount === 0 ? 0
+      : a.status === Status.Finalized ? 4
+      : a.status === Status.Settled ? 3
+      : a.status === Status.Sealed ? 2
+      : a.status === Status.Open ? 1
+      : 0;
+    return all.filter((a) => rank(a) > 0)
+              .sort((x, y) => rank(y) - rank(x) || y.bidCount - x.bidCount)[0] ?? null;
+  }, [all]);
 
   /** Three at most: open first, then the most recently settled. */
   const featured = useMemo(() => {

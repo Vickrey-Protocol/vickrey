@@ -65,15 +65,23 @@ export function HeroInstrument({
       <div className="rig-readout">
         <div>
           <div className="rig-lab">Clearing price</div>
-          <div className="price">
-            <CountUp
-              key={`hero-price-${motionKey}`}
-              value={clearing}
-              animate={playing}
-              format={(v) => formatUnits(v, auction.paymentDecimals)}
-            />
-            <span className="rig-unit"> {auction.paymentSymbol}</span>
-          </div>
+          {/* Only a settled auction has one. Before that `clearing` is 0, and counting
+              up to "0.000000 STRK" would state a price for an auction that has none —
+              R1: a value the chain has not disclosed is never rendered as a number.
+              Latent until the hero began showing auctions that are still open. */}
+          {settled ? (
+            <div className="price">
+              <CountUp
+                key={`hero-price-${motionKey}`}
+                value={clearing}
+                animate={playing}
+                format={(v) => formatUnits(v, auction.paymentDecimals)}
+              />
+              <span className="rig-unit"> {auction.paymentSymbol}</span>
+            </div>
+          ) : (
+            <div className="fact"><span className="undisclosed">not disclosed</span></div>
+          )}
         </div>
         <div style={{ textAlign: "right" }}>
           <div className="rig-lab">Bids</div>
