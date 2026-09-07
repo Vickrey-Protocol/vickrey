@@ -495,3 +495,100 @@ deployment first if any wallet supports it.** The contracts there are the same c
 so a wallet failure found on Sepolia is a wallet failure we can fix before spending the
 mainnet declare. If no wallet supports Sepolia, declare on the 26th and find out on
 mainnet.
+
+## The run itself — Sun 7 Sep, and what it cost
+
+Both contracts declared and deployed on mainnet against the frozen candidate
+(`0x2cf4e3d0…`, verified from the built artifact before anything was spent, and again
+in the declare output). Three private-rail bids placed from Ready X, each verified
+against the qualifying predicate before the next went in. `check:submission` reads
+`{"demo":true,"video":false,"mainnet":true}`.
+
+### What the pool actually costs, measured rather than quoted
+
+The open question above — *"whether wallet flows sponsor any part of the pool fee in
+practice"* — is answered. **They sponsor gas. They do not sponsor the fee.**
+
+Both the 6 STRK fee and the 0.24 STRK collateral leave the **shielded** balance. Across
+three bids the public balance moved by exactly `0.000000` STRK, while a paymaster paid
+about 2.73 STRK of gas per bid. So a bid needs `collateral + 6` shielded, and a 1 STRK
+note cannot fund any private operation at all — the fee alone exceeds it.
+
+| | STRK |
+|---|---|
+| pool fees, one shield + three bids | 24.00 |
+| escrow actually at risk | 0.72 |
+
+**The fee is 33× the economic content of the auction**, and claiming a refund costs
+another 6 STRK to recover 0.24 — so recovering your own escrow is uneconomic. The flat
+per-operation fee dominates anything below roughly 100 STRK of escrow. That is an
+argument for exactly what this protocol does: batch the privacy. One shield amortised
+across many bids, uniform collateral that leaks nothing, refunds claimed together.
+
+### The day the client deleted a claim secret
+
+**1.44 STRK is stranded and unrecoverable** — 0.72 on mainnet auction #1, 0.72 on #2.
+Auction #2 is sealed and can never be settled, because no bidder can produce a witness.
+
+Six bids landed on chain and succeeded. Not one of their claim secrets survived in the
+browser that placed them. `createBid` generates `claimSecret` and `seed` with
+`randomFelt()`, derived from nothing — not the key, not a signature, not the
+transaction — so once the vault entry is gone the escrow is unreleasable by anyone,
+including us. That is the design working as intended, applied to the wrong input.
+
+The cause is the rollback in `Panels.tsx`:
+
+```js
+({ transaction_hash } = await connection.account.strk20InvokeTransaction(actions));
+sent = true;                       // only after the await resolves
+...
+} catch (e) {
+  if (!sent) dropBid(auction.terms.auctionId, guessed);
+```
+
+The comment directly above that line states the correct rule:
+
+> *roll back only when the wallet threw before returning a hash. A timeout after
+> submission is silence, not a refusal — Rule 11 — and the transaction may still land.*
+
+`sent` cannot express that rule. It distinguishes "the call resolved" from "the call
+threw", not "before broadcast" from "after broadcast". Any throw after the wallet has
+already submitted — a timeout, a disconnect, an unexpected response shape — deletes the
+secret for a transaction that is on chain. The private rail makes it far likelier to
+bite, because `strk20InvokeTransaction` proves for about thirty seconds, and a
+thirty-second wallet call is exactly where a throw-after-broadcast happens.
+
+It is **Rule 11 violated by the code written to honour Rule 11**, and it was added to
+fix the opposite defect — a phantom claim row for a bid the chain never assigned. A
+cosmetic bug was traded for a fund-losing one.
+
+One alternative was not ruled out: `write()` in `vault.ts` swallows quota and
+private-mode failures silently, so a full `localStorage` produces the identical symptom
+— older entries surviving, new ones never appearing. Both are real defects.
+
+**The fix, not applied tonight because nothing risky lands in the final hours:**
+
+1. Never `dropBid` on a caught wallet error. Mark the entry unconfirmed and let the
+   chain reconciler decide — it already confirms positively against `BidPlaced`, which
+   is the only authority.
+2. Write the seed durably *before* the wallet is called, and only ever add to it.
+3. Make `write()` report failure. "We saved your only key" must not be able to be false
+   and silent.
+
+A protocol whose central claim is *the secret is the only thing that releases your
+escrow* has to publish the day its own client deleted one. The three qualifying
+transactions are unaffected: they are on chain, verified, and independent of any secret.
+
+### The vault is not namespaced by network
+
+The export that revealed this also carried bids from a *previous Sepolia deployment*
+(auctions #6 and #8) alongside nothing from mainnet. `vickrey.bids.v1` is keyed by
+`auctionId` alone, so bids from every chain and every deployment share one store. The
+reconciler in `DashData` drops by that id: a Sepolia bid on auction `0` or `1` would, on
+a mainnet page, be checked against *mainnet's* auction 0 or 1, fail to match, and be
+deleted. Those two ids survived only because they sit above mainnet's range.
+
+This is the concrete argument for two deployments on separate origins rather than
+runtime network switching: separate origin, separate `localStorage`, isolation enforced
+by the browser instead of by code we would have to write and trust with unrecoverable
+secrets.
