@@ -39,7 +39,7 @@ const url = `http://localhost:${port}/`;
    that animates adds its name here, and the run fails if that element is missing or
    never moved. The first ones are above the fold; scrolled beats follow the same rule
    further down. */
-const NAMED_BEATS = ["nav", "hero-copy", "problem", "how", "properties"];
+const NAMED_BEATS = ["nav", "hero-copy", "problem", "how", "properties", "auctions"];
 
 const RECORDER = () => {
   const seen = { rung: [], wipe: [], brace: [], reveal: [], motion: [], named: {} };

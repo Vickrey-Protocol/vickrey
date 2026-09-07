@@ -1,18 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Status } from "@vickrey/client";
 import { fromWire, readAll, type AuctionView, type WireAuction } from "@/lib/chain";
-import { config, isDeployed } from "@/lib/config";
+import { isDeployed } from "@/lib/config";
 import { LpHero } from "@/components/landing/Hero";
 import { LpHowItWorks } from "@/components/landing/HowItWorks";
 import { LpProperties } from "@/components/landing/Properties";
+import { LpLiveAuctions } from "@/components/landing/LiveAuctions";
 import { initMotion, onReplayKey, replayMotion } from "@/lib/motion";
 import { watchBackdrop, watchGlow, watchScroll } from "@/lib/chrome";
 import { watchReveals } from "@/lib/reveal";
-import { AuctionCard } from "@/components/AuctionCard";
 import { Faq } from "@/components/Faq";
 import { LpFooter } from "@/components/landing/Footer";
 import { Nav } from "@/components/landing/Nav";
@@ -106,33 +105,7 @@ export default function LandingClient({ initial }: { initial: WireAuction[] }) {
       <LpHowItWorks />
       <LpProperties />
 
-      <div className="spread" style={{ marginTop: "3rem", marginBottom: ".9rem" }}>
-        <h2 className="section" id="auctions" style={{ margin: 0 }} data-reveal>Live auctions</h2>
-        <Link className="note" href="/auctions">View all auctions →</Link>
-      </div>
-
-      {!isDeployed() ? (
-        <div className="banner">
-          <b>No contract configured for {config.label}.</b> Set{" "}
-          <span className="mono">NEXT_PUBLIC_AUCTION_ADDRESS</span> and{" "}
-          <span className="mono">NEXT_PUBLIC_ANONYMIZER_ADDRESS</span>. The repo README
-          carries the honest status of every piece.
-        </div>
-      ) : featured.length === 0 ? (
-        <div className="banner">
-          <b>No auctions listed yet</b> on {config.label}. Nothing has been created against
-          this contract.
-        </div>
-      ) : (
-        <div className="cards" data-reveal>
-          {featured.map((a) => (
-            <AuctionCard
-              key={a.terms.auctionId.toString()} auction={a} now={now} selected={false}
-              onSelect={() => router.push(`/auction/${a.terms.auctionId}`)}
-            />
-          ))}
-        </div>
-      )}
+      <LpLiveAuctions featured={featured} now={now} onOpen={(a) => router.push(`/auction/${a.terms.auctionId}`)} />
 
       <Faq />
       </main>
