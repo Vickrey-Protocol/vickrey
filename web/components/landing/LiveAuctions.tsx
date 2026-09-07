@@ -13,7 +13,7 @@ import { AuctionCard } from "@/components/AuctionCard";
  * The cards are the app's own AuctionCard, restyled for this ground in landing.css.
  * The sentence under the heading is the one the auctions page opens with.
  */
-const NOTE = "tw:mx-auto tw:mt-10 tw:max-w-2xl tw:rounded-2xl tw:border tw:border-dashed tw:border-neutral-300 tw:bg-white tw:p-6 tw:text-sm tw:text-neutral-600";
+const NOTE = "tw:mx-auto tw:mt-10 tw:max-w-2xl tw:rounded-2xl tw:border tw:border-dashed tw:border-neutral-300 tw:dark:border-neutral-600 tw:bg-white tw:dark:bg-black tw:p-6 tw:text-sm tw:text-neutral-600 tw:dark:text-neutral-300";
 
 export function LpLiveAuctions({ featured, now, onOpen }: {
   featured: AuctionView[];
@@ -28,21 +28,21 @@ export function LpLiveAuctions({ featured, now, onOpen }: {
       >
         Live auctions
       </h2>
-      <p data-reveal className="tw:mx-auto tw:my-4 tw:max-w-4xl tw:text-center tw:text-sm tw:text-neutral-600 tw:text-balance tw:md:text-base">
+      <p data-reveal className="tw:mx-auto tw:my-4 tw:max-w-4xl tw:text-center tw:text-sm tw:text-neutral-600 tw:dark:text-neutral-300 tw:text-balance tw:md:text-base">
         Every auction on {config.label}, in every state. No wallet needed to read any of it —
         the bid amounts are not hidden from you, they are not on the chain at all.
       </p>
 
       {!isDeployed() ? (
         <div className={NOTE} data-reveal>
-          <b className="tw:font-semibold tw:text-black">No contract configured for {config.label}.</b> Set{" "}
+          <b className="tw:font-semibold tw:text-black tw:dark:text-white">No contract configured for {config.label}.</b> Set{" "}
           <span className="tw:font-mono">NEXT_PUBLIC_AUCTION_ADDRESS</span> and{" "}
           <span className="tw:font-mono">NEXT_PUBLIC_ANONYMIZER_ADDRESS</span>. The repo README
           carries the honest status of every piece.
         </div>
       ) : featured.length === 0 ? (
         <div className={NOTE} data-reveal>
-          <b className="tw:font-semibold tw:text-black">No auctions listed yet</b> on {config.label}. Nothing has been
+          <b className="tw:font-semibold tw:text-black tw:dark:text-white">No auctions listed yet</b> on {config.label}. Nothing has been
           created against this contract.
         </div>
       ) : (
@@ -57,7 +57,7 @@ export function LpLiveAuctions({ featured, now, onOpen }: {
         </div>
       )}
 
-      <p data-reveal className="tw:mt-8 tw:text-center tw:text-sm tw:text-neutral-600">
+      <p data-reveal className="tw:mt-8 tw:text-center tw:text-sm tw:text-neutral-600 tw:dark:text-neutral-300">
         <Link href="/auctions" className="tw:inline-flex tw:items-center tw:max-lg:min-h-11">View all auctions &rarr;</Link>
       </p>
     </section>

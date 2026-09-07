@@ -89,20 +89,20 @@ export function LpFaq() {
       >
         Before you bid
       </h2>
-      <p data-reveal className="tw:mx-auto tw:mt-4 tw:max-w-lg tw:text-center tw:text-sm tw:text-neutral-500 tw:text-balance">
+      <p data-reveal className="tw:mx-auto tw:mt-4 tw:max-w-lg tw:text-center tw:text-sm tw:text-neutral-500 tw:dark:text-neutral-400 tw:text-balance">
         Every answer here agrees with the trust statement — including the ones that are
         unflattering.
       </p>
-      <div className="tw:mx-auto tw:mt-10 tw:max-w-3xl tw:divide-y tw:divide-neutral-200 tw:md:mt-20" data-reveal>
+      <div className="tw:mx-auto tw:mt-10 tw:max-w-3xl tw:divide-y tw:divide-neutral-200 tw:dark:divide-neutral-800 tw:md:mt-20" data-reveal>
         {QA.map(({ q, a }, i) => (
           <details key={q} name="faq" open={i === 0} className="tw:group tw:py-4 tw:md:py-6">
             <summary className="tw:flex tw:cursor-pointer tw:list-none tw:items-start tw:justify-between tw:gap-6 tw:[&::-webkit-details-marker]:hidden">
-              <h3 className="tw:m-0 tw:text-base tw:font-medium tw:tracking-normal tw:text-neutral-800 tw:md:text-lg">{q}</h3>
+              <h3 className="tw:m-0 tw:text-base tw:font-medium tw:tracking-normal tw:text-neutral-800 tw:dark:text-neutral-200 tw:md:text-lg">{q}</h3>
               <span aria-hidden="true" className="tw:relative tw:mt-1 tw:mr-2 tw:h-5 tw:w-5 tw:flex-none tw:transition-transform tw:duration-200 tw:group-open:rotate-90 tw:md:mr-4 tw:md:h-6 tw:md:w-6">
-                <svg className="tw:absolute tw:inset-0 tw:h-full tw:w-full tw:text-neutral-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+                <svg className="tw:absolute tw:inset-0 tw:h-full tw:w-full tw:text-neutral-500 tw:dark:text-neutral-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
               </span>
             </summary>
-            <p className="tw:m-0 tw:mt-2 tw:pr-8 tw:text-sm tw:text-neutral-500 tw:md:pr-12 tw:md:text-base">{a}</p>
+            <p className="tw:m-0 tw:mt-2 tw:pr-8 tw:text-sm tw:text-neutral-500 tw:dark:text-neutral-400 tw:md:pr-12 tw:md:text-base">{a}</p>
           </details>
         ))}
       </div>

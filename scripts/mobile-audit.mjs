@@ -50,6 +50,7 @@ const VIEWPORT = {
 for (const path of PAGES) {
   const page = await browser.newPage();
   await page.setViewport(VIEWPORT);
+  if (process.env.AUDIT_THEME) await page.evaluateOnNewDocument((t) => { try { localStorage.setItem("theme", t); } catch {} }, process.env.AUDIT_THEME);
   try {
     await page.goto(BASE + path, { waitUntil: "networkidle2", timeout: 45000 });
   } catch { console.log(`\n${path}\n  could not load`); await page.close(); continue; }

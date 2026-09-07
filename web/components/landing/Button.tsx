@@ -12,8 +12,8 @@ const FACE = {
   primary:
     "tw:bg-neutral-900 tw:text-white tw:border-transparent tw:hover:bg-black/90 " +
     "tw:shadow-[0px_-1px_0px_0px_#FFFFFF40_inset,_0px_1px_0px_0px_#FFFFFF40_inset]",
-  simple: "tw:bg-transparent tw:text-black tw:border-transparent tw:hover:bg-neutral-100",
-  outline: "tw:bg-white tw:text-black tw:border-black tw:hover:bg-black/90 tw:hover:text-white tw:hover:shadow-xl",
+  simple: "tw:bg-transparent tw:text-black tw:dark:text-white tw:border-transparent tw:hover:bg-neutral-100 tw:dark:hover:bg-neutral-800",
+  outline: "tw:bg-white tw:dark:bg-black tw:text-black tw:dark:text-white tw:border-black tw:dark:border-white tw:hover:bg-black/90 tw:hover:text-white tw:hover:shadow-xl",
 } as const;
 
 const BASE =

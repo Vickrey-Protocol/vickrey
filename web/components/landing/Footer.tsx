@@ -5,12 +5,12 @@ import { Wordmark } from "@/components/Wordmark";
 const REPO = "https://github.com/Vickrey-Protocol/vickrey";
 
 const LINK =
-  "tw:inline-flex tw:items-center tw:text-sm tw:text-neutral-500 tw:no-underline tw:transition-colors " +
-  "tw:hover:text-black tw:max-lg:min-h-11";
+  "tw:inline-flex tw:items-center tw:text-sm tw:text-neutral-500 tw:dark:text-neutral-400 tw:no-underline tw:transition-colors " +
+  "tw:hover:text-black tw:dark:hover:text-white tw:max-lg:min-h-11";
 
 /** A contract row renders only when the address is actually configured. */
 function Contract({ label, address }: { label: string; address: string }) {
-  if (!address) return <span className="tw:text-sm tw:text-neutral-400">{label} — not deployed</span>;
+  if (!address) return <span className="tw:text-sm tw:text-neutral-400 tw:dark:text-neutral-500">{label} — not deployed</span>;
   return (
     <a href={explorerContract(address)} target="_blank" rel="noreferrer" className={LINK}>
       {label}&nbsp;<span className="tw:font-mono tw:text-xs">{address.slice(0, 8)}…{address.slice(-4)}</span>
@@ -21,7 +21,7 @@ function Contract({ label, address }: { label: string; address: string }) {
 function Column({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="tw:flex tw:flex-col tw:gap-3">
-      <p className="tw:text-sm tw:font-medium tw:text-black">{title}</p>
+      <p className="tw:text-sm tw:font-medium tw:text-black tw:dark:text-white">{title}</p>
       {children}
     </div>
   );
@@ -38,15 +38,15 @@ export function LpFooter() {
      no future size can do that again. */
   return (
     <footer className="lp-footer tw:relative tw:m-0 tw:overflow-hidden tw:border-0 tw:p-0">
-      <div className="tw:border-t tw:border-neutral-100 tw:bg-white tw:px-8 tw:pt-20 tw:pb-24">
+      <div className="tw:border-t tw:border-neutral-100 tw:dark:border-neutral-800 tw:bg-white tw:dark:bg-black tw:px-8 tw:pt-20 tw:pb-24">
         <div className="tw:mx-auto tw:flex tw:max-w-7xl tw:flex-col tw:items-start tw:justify-between tw:gap-10 tw:sm:flex-row">
           <div className="tw:max-w-xs">
             <Wordmark href={null} size={20} />
-            <p className="tw:mt-4 tw:text-sm tw:text-neutral-500">
+            <p className="tw:mt-4 tw:text-sm tw:text-neutral-500 tw:dark:text-neutral-400">
               Sealed-bid auctions on STRK20. The losing bids are never published, and the
               outcome is proved on-chain rather than asserted.
             </p>
-            <p className="tw:mt-4 tw:inline-flex tw:items-center tw:rounded-full tw:border tw:border-neutral-200 tw:px-3 tw:py-1 tw:font-mono tw:text-xs tw:uppercase tw:tracking-widest tw:text-neutral-500">
+            <p className="tw:mt-4 tw:inline-flex tw:items-center tw:rounded-full tw:border tw:border-neutral-200 tw:dark:border-neutral-700 tw:px-3 tw:py-1 tw:font-mono tw:text-xs tw:uppercase tw:tracking-widest tw:text-neutral-500 tw:dark:text-neutral-400">
               {config.label}
             </p>
           </div>
@@ -71,12 +71,12 @@ export function LpFooter() {
             </Column>
           </div>
         </div>
-        <div className="tw:mx-auto tw:mt-16 tw:flex tw:max-w-7xl tw:flex-wrap tw:justify-between tw:gap-2 tw:font-mono tw:text-xs tw:uppercase tw:tracking-widest tw:text-neutral-400">
+        <div className="tw:mx-auto tw:mt-16 tw:flex tw:max-w-7xl tw:flex-wrap tw:justify-between tw:gap-2 tw:font-mono tw:text-xs tw:uppercase tw:tracking-widest tw:text-neutral-400 tw:dark:text-neutral-500">
           <span>MIT licensed · open source · unaudited</span>
           <span>STRK20 Private Sprint</span>
         </div>
       </div>
-      <p aria-hidden="true" className="tw:m-0 tw:bg-linear-to-b tw:from-neutral-50 tw:to-neutral-200 tw:bg-clip-text tw:text-center tw:text-[clamp(4rem,17vw,18rem)] tw:font-bold tw:leading-none tw:text-transparent">
+      <p aria-hidden="true" className="tw:m-0 tw:bg-linear-to-b tw:from-neutral-50 tw:to-neutral-200 tw:dark:from-neutral-950 tw:dark:to-neutral-800 tw:bg-clip-text tw:text-center tw:text-[clamp(4rem,17vw,18rem)] tw:font-bold tw:leading-none tw:text-transparent">
         VICKREY
       </p>
     </footer>

@@ -7,7 +7,7 @@
  * redesign — the claims are the product's, not the template's.
  */
 /* Paragraphs keep their UA margins outside Tailwind's preflight; the column's gap is the rhythm here. */
-const COL = "tw:flex tw:flex-col tw:gap-4 tw:*:m-0 tw:text-base tw:leading-relaxed tw:text-neutral-600 tw:md:text-lg";
+const COL = "tw:flex tw:flex-col tw:gap-4 tw:*:m-0 tw:text-base tw:leading-relaxed tw:text-neutral-600 tw:dark:text-neutral-300 tw:md:text-lg";
 
 export function LpProblem() {
   return (
@@ -40,7 +40,7 @@ export function LpProblem() {
             stops producing the outcome it promises.
           </p>
           <p>
-            <b className="tw:font-semibold tw:text-black">Vickrey never opens a bid.</b> Collateral is escrowed up front, so silence
+            <b className="tw:font-semibold tw:text-black tw:dark:text-white">Vickrey never opens a bid.</b> Collateral is escrowed up front, so silence
             costs money, and the winner and the price are proved from hash chains instead
             of disclosure. The losing bids are not withheld — they are never on the chain
             in the first place.

@@ -18,7 +18,7 @@ export function LpCta({ onBid, network }: { onBid: () => void; network: string }
     <div className="tw:relative">
       <div className="tw:absolute tw:inset-0 tw:h-full tw:w-full tw:overflow-hidden"><Background /></div>
       <section className="tw:relative tw:z-30 tw:w-full tw:overflow-hidden tw:p-0 tw:py-40 tw:md:py-60" aria-labelledby="cta-h">
-        <div className="tw:mx-auto tw:w-full tw:bg-linear-to-br tw:from-slate-800 tw:to-gray-900 tw:sm:max-w-[40rem] tw:sm:rounded-2xl tw:md:max-w-[48rem] tw:lg:max-w-[64rem] tw:xl:max-w-[80rem]" data-reveal data-beat="cta">
+        <div className="tw:mx-auto tw:w-full tw:bg-linear-to-br tw:from-slate-800 tw:to-gray-900 tw:dark:from-neutral-900 tw:sm:max-w-[40rem] tw:sm:rounded-2xl tw:md:max-w-[48rem] tw:lg:max-w-[64rem] tw:xl:max-w-[80rem]" data-reveal data-beat="cta">
           {/* The template pulled this 1.5rem past its container's padding on phones; this card
               sits outside the container, so there is no padding to cancel and the pull
               was a 24px spill. */}

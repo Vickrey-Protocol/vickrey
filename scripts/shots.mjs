@@ -32,6 +32,9 @@ for (const [w,h,name] of [[1440,900,"desk"],[390,844,"mob"]]) {
     const p = await b.newPage();
     await p.setViewport({ width:w, height:h, deviceScaleFactor:1, isMobile:w<768, hasTouch:w<768 });
     try {
+      /* SHOT_THEME=dark captures the page as a visitor who chose dark sees it: the
+         choice is stored before navigation, exactly where the pre-paint script reads it. */
+      if (process.env.SHOT_THEME) await p.evaluateOnNewDocument((t) => { try { localStorage.setItem("theme", t); } catch {} }, process.env.SHOT_THEME);
       const res = await p.goto(`http://localhost:${port}${path}?motion=0`, { waitUntil:"networkidle0", timeout:45000 });
       /* A screenshot of an error page diffs perfectly against another screenshot of the
          same error page. Without this the harness will happily "prove" two broken builds

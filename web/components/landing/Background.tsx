@@ -29,8 +29,8 @@ export function Background() {
             return (
               <div key={c} className="tw:flex tw:w-60 tw:flex-col tw:items-start tw:justify-center">
                 <div className="tw:flex tw:items-center tw:justify-center">
-                  <div className="tw:flex tw:h-6 tw:w-6 tw:items-center tw:justify-center tw:rounded-full tw:bg-white">
-                    <div className="tw:h-2 tw:w-2 tw:rounded-full tw:bg-neutral-200" />
+                  <div className="tw:flex tw:h-6 tw:w-6 tw:items-center tw:justify-center tw:rounded-full tw:bg-white tw:dark:bg-neutral-900">
+                    <div className="tw:h-2 tw:w-2 tw:rounded-full tw:bg-neutral-200 tw:dark:bg-neutral-700" />
                   </div>
                   <div className="lp-line lp-line-h" style={timing(i)} />
                 </div>
@@ -41,7 +41,7 @@ export function Background() {
         </div>
       ))}
       {/* The template's white layer, masked so the grid fades towards the edges. */}
-      <div className="tw:absolute tw:inset-0 tw:h-full tw:w-full tw:bg-white tw:[mask-image:radial-gradient(ellipse_at_center,transparent,white)]" />
+      <div className="tw:absolute tw:inset-0 tw:h-full tw:w-full tw:bg-white tw:dark:bg-black tw:[mask-image:radial-gradient(ellipse_at_center,transparent,white)]" />
     </div>
   );
 }

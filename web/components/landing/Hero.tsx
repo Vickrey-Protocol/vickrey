@@ -51,10 +51,10 @@ export function LpHero({
       <div className="tw:flex tw:justify-center" data-reveal data-beat="hero-copy">
         <Link
           href="/auctions"
-          className="tw:group tw:relative tw:mx-auto tw:inline-block tw:w-fit tw:cursor-pointer tw:rounded-full tw:bg-neutral-50 tw:p-px tw:text-[10px] tw:font-semibold tw:leading-6 tw:text-neutral-700 tw:no-underline tw:shadow-zinc-900 tw:sm:text-xs tw:md:shadow-2xl tw:max-lg:min-h-11 tw:max-lg:flex tw:max-lg:items-center"
+          className="tw:group tw:relative tw:mx-auto tw:inline-block tw:w-fit tw:cursor-pointer tw:rounded-full tw:bg-neutral-50 tw:dark:bg-neutral-900 tw:p-px tw:text-[10px] tw:font-semibold tw:leading-6 tw:text-neutral-700 tw:dark:text-neutral-300 tw:no-underline tw:shadow-zinc-900 tw:sm:text-xs tw:md:shadow-2xl tw:max-lg:min-h-11 tw:max-lg:flex tw:max-lg:items-center"
         >
           <span className="tw:absolute tw:inset-0 tw:overflow-hidden tw:rounded-full" />
-          <span className="tw:relative tw:z-10 tw:flex tw:items-center tw:space-x-2 tw:rounded-full tw:bg-neutral-100 tw:px-4 tw:py-1.5 tw:ring-1 tw:ring-white/10">
+          <span className="tw:relative tw:z-10 tw:flex tw:items-center tw:space-x-2 tw:rounded-full tw:bg-neutral-100 tw:dark:bg-neutral-800 tw:px-4 tw:py-1.5 tw:ring-1 tw:ring-white/10">
             <span>{badge}</span>
             <svg fill="none" height="16" viewBox="0 0 24 24" width="16" aria-hidden="true"><path d="M10.75 8.75L14.25 12L10.75 15.25" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" /></svg>
           </span>
@@ -71,10 +71,10 @@ export function LpHero({
 
       <p
         data-reveal style={{ ["--d" as string]: ".2s" }}
-        className="tw:relative tw:z-10 tw:mx-auto tw:mt-6 tw:max-w-3xl tw:text-center tw:text-base tw:text-neutral-600 tw:text-balance tw:md:text-xl"
+        className="tw:relative tw:z-10 tw:mx-auto tw:mt-6 tw:max-w-3xl tw:text-center tw:text-base tw:text-neutral-600 tw:dark:text-neutral-300 tw:text-balance tw:md:text-xl"
       >
-        Highest bidder wins and pays the <strong className="tw:font-semibold tw:text-black">second-highest bid</strong>.
-        The chain learns one number and nothing else — <strong className="tw:font-semibold tw:text-black">not even the winner&apos;s own bid</strong>.
+        Highest bidder wins and pays the <strong className="tw:font-semibold tw:text-black tw:dark:text-white">second-highest bid</strong>.
+        The chain learns one number and nothing else — <strong className="tw:font-semibold tw:text-black tw:dark:text-white">not even the winner&apos;s own bid</strong>.
       </p>
 
       <div
@@ -84,16 +84,16 @@ export function LpHero({
         <LpButton onClick={goBid}>Place a sealed bid</LpButton>
         <LpButton variant="simple" onClick={goSettled} className="tw:group tw:flex tw:items-center tw:space-x-2">
           <span>See a settled auction</span>
-          <svg className="tw:h-3 tw:w-3 tw:stroke-[1px] tw:text-neutral-600 tw:transition-transform tw:duration-200 tw:group-hover:translate-x-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+          <svg className="tw:h-3 tw:w-3 tw:stroke-[1px] tw:text-neutral-600 tw:dark:text-neutral-300 tw:transition-transform tw:duration-200 tw:group-hover:translate-x-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
         </LpButton>
       </div>
 
       {/* Clipped: the fade below is scaled 1.1 as in the template, and a transformed box
           counts towards scrollable overflow — 37px past the frame at 768 — which the
           four-band audit reads as a spill. */}
-      <div className="lp-frame tw:relative tw:mt-20 tw:overflow-hidden tw:rounded-[32px] tw:border tw:border-neutral-200 tw:bg-neutral-100 tw:p-4">
-        <div aria-hidden="true" className="tw:pointer-events-none tw:absolute tw:inset-x-0 tw:bottom-0 tw:z-10 tw:h-40 tw:w-full tw:scale-[1.1] tw:bg-linear-to-b tw:from-transparent tw:via-white tw:to-white" />
-        <div className="tw:rounded-[24px] tw:border tw:border-neutral-200 tw:bg-white tw:p-2">
+      <div className="lp-frame tw:relative tw:mt-20 tw:overflow-hidden tw:rounded-[32px] tw:border tw:border-neutral-200 tw:dark:border-neutral-700 tw:bg-neutral-100 tw:dark:bg-neutral-800 tw:p-4">
+        <div aria-hidden="true" className="tw:pointer-events-none tw:absolute tw:inset-x-0 tw:bottom-0 tw:z-10 tw:h-40 tw:w-full tw:scale-[1.1] tw:bg-linear-to-b tw:from-transparent tw:via-white tw:to-white tw:dark:via-black/50 tw:dark:to-black" />
+        <div className="tw:rounded-[24px] tw:border tw:border-neutral-200 tw:dark:border-neutral-700 tw:bg-white tw:dark:bg-black tw:p-2">
           {showcase ? (
             <HeroInstrument auction={showcase} playing={playing} motionKey={motionKey} onReplay={onReplay} onOpen={onOpen} />
           ) : (

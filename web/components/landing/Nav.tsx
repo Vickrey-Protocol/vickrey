@@ -7,6 +7,7 @@ import { useWallet } from "@/components/WalletProvider";
 import { WalletMenu } from "@/components/WalletMenu";
 import { Wordmark } from "@/components/Wordmark";
 import { LpButton } from "./Button";
+import { ModeToggle } from "./ModeToggle";
 
 /**
  * The template's navbar, to the letter, without its library.
@@ -35,8 +36,8 @@ const LINKS = [
 
 const ITEM =
   "tw:relative tw:z-10 tw:flex tw:items-center tw:justify-center tw:rounded-md tw:px-4 tw:py-2 tw:text-sm tw:leading-[110%] " +
-  "tw:text-neutral-600 tw:no-underline tw:hover:text-black";
-const SHEET_LINK = "tw:inline-flex tw:min-h-11 tw:items-center tw:text-2xl tw:text-black tw:no-underline";
+  "tw:text-neutral-600 tw:dark:text-neutral-300 tw:no-underline tw:hover:text-black tw:dark:hover:text-white";
+const SHEET_LINK = "tw:inline-flex tw:min-h-11 tw:items-center tw:text-2xl tw:text-black tw:dark:text-white tw:no-underline";
 
 function closeSheet(e: React.MouseEvent<HTMLElement>) {
   e.currentTarget.closest("details")?.removeAttribute("open");
@@ -89,41 +90,41 @@ export function Nav() {
       <div
         className={
           "lp-nav-bar tw:relative tw:flex tw:w-full tw:justify-between tw:rounded-full tw:px-4 tw:py-2 tw:transition tw:duration-200 " +
-          (scrolled ? "tw:bg-neutral-50 tw:shadow-[0px_-2px_0px_0px_#f5f5f5,0px_2px_0px_0px_#f5f5f5]" : "tw:bg-transparent")
+          (scrolled ? "tw:bg-neutral-50 tw:dark:bg-neutral-900 tw:shadow-[0px_-2px_0px_0px_#f5f5f5,0px_2px_0px_0px_#f5f5f5] tw:dark:shadow-[0px_-2px_0px_0px_#262626,0px_2px_0px_0px_#262626]" : "tw:bg-transparent")
         }
       >
         {scrolled && (
-          <div className="lp-nav-glow tw:pointer-events-none tw:absolute tw:inset-0 tw:h-full tw:w-full tw:rounded-full tw:bg-neutral-100 tw:[mask-image:linear-gradient(to_bottom,white,transparent,white)]" />
+          <div className="lp-nav-glow tw:pointer-events-none tw:absolute tw:inset-0 tw:h-full tw:w-full tw:rounded-full tw:bg-neutral-100 tw:dark:bg-neutral-800 tw:[mask-image:linear-gradient(to_bottom,white,transparent,white)]" />
         )}
 
         <div className="tw:flex tw:flex-row tw:items-center tw:gap-2">
           <Wordmark size={20} className="tw:relative tw:z-20 tw:mr-4 tw:px-2 tw:py-1" />
           <div ref={list} className="tw:relative tw:hidden tw:items-center tw:gap-1.5 tw:lg:flex" onMouseLeave={() => setHover(null)}>
             {pill && (
-              <div className="lp-nav-pill tw:absolute tw:inset-y-0 tw:rounded-md tw:bg-[#F5F5F5]" style={{ left: pill.left, width: pill.width }} aria-hidden="true" />
+              <div className="lp-nav-pill tw:absolute tw:inset-y-0 tw:rounded-md tw:bg-[#F5F5F5] tw:dark:bg-neutral-800" style={{ left: pill.left, width: pill.width }} aria-hidden="true" />
             )}
             {LINKS.map((l) =>
               l.external ? (
                 <a key={l.href} href={l.href} target="_blank" rel="noreferrer" data-href={l.href} className={ITEM} onMouseEnter={() => setHover(l.href)}>{l.label}</a>
               ) : (
-                <Link key={l.href} href={l.href} data-href={l.href} className={ITEM + (active === l.href ? " tw:text-black" : "")} onMouseEnter={() => setHover(l.href)}>{l.label}</Link>
+                <Link key={l.href} href={l.href} data-href={l.href} className={ITEM + (active === l.href ? " tw:text-black tw:dark:text-white" : "")} onMouseEnter={() => setHover(l.href)}>{l.label}</Link>
               ),
             )}
           </div>
         </div>
 
-        <div className="tw:hidden tw:items-center tw:space-x-2 tw:lg:flex">{wallet}</div>
+        <div className="tw:hidden tw:items-center tw:space-x-2 tw:lg:flex"><ModeToggle />{wallet}</div>
 
         <details className="lp-menu tw:lg:hidden">
           <summary
-            className="tw:flex tw:size-11 tw:cursor-pointer tw:list-none tw:items-center tw:justify-center tw:rounded-full tw:hover:bg-neutral-100"
+            className="tw:flex tw:size-11 tw:cursor-pointer tw:list-none tw:items-center tw:justify-center tw:rounded-full tw:hover:bg-neutral-100 tw:dark:hover:bg-neutral-800"
             aria-label="Menu"
           >
             <svg className="lp-burger" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
             <svg className="lp-x" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
           </summary>
-          <div className="tw:fixed tw:inset-0 tw:z-50 tw:flex tw:flex-col tw:items-start tw:justify-start tw:gap-10 tw:bg-white tw:px-5 tw:pt-5 tw:text-xl">
-            <div className="tw:flex tw:h-11 tw:items-center"><Wordmark size={20} /></div>
+          <div className="tw:fixed tw:inset-0 tw:z-50 tw:flex tw:flex-col tw:items-start tw:justify-start tw:gap-10 tw:bg-white tw:dark:bg-black tw:px-5 tw:pt-5 tw:text-xl">
+            <div className="tw:flex tw:h-11 tw:w-full tw:items-center tw:justify-between tw:pr-14"><Wordmark size={20} /><ModeToggle /></div>
             <div className="tw:flex tw:flex-col tw:items-start tw:justify-start tw:gap-3.5 tw:px-3">
               {LINKS.map((l) =>
                 l.external

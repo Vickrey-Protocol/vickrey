@@ -43,3 +43,8 @@
   --shadow-aceternity: 0px 2px 3px -1px rgba(0, 0, 0, 0.1), 0px 1px 0px 0px rgba(25, 28, 33, 0.02), 0px 0px 0px 1px rgba(25, 28, 33, 0.08);
   --shadow-derek: 0px 0px 0px 1px rgb(0 0 0 / 0.06), 0px 1px 1px -0.5px rgb(0 0 0 / 0.06), 0px 3px 3px -1.5px rgb(0 0 0 / 0.06), 0px 6px 6px -3px rgb(0 0 0 / 0.06), 0px 12px 12px -6px rgb(0 0 0 / 0.06), 0px 24px 24px -12px rgb(0 0 0 / 0.06);
 }
+
+/* The template's `dark:` variant, keyed on the attribute a pre-paint script stamps on
+   <html>. Light unless the visitor chose dark — the template's own default — so with no
+   script at all the page is exactly what it is with one. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));

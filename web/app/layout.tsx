@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Bodoni_Moda, IBM_Plex_Mono, Instrument_Sans } from "next/font/google";
+import { Bodoni_Moda, Geist, Geist_Mono, IBM_Plex_Mono, Instrument_Sans } from "next/font/google";
 import "./tailwind.css";
 import "./globals.css";
 import { WalletProvider } from "@/components/WalletProvider";
@@ -19,6 +19,11 @@ const body = Instrument_Sans({
   variable: "--font-body",
   display: "swap",
 });
+/* Geist is the landing page's face and the dashboard's. Declared here so its variables
+   exist on <html>, where the theme tokens that reference them live; a route that never
+   sets text in it never downloads it. */
+const lpSans = Geist({ subsets: ["latin"], variable: "--font-lp", display: "swap" });
+const lpMono = Geist_Mono({ subsets: ["latin"], variable: "--font-lp-mono", display: "swap" });
 const mono = IBM_Plex_Mono({
   subsets: ["latin"],
   weight: ["400", "500", "600"],
@@ -73,8 +78,15 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${display.variable} ${body.variable} ${mono.variable}`}>
-      <body><WalletProvider>{children}</WalletProvider></body>
+    <html lang="en" className={`${display.variable} ${body.variable} ${mono.variable} ${lpSans.variable} ${lpMono.variable}`}>
+      <body>
+        {/* The theme, before paint. Light unless the visitor chose dark; the choice is the
+            only thing stored, and nothing is read from the system — the template's own
+            default, and it means a page with no script is exactly the page with one. */}
+        <script dangerouslySetInnerHTML={{ __html:
+          'try{if(localStorage.getItem("theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}' }} />
+        <WalletProvider>{children}</WalletProvider>
+      </body>
     </html>
   );
 }
