@@ -35,8 +35,14 @@ const url = `http://localhost:${port}/`;
 
 /* Sampling happens inside the page, once per frame. Polling over the wire from Node
    lands wherever the round trip lands and routinely steps straight over a 500ms beat. */
+/* Beats registered by name. Each is an element carrying `data-beat="<name>"`; a section
+   that animates adds its name here, and the run fails if that element is missing or
+   never moved. The first ones are above the fold; scrolled beats follow the same rule
+   further down. */
+const NAMED_BEATS = ["hero-copy"];
+
 const RECORDER = () => {
-  const seen = { rung: [], wipe: [], brace: [], reveal: [], motion: [] };
+  const seen = { rung: [], wipe: [], brace: [], reveal: [], motion: [], named: {} };
   const num = (v) => (v === "" || v == null ? null : parseFloat(v));
   const scaleX = (t) => (t && t !== "none" ? num(t.slice(t.indexOf("(") + 1)) : null);
   const tick = () => {
@@ -54,6 +60,10 @@ const RECORDER = () => {
     if (clearing) seen.wipe.push(scaleX(getComputedStyle(clearing, "::after").transform));
     if (brace) seen.brace.push(num(getComputedStyle(brace).opacity));
     if (reveals.length) seen.reveal.push(Math.min(...reveals.map((r) => num(getComputedStyle(r).opacity))));
+    for (const el of document.querySelectorAll("[data-beat]")) {
+      const r = el.getBoundingClientRect();
+      if (r.top < innerHeight && r.bottom > 0) (seen.named[el.dataset.beat] ??= []).push(num(getComputedStyle(el).opacity));
+    }
     seen.motion.push(document.documentElement.dataset.motion ?? "-");
     requestAnimationFrame(tick);
   };
@@ -94,6 +104,7 @@ beat("beat 1 · rungs resolve in", load.rung);
 beat("beat 2 · clearing line wipes across", load.wipe);
 beat("beat 3 · brace arrives", load.brace);
 beat("reveals rise into view", load.reveal);
+for (const name of NAMED_BEATS) beat(`named · ${name}`, load.named[name] ?? []);
 
 /* ── replay ─────────────────────────────────────────────────────────────── */
 try {

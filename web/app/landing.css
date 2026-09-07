@@ -84,3 +84,37 @@ html[data-scrolled="true"] .lp-nav-bar {
 }
 .lp .rig-replay { background: #fafafa; }
 .lp .rig-open { background: rgba(0, 0, 0, .04); }
+
+/* ── the instrument inside the hero frame ─────────────────────────────
+   The rig was designed as a narrow column beside the headline. In the
+   template's wide frame it becomes a panel: the ladder fills the left,
+   the readout and the open button sit bottom-right, the head spans. */
+.lp-frame .rig {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(15rem, 20rem);
+  grid-template-rows: auto 1fr auto;
+  grid-template-areas: "head head" "ladder readout" "ladder open";
+  column-gap: 2rem;
+  --rung: 2.3rem; --strip: 9rem;
+  background: #fff; border: 0; border-radius: 20px; box-shadow: none;
+  padding: 1.25rem 1.5rem 1.5rem;
+}
+.lp-frame .rig::before { display: none; }
+.lp-frame .rig-head { grid-area: head; }
+.lp-frame .rig-ladder { grid-area: ladder; justify-content: flex-start; min-height: 28rem; }
+.lp-frame .rig-readout { grid-area: readout; align-self: end; margin: 0; }
+.lp-frame .rig-readout .price { font-size: clamp(2rem, 4vw, 3.4rem); line-height: 1; }
+/* The open control is chrome, not a disclosed value, so it carries no accent. */
+.lp-frame .rig-open { grid-area: open; border-color: var(--line-lit); background: #fff; }
+.lp-frame .rig-open:hover { background: #0a0a0a; color: #fff; border-color: transparent; }
+.lp-frame .rig > .note { grid-column: 1 / -1; }
+@media (max-width: 48rem) {
+  .lp-frame .rig {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "head" "ladder" "readout" "open";
+    --rung: 1.6rem; --strip: 4.6rem; padding: 1rem;
+  }
+  .lp-frame .rig-ladder { min-height: 18rem; justify-content: center; }
+}
+/* The trust statement is R2's component, unchanged; on this ground it is a plain card. */
+.lp .trust { background: #fff; box-shadow: none; }

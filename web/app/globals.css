@@ -960,6 +960,11 @@ footer {
   opacity: 0;
   transform: translateY(14px);
 }
+/* The hidden state must snap. An element that also carries a hover transition — the
+   landing page's `tw:transition` lists opacity — would otherwise *animate* to hidden
+   over 150ms, be marked shown a frame later, and reverse before it ever disappeared:
+   a reveal that never reveals. check:motion caught it as "never started hidden". */
+[data-motion="play"] [data-reveal]:not([data-shown="true"]) { transition: none; }
 [data-motion="play"] [data-reveal][data-shown="true"] {
   opacity: 1;
   transform: none;

@@ -6,18 +6,16 @@ import { useRouter } from "next/navigation";
 import { Status } from "@vickrey/client";
 import { fromWire, readAll, type AuctionView, type WireAuction } from "@/lib/chain";
 import { config, isDeployed } from "@/lib/config";
-import { Ladder } from "@/components/Ladder";
-import { Hero, HowItWorks } from "@/components/Hero";
+import { HowItWorks } from "@/components/Hero";
+import { LpHero } from "@/components/landing/Hero";
 import { initMotion, onReplayKey, replayMotion } from "@/lib/motion";
 import { watchBackdrop, watchGlow, watchScroll } from "@/lib/chrome";
 import { watchReveals } from "@/lib/reveal";
 import { AuctionCard } from "@/components/AuctionCard";
 import { Faq } from "@/components/Faq";
 import { LpFooter } from "@/components/landing/Footer";
-import { HeroInstrument } from "@/components/HeroInstrument";
 import { Nav } from "@/components/landing/Nav";
 import { Problem } from "@/components/Problem";
-import { TrustStatement } from "@/components/TrustStatement";
 import { useNow } from "@/components/WalletProvider";
 
 /**
@@ -94,58 +92,11 @@ export default function LandingClient({ initial }: { initial: WireAuction[] }) {
       {/* The nav floats over the top of the page, so the page starts below it. */}
       <main className="lp-main tw:mx-auto tw:max-w-7xl tw:px-4 tw:pt-24 tw:lg:pt-32">
 
-      <div className="hero-grid">
-        <div className="hero-left">
-          <Hero />
-          <div className="hero-cta" data-reveal style={{ ["--d" as string]: ".42s" }}>
-            <button className="primary" onClick={goBid}>Place a sealed bid</button>
-            <button onClick={goSettled}>See a settled auction</button>
-          </div>
-
-          {/* Live counts, read from chain. The last one is the point of the product and
-              it is a fact, not a slogan. */}
-          <dl className="hero-stats" data-reveal style={{ ["--d" as string]: ".54s" }}>
-            <div><dt>Auctions</dt><dd>{all.length}</dd></div>
-            <div><dt>Bids sealed</dt><dd>{all.reduce((n, a) => n + a.bidCount, 0)}</dd></div>
-            <div><dt>Amounts disclosed</dt><dd className="zero">0</dd></div>
-          </dl>
-        </div>
-
-        <div className="hero-right" data-reveal style={{ ["--d" as string]: ".22s" }}>
-          {showcase ? (
-            <HeroInstrument
-              auction={showcase} playing={playing} motionKey={motionKey} onReplay={replay}
-              onOpen={() => router.push(`/auction/${showcase.terms.auctionId}`)}
-            />
-          ) : (
-            /* No auction to show. The instrument still draws its frame — R1 means the
-               unknown values read as unknown, never as a placeholder number. */
-            <div className="rig">
-              <div className="rig-head"><span>No auction loaded</span></div>
-              <div className="rig-ladder">
-                <Ladder numLevels={12} reservePrice={0n} tick={0n} symbol=""
-                        bidCount={0} status={Status.None} hideScale />
-              </div>
-              <div className="rig-readout">
-                <div>
-                  <div className="rig-lab">Clearing price</div>
-                  <div className="fact"><span className="undisclosed">not disclosed</span></div>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <div className="rig-lab">Bids</div>
-                  <div className="rig-bids undisclosed">—</div>
-                </div>
-              </div>
-              <p className="note" style={{ marginTop: ".8rem" }}>
-                {loadError ? `Could not read ${config.label}: ${loadError}` : `Reading ${config.label}…`}
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* R2: both sentences, in full, inside the hero screen. */}
-        <TrustStatement delay=".62s" />
-      </div>
+      <LpHero
+        all={all} showcase={showcase} playing={playing} motionKey={motionKey} loadError={loadError}
+        onReplay={replay} goBid={goBid} goSettled={goSettled}
+        onOpen={() => { if (showcase) router.push(`/auction/${showcase.terms.auctionId}`); }}
+      />
 
       <Problem />
       <HowItWorks />
