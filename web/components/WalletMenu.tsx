@@ -124,7 +124,12 @@ export function WalletMenu() {
                    onClick={close}>View on the explorer ↗</a>
                 {/* The only route back for anyone who skipped it. A tour with no replay
                     is a one-question exam. */}
-                <button onClick={() => { close(); replayTour(); }}>Replay the tour</button>
+                <button onClick={() => {
+                  close(); replayTour();
+                  /* The tour lives in the dashboard shell. From a public page, go there;
+                     the flag replayTour set opens it on arrival. */
+                  if (!path?.startsWith("/app")) router.push("/app");
+                }}>Replay the tour</button>
                 <button className="acct-out" onClick={leave}>Disconnect</button>
               </section>
 

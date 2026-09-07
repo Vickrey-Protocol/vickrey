@@ -98,8 +98,10 @@ export function DashShell({
    * widths and is only faded, so it is always available to a screen reader and the rail
    * never needs a parallel set of accessible names.
    */
+  /* `data-tour` names the item for the first-run tour, which points at these. */
   const item = (href: string, icon: React.ReactNode, label: string, extra?: React.ReactNode) => (
-    <Link href={href} className={on(href) && (href !== "/app" || path === "/app") ? "here" : ""}>
+    <Link href={href} className={on(href) && (href !== "/app" || path === "/app") ? "here" : ""}
+          data-tour={`nav-${href === "/app" ? "overview" : href.replace(/^\/app\/|^\//, "")}`}>
       <span className="nav-icon">{icon}</span>
       <span className="nav-label">{label}</span>
       {extra}
