@@ -8,6 +8,7 @@ import { fromWire, readAll, type AuctionView, type WireAuction } from "@/lib/cha
 import { config, isDeployed } from "@/lib/config";
 import { LpHero } from "@/components/landing/Hero";
 import { LpHowItWorks } from "@/components/landing/HowItWorks";
+import { LpProperties } from "@/components/landing/Properties";
 import { initMotion, onReplayKey, replayMotion } from "@/lib/motion";
 import { watchBackdrop, watchGlow, watchScroll } from "@/lib/chrome";
 import { watchReveals } from "@/lib/reveal";
@@ -103,6 +104,7 @@ export default function LandingClient({ initial }: { initial: WireAuction[] }) {
 
       <LpProblem />
       <LpHowItWorks />
+      <LpProperties />
 
       <div className="spread" style={{ marginTop: "3rem", marginBottom: ".9rem" }}>
         <h2 className="section" id="auctions" style={{ margin: 0 }} data-reveal>Live auctions</h2>
