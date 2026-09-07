@@ -42,27 +42,44 @@ html:has(.lp) { background: #fff; color-scheme: light; }
   .lp h1, .lp h2, .lp h3 { font-weight: 500; letter-spacing: -.02em; }
 }
 
-/* The ambient grid: lines, faded towards the edges so it never competes with copy.
-   Pure CSS — decoration is never a reason to ship a runtime. */
-.lp-bg {
-  position: fixed; inset: 0; z-index: -1; pointer-events: none;
-  background-image:
-    linear-gradient(#efefef 1px, transparent 1px),
-    linear-gradient(90deg, #efefef 1px, transparent 1px);
-  background-size: 240px 140px; background-position: 50% 0;
-}
-.lp-bg::after {
-  content: ""; position: absolute; inset: 0;
-  background: radial-gradient(ellipse at center, transparent 25%, #fff 78%);
-}
+/* ── the template's background ────────────────────────────────────────
+   Dots at the intersections, a line to the right and a line down from
+   each, and now and then a light beam travelling a line. The beam is a
+   pseudo-element on a keyframe, run only under [data-motion="play"]. */
+.lp-line { position: relative; background: #f5f5f5; overflow: hidden; flex: none; }
+.lp-line-h { width: 300px; height: 1px; }
+.lp-line-v { width: 1px; height: 140px; }
+.lp-line::after { content: ""; position: absolute; opacity: 0; }
+.lp-line-h::after { inset: 0 auto 0 0; width: 200px; background: linear-gradient(90deg, transparent, #e5e5e5 50%, transparent); transform: translateX(-200px); }
+.lp-line-v::after { inset: 0 0 auto 0; height: 200px; background: linear-gradient(180deg, transparent, #e5e5e5 50%, transparent); transform: translateY(-200px); }
+[data-motion="play"] .lp-line-h::after { animation: lp-beam-h var(--dur, 2s) linear var(--delay, 5s) infinite; }
+[data-motion="play"] .lp-line-v::after { animation: lp-beam-v var(--dur, 2s) linear var(--delay, 5s) infinite; }
+@keyframes lp-beam-h { from { opacity: 1; transform: translateX(-200px); } to { opacity: 1; transform: translateX(300px); } }
+@keyframes lp-beam-v { from { opacity: 1; transform: translateY(-200px); } to { opacity: 1; transform: translateY(140px); } }
+
 /* The old dark backdrop must not render behind this page. */
 .lp .backdrop { display: none; }
 
-/* Nav: transparent at the top of the page, a pill once scrolled. State comes from
-   watchScroll's data-scrolled on the root — no scroll library. */
-html[data-scrolled="true"] .lp-nav-bar {
-  background: #fafafa;
-  box-shadow: 0 -2px 0 0 #f5f5f5, 0 2px 0 0 #f5f5f5;
+/* ── nav ───────────────────────────────────────────────────────────────
+   Slides in from above on load, as the template's did — only under
+   [data-motion="play"], so without the script it is simply there. The
+   masked ground fades in over a second once scrolled, and the pill under
+   the links follows the hovered one with a little overshoot. */
+[data-motion="play"] .lp-nav { animation: lp-nav-in .8s cubic-bezier(.6, .05, .1, .9) both; }
+@keyframes lp-nav-in { from { transform: translateY(-80px); } to { transform: none; } }
+[data-motion="play"] .lp-nav-glow { animation: lp-fade-in 1s ease both; }
+@keyframes lp-fade-in { from { opacity: 0; } }
+.lp-nav-pill { transition: left .6s cubic-bezier(.2, .9, .3, 1.15), width .6s cubic-bezier(.2, .9, .3, 1.15); }
+
+/* ── hero ──────────────────────────────────────────────────────────────
+   The template's entrance values: y 40 → 0 (80 for the buttons), .5s,
+   eased out. The generic reveal is 14px over .62s; this scope overrides
+   it for the hero only. */
+[data-motion="play"] .lp-hero [data-reveal] { transform: translateY(40px); }
+[data-motion="play"] .lp-hero .lp-hero-cta[data-reveal] { transform: translateY(80px); }
+[data-motion="play"] .lp-hero [data-reveal][data-shown="true"] {
+  transform: none;
+  transition: opacity .5s ease-out var(--d, 0s), transform .5s ease-out var(--d, 0s);
 }
 /* The narrow menu is a native <details>: no state, no listener, works before hydration.
    Open, the summary rises above its own overlay and becomes the close control. */
@@ -92,8 +109,9 @@ html[data-scrolled="true"] .lp-nav-bar {
 .lp-frame .rig {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(15rem, 20rem);
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto auto 1fr;
   grid-template-areas: "head head" "ladder readout" "ladder open";
+  align-items: start;
   column-gap: 2rem;
   --rung: 2.3rem; --strip: 9rem;
   background: #fff; border: 0; border-radius: 20px; box-shadow: none;
@@ -102,10 +120,10 @@ html[data-scrolled="true"] .lp-nav-bar {
 .lp-frame .rig::before { display: none; }
 .lp-frame .rig-head { grid-area: head; }
 .lp-frame .rig-ladder { grid-area: ladder; justify-content: flex-start; min-height: 28rem; }
-.lp-frame .rig-readout { grid-area: readout; align-self: end; margin: 0; }
+.lp-frame .rig-readout { grid-area: readout; align-self: start; margin: 0; padding-top: 0; border: 0; }
 .lp-frame .rig-readout .price { font-size: clamp(2rem, 4vw, 3.4rem); line-height: 1; }
 /* The open control is chrome, not a disclosed value, so it carries no accent. */
-.lp-frame .rig-open { grid-area: open; border-color: var(--line-lit); background: #fff; }
+.lp-frame .rig-open { grid-area: open; align-self: start; border-color: var(--line-lit); background: #fff; }
 .lp-frame .rig-open:hover { background: #0a0a0a; color: #fff; border-color: transparent; }
 .lp-frame .rig > .note { grid-column: 1 / -1; }
 @media (max-width: 48rem) {

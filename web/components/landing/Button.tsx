@@ -18,7 +18,7 @@ const FACE = {
 
 const BASE =
   "tw:relative tw:z-10 tw:inline-flex tw:items-center tw:justify-center tw:gap-2 tw:rounded-full " +
-  "tw:border tw:px-4 tw:py-2 tw:text-sm tw:font-medium tw:tracking-normal tw:no-underline " +
+  "tw:border tw:px-4 tw:py-2 tw:text-sm tw:font-medium tw:tracking-normal tw:whitespace-nowrap tw:no-underline " +
   "tw:transition tw:duration-200 tw:cursor-pointer tw:max-lg:min-h-11 tw:disabled:opacity-50 tw:disabled:cursor-not-allowed";
 
 type Common = { variant?: keyof typeof FACE; className?: string; children: ReactNode };

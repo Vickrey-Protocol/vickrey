@@ -39,7 +39,7 @@ const url = `http://localhost:${port}/`;
    that animates adds its name here, and the run fails if that element is missing or
    never moved. The first ones are above the fold; scrolled beats follow the same rule
    further down. */
-const NAMED_BEATS = ["hero-copy", "problem"];
+const NAMED_BEATS = ["nav", "hero-copy", "problem"];
 
 const RECORDER = () => {
   const seen = { rung: [], wipe: [], brace: [], reveal: [], motion: [], named: {} };
@@ -62,7 +62,20 @@ const RECORDER = () => {
     if (reveals.length) seen.reveal.push(Math.min(...reveals.map((r) => num(getComputedStyle(r).opacity))));
     for (const el of document.querySelectorAll("[data-beat]")) {
       const r = el.getBoundingClientRect();
-      if (r.top < innerHeight && r.bottom > 0) (seen.named[el.dataset.beat] ??= []).push(num(getComputedStyle(el).opacity));
+      const cs = getComputedStyle(el);
+      /* A slide-in starts off screen by design, so a `ty` beat is sampled wherever it
+         is; an opacity beat below the fold is meant to wait, so it is sampled only
+         once on screen. */
+      if (el.dataset.beatProp !== "ty" && !(r.top < innerHeight && r.bottom > 0)) continue;
+      /* A beat is normally an opacity. `data-beat-prop="ty"` names one that is a slide:
+         the nav enters from y −80, so its progress is how much of that is left. */
+      let v = num(cs.opacity);
+      if (el.dataset.beatProp === "ty") {
+        const m = cs.transform.match(/matrix\(([^)]+)\)/);
+        const ty = m ? Math.abs(num(m[1].split(",")[5])) : 0;
+        v = 1 - Math.min(1, ty / 80);
+      }
+      (seen.named[el.dataset.beat] ??= []).push(v);
     }
     seen.motion.push(document.documentElement.dataset.motion ?? "-");
     requestAnimationFrame(tick);

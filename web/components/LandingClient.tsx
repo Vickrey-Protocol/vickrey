@@ -15,6 +15,7 @@ import { AuctionCard } from "@/components/AuctionCard";
 import { Faq } from "@/components/Faq";
 import { LpFooter } from "@/components/landing/Footer";
 import { Nav } from "@/components/landing/Nav";
+import { Background } from "@/components/landing/Background";
 import { LpProblem } from "@/components/landing/Problem";
 import { useNow } from "@/components/WalletProvider";
 
@@ -87,10 +88,12 @@ export default function LandingClient({ initial }: { initial: WireAuction[] }) {
 
   return (
     <>
-      <div className="lp-bg" aria-hidden="true" />
       <Nav />
-      {/* The nav floats over the top of the page, so the page starts below it. */}
-      <main className="lp-main tw:mx-auto tw:max-w-7xl tw:px-4 tw:pt-24 tw:lg:pt-32">
+      {/* The template's shape: the background is absolute inside a relative wrapper,
+          under a container that is itself positioned so it paints above it. */}
+      <div className="tw:relative">
+        <Background />
+      <main className="lp-main tw:relative tw:mx-auto tw:max-w-7xl tw:px-4">
 
       <LpHero
         all={all} showcase={showcase} playing={playing} motionKey={motionKey} loadError={loadError}
@@ -131,6 +134,7 @@ export default function LandingClient({ initial }: { initial: WireAuction[] }) {
 
       <Faq />
       </main>
+      </div>
       <LpFooter />
     </>
   );

@@ -74,6 +74,12 @@ for (const path of PAGES) {
     for (const el of document.querySelectorAll("body *")) {
       const r = el.getBoundingClientRect();
       if (r.width === 0 && r.height === 0) continue;
+      /* Decoration is exempt. The overflow rule exists to catch *content* clipped
+         silently — text a visitor loses. A subtree declared aria-hidden holds nothing a
+         visitor reads or touches, and the landing page's background grid is built, as
+         its template is, from blocks wider than their boxes clipped by their container;
+         flagging sixty of them would say nothing about anyone's page. */
+      if (el.closest('[aria-hidden="true"]')) continue;
       /* A wide table inside a horizontally scrollable container is contained, not
          overflowing — the page does not move, the container does. Flagging those made
          the report noisy about the one case that is already handled. */
