@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Status } from "@vickrey/client";
 import { fromWire, readAll, type AuctionView, type WireAuction } from "@/lib/chain";
-import { isDeployed } from "@/lib/config";
+import { config, isDeployed } from "@/lib/config";
 import { LpHero } from "@/components/landing/Hero";
 import { LpHowItWorks } from "@/components/landing/HowItWorks";
 import { LpProperties } from "@/components/landing/Properties";
@@ -13,6 +13,7 @@ import { initMotion, onReplayKey, replayMotion } from "@/lib/motion";
 import { watchBackdrop, watchGlow, watchScroll } from "@/lib/chrome";
 import { watchReveals } from "@/lib/reveal";
 import { LpFaq } from "@/components/landing/Faq";
+import { LpCta } from "@/components/landing/Cta";
 import { LpFooter } from "@/components/landing/Footer";
 import { Nav } from "@/components/landing/Nav";
 import { Background } from "@/components/landing/Background";
@@ -110,6 +111,8 @@ export default function LandingClient({ initial }: { initial: WireAuction[] }) {
       <LpFaq />
       </main>
       </div>
+      {/* Outside the container, as in the template: full width, on its own background. */}
+      <LpCta onBid={goBid} network={config.label} />
       <LpFooter />
     </>
   );
