@@ -34,6 +34,7 @@ html:has(.lp) {
   --font-display: var(--font-lp), ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-body:    var(--font-lp), ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-mono:    var(--font-lp-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  --surface: #fff;
   background: #fff; color-scheme: light;
 }
 /* Dark is the template's dark — a black ground, neutral-800 lines — and the instrument's
@@ -52,6 +53,7 @@ html[data-theme="dark"]:has(.lp) {
   --accent-edge: rgba(226, 81, 60, .42);
   --accent-glow: 0 0 24px rgba(226, 81, 60, .35);
   --good:        #7FCE97;
+  --surface: #0a0a0a;
   background: #000; color-scheme: dark;
 }
 

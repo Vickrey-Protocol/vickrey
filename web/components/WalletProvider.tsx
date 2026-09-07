@@ -454,135 +454,184 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
      walletChain, switchChain, switching,
      shielded, shieldedPending, shieldedErr, requestShielded, strk20Proof, noteStrk20Error],
   );
+  /* Escape closes whichever dialog is up. A dialog that only closes by pointer is a
+     trap for a keyboard user, and the wrong-network one is dismissible by design. */
+  useEffect(() => {
+    if (!choices && !noWallet && !wrongChain) return;
+    const on = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      setChoices(null); setNoWallet(null); setWrongChain(null);
+    };
+    addEventListener("keydown", on);
+    return () => removeEventListener("keydown", on);
+  }, [choices, noWallet, wrongChain]);
+
   return (
     <Ctx.Provider value={value}>
       {children}
       {wrongChain && (
-        <div className="picker-veil" role="alertdialog" aria-modal="true"
-             aria-label="Wrong network">
-          <div className="picker">
-            <p className="eyebrow">Wrong network</p>
-            <p style={{ margin: ".5rem 0 0" }}>
-              {/* Both halves friendly. One side read "Sepolia (rehearsal)" and the other
-                  "SN_MAIN" in the same sentence, which made them look like different
-                  kinds of thing. */}
-              This app is reading <b>{FRIENDLY[CHAIN_ID[config.network]] ?? config.label}</b>.
-              Your wallet is on <b>{chainName(wrongChain)}</b>.
-            </p>
-            <p className="note" style={{ marginTop: ".5rem" }}>
-              Nothing has been signed. Signing from the wrong network fails inside the
-              wallet after you have approved it, which is a worse place to find out.
-            </p>
-            {switchNote && (
-              /* Shown when the ask did not end with the wallet on the right chain. It
-                 never claims a refusal it cannot see — silence is reported as silence. */
-              <p className="note" style={{ marginTop: ".6rem" }}>{switchNote}</p>
-            )}
-            <div className="row" style={{ gap: ".6rem", marginTop: "1.1rem" }}>
-              <button className="primary" onClick={() => void switchChain()} disabled={switching}>
-                {switching
-                  ? "Asking the wallet…"
-                  : `Switch to ${FRIENDLY[CHAIN_ID[config.network]] ?? config.label}`}
-              </button>
-              <button onClick={() => setWrongChain(null)}>Dismiss</button>
-            </div>
-            <p className="note" style={{ marginTop: ".7rem" }}>
-              You can also change network in the extension — this closes itself either
-              way, as soon as your wallet reports the new one.
-            </p>
+        <Dialog label="Wrong network" alert onClose={() => setWrongChain(null)}>
+          <p>
+            {/* Both halves friendly. One side read "Sepolia (rehearsal)" and the other
+                "SN_MAIN" in the same sentence, which made them look like different
+                kinds of thing. */}
+            This app is reading <b>{FRIENDLY[CHAIN_ID[config.network]] ?? config.label}</b>.
+            Your wallet is on <b>{chainName(wrongChain)}</b>.
+          </p>
+          <p className="note">
+            Nothing has been signed. Signing from the wrong network fails inside the
+            wallet after you have approved it, which is a worse place to find out.
+          </p>
+          {switchNote && (
+            /* Shown when the ask did not end with the wallet on the right chain. It
+               never claims a refusal it cannot see — silence is reported as silence. */
+            <p className="note">{switchNote}</p>
+          )}
+          <div className="picker-actions">
+            <button className="primary" onClick={() => void switchChain()} disabled={switching}>
+              {switching
+                ? "Asking the wallet…"
+                : `Switch to ${FRIENDLY[CHAIN_ID[config.network]] ?? config.label}`}
+            </button>
+            <button onClick={() => setWrongChain(null)}>Dismiss</button>
           </div>
-        </div>
+          <p className="note" style={{ marginTop: ".8rem" }}>
+            You can also change network in the extension — this closes itself either
+            way, as soon as your wallet reports the new one.
+          </p>
+        </Dialog>
       )}
       {noWallet && (
         /* Rendered here rather than by each caller. The masthead's Connect button set an
            error string that only the dashboard gate knew how to display, so on the public
            site the click produced nothing at all. */
-        <div className="picker-veil" role="dialog" aria-modal="true"
-             aria-label="No Starknet wallet found" onClick={() => setNoWallet(null)}>
-          <div className="picker" onClick={(e) => e.stopPropagation()}>
-            <p className="eyebrow">
-              {noWallet.hints.length ? "A wallet is installed but did not answer" : "No Starknet wallet found"}
-            </p>
+        <Dialog
+          label={noWallet.hints.length ? "A wallet is installed but did not answer" : "No Starknet wallet found"}
+          onClose={() => setNoWallet(null)}
+        >
+          {noWallet.hints.length ? (
+            <>
+              <p>
+                Something Starknet-shaped is in this browser
+                {noWallet.hints.length <= 3 ? ` (${noWallet.hints.join(", ")})` : ""}, but it
+                did not respond to the discovery request.
+              </p>
+              <p className="note">
+                Usually that means it is <b>locked</b>, or disabled for this site, or too
+                old for the wallet standard this app uses. Unlock it and try again — this
+                needs Wallet API 0.10.3 or later for the private rail.
+              </p>
+            </>
+          ) : (
+            <>
+              <p>
+                Bidding needs a Starknet wallet extension. Two support the STRK20 privacy
+                pool this app uses:
+              </p>
+              <div className="picker-rows">
+                <a className="picker-row" href="https://www.xverse.app/download" target="_blank" rel="noreferrer">
+                  <span className="picker-icon picker-icon-blank" aria-hidden="true">X</span>
+                  <span className="picker-row-text">
+                    <span className="picker-row-name">Xverse <span className="picker-row-tag">recommended</span></span>
+                    <span className="picker-row-sub">The only wallet we have measured working on both Sepolia and mainnet.</span>
+                  </span>
+                  <Chevron />
+                </a>
+                <a className="picker-row" href="https://www.ready.co" target="_blank" rel="noreferrer">
+                  <span className="picker-icon picker-icon-blank" aria-hidden="true">R</span>
+                  <span className="picker-row-text">
+                    <span className="picker-row-name">Ready</span>
+                    <span className="picker-row-sub">Works on mainnet. Its Sepolia pool reads fail, so the private rail is unavailable on testnet.</span>
+                  </span>
+                  <Chevron />
+                </a>
+              </div>
+            </>
+          )}
 
-            {noWallet.hints.length ? (
-              <>
-                <p style={{ margin: ".5rem 0 0" }}>
-                  Something Starknet-shaped is in this browser
-                  {noWallet.hints.length <= 3 ? ` (${noWallet.hints.join(", ")})` : ""}, but it
-                  did not respond to the discovery request.
-                </p>
-                <p className="note" style={{ marginTop: ".5rem" }}>
-                  Usually that means it is <b>locked</b>, or disabled for this site, or too
-                  old for the wallet standard this app uses. Unlock it and try again — this
-                  needs Wallet API 0.10.3 or later for the private rail.
-                </p>
-              </>
-            ) : (
-              <>
-                <p style={{ margin: ".5rem 0 0" }}>
-                  Bidding needs a Starknet wallet extension. Two support the STRK20 privacy
-                  pool this app uses:
-                </p>
-                <div className="stack" style={{ gap: ".5rem", marginTop: ".9rem" }}>
-                  <a className="rail" href="https://www.xverse.app/download" target="_blank"
-                     rel="noreferrer">
-                    <span className="rail-name">Xverse <span className="rail-tag">recommended</span></span>
-                    <span className="note">
-                      The only wallet we have measured working on both Sepolia and mainnet.
-                    </span>
-                  </a>
-                  <a className="rail" href="https://www.ready.co" target="_blank"
-                     rel="noreferrer">
-                    <span className="rail-name">Ready</span>
-                    <span className="note">
-                      Works on mainnet. Its Sepolia pool reads fail, so the private rail is
-                      unavailable on testnet.
-                    </span>
-                  </a>
-                </div>
-              </>
-            )}
-
-            {/* The important half: nothing about reading this site needs a wallet, and a
-                visitor who came to check a claim can check all of it. */}
-            <p className="note" style={{ marginTop: "1rem" }}>
-              <b>You do not need one to look.</b> Every auction, every proof and every
-              clearing price is public and readable without connecting anything.
-            </p>
-            <div className="row" style={{ gap: ".6rem", marginTop: "1rem", flexWrap: "wrap" }}>
-              <Link className="primary" href="/auctions" onClick={() => setNoWallet(null)}
-                    style={{ textDecoration: "none" }}>
-                Browse auctions
-              </Link>
-              <button onClick={() => setNoWallet(null)}>Close</button>
-            </div>
+          {/* The important half: nothing about reading this site needs a wallet, and a
+              visitor who came to check a claim can check all of it. */}
+          <p className="note">
+            <b>You do not need one to look.</b> Every auction, every proof and every
+            clearing price is public and readable without connecting anything.
+          </p>
+          <div className="picker-actions">
+            <Link className="primary" href="/auctions" onClick={() => setNoWallet(null)}>
+              Browse auctions
+            </Link>
+            <button onClick={() => setNoWallet(null)}>Close</button>
           </div>
-        </div>
+        </Dialog>
       )}
 
       {choices && (
-        <div className="picker-veil" role="dialog" aria-modal="true" aria-label="Choose a wallet"
-             onClick={() => setChoices(null)}>
-          <div className="picker" onClick={(e) => e.stopPropagation()}>
-            <p className="eyebrow">Choose a wallet</p>
-            <p className="note" style={{ margin: ".4rem 0 1rem" }}>
-              {choices.length} detected. The one you pick is the one that must hold your
-              shielded balance.
-            </p>
-            <div className="stack" style={{ gap: ".5rem" }}>
-              {choices.map((w) => (
-                <button key={w.name} className="rail" onClick={() => void choose(w)}>
-                  <span className="rail-name">{w.name}</span>
-                  {w.version && <span className="note">version {w.version}</span>}
+        <Dialog label="Choose a wallet" onClose={() => setChoices(null)}>
+          <p className="note">
+            {choices.length} detected. The one you pick is the one that must hold your
+            shielded balance.
+          </p>
+          <div className="picker-rows">
+            {choices.map((w) => {
+              const icon = iconOf(w);
+              return (
+                <button key={w.name} type="button" className="picker-row" onClick={() => void choose(w)}>
+                  {icon
+                    ? <img src={icon} alt="" className="picker-icon" />
+                    : <span className="picker-icon picker-icon-blank" aria-hidden="true">{w.name.slice(0, 1)}</span>}
+                  <span className="picker-row-text">
+                    <span className="picker-row-name">{w.name}</span>
+                    {w.version && <span className="picker-row-sub">version {w.version}</span>}
+                  </span>
+                  <Chevron />
                 </button>
-              ))}
-            </div>
-            <button style={{ marginTop: "1rem" }} onClick={() => setChoices(null)}>Cancel</button>
+              );
+            })}
           </div>
-        </div>
+          <div className="picker-actions">
+            <button onClick={() => setChoices(null)}>Cancel</button>
+          </div>
+        </Dialog>
       )}
     </Ctx.Provider>
   );
+}
+
+/**
+ * The one dialog shell, template-shaped: a soft veil, a rounded card on the page's
+ * surface token, a title row with a close. Tokens rather than colours, so it is dark
+ * on the app and takes the landing page's light or dark there. A click on the veil,
+ * the close, or Escape all close it; an `alert` dialog announces itself as one.
+ */
+function Dialog({ label, alert = false, onClose, children }: {
+  label: string; alert?: boolean; onClose: () => void; children: React.ReactNode;
+}) {
+  return (
+    <div className="picker-veil" role={alert ? "alertdialog" : "dialog"} aria-modal="true"
+         aria-label={label} onClick={onClose}>
+      <div className="picker" onClick={(e) => e.stopPropagation()}>
+        <div className="picker-head">
+          <h2 className="picker-title">{label}</h2>
+          <button type="button" className="picker-x" onClick={onClose} aria-label="Close">×</button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+const Chevron = () => (
+  <svg className="picker-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+       strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
+);
+
+/** A wallet's icon, if it announced one — a data URL, or a light/dark pair. */
+function iconOf(w: WalletWithStarknetFeatures): string | null {
+  const i = (w as { icon?: unknown }).icon;
+  if (typeof i === "string") return i;
+  if (i && typeof i === "object" && "light" in i && typeof (i as { light: unknown }).light === "string") {
+    return (i as { light: string }).light;
+  }
+  return null;
 }
 
 export function useWallet(): WalletState {
