@@ -15,7 +15,7 @@ import { AuctionCard } from "@/components/AuctionCard";
 import { Faq } from "@/components/Faq";
 import { LpFooter } from "@/components/landing/Footer";
 import { Nav } from "@/components/landing/Nav";
-import { Problem } from "@/components/Problem";
+import { LpProblem } from "@/components/landing/Problem";
 import { useNow } from "@/components/WalletProvider";
 
 /**
@@ -98,7 +98,7 @@ export default function LandingClient({ initial }: { initial: WireAuction[] }) {
         onOpen={() => { if (showcase) router.push(`/auction/${showcase.terms.auctionId}`); }}
       />
 
-      <Problem />
+      <LpProblem />
       <HowItWorks />
 
       <div className="spread" style={{ marginTop: "3rem", marginBottom: ".9rem" }}>

@@ -39,7 +39,7 @@ const url = `http://localhost:${port}/`;
    that animates adds its name here, and the run fails if that element is missing or
    never moved. The first ones are above the fold; scrolled beats follow the same rule
    further down. */
-const NAMED_BEATS = ["hero-copy"];
+const NAMED_BEATS = ["hero-copy", "problem"];
 
 const RECORDER = () => {
   const seen = { rung: [], wipe: [], brace: [], reveal: [], motion: [], named: {} };
@@ -104,7 +104,10 @@ beat("beat 1 · rungs resolve in", load.rung);
 beat("beat 2 · clearing line wipes across", load.wipe);
 beat("beat 3 · brace arrives", load.brace);
 beat("reveals rise into view", load.reveal);
-for (const name of NAMED_BEATS) beat(`named · ${name}`, load.named[name] ?? []);
+/* Beats above the fold are judged from the load recording; the rest are scrolled to
+   below, one at a time, and judged from a fresh recording each. */
+const scrolled = NAMED_BEATS.filter((n) => !(load.named[n]?.length));
+for (const name of NAMED_BEATS) if (!scrolled.includes(name)) beat(`named · ${name}`, load.named[name]);
 
 /* ── replay ─────────────────────────────────────────────────────────────── */
 try {
@@ -117,6 +120,20 @@ try {
   /* A thrown click is a failed check, not a crashed run — the other beats still
      have something to say and the report is worth more whole than aborted. */
   check("replay re-runs the rungs", false, `NOT EXERCISED — ${String(e.message).slice(0, 70)}`);
+}
+
+/* ── scrolled beats ─────────────────────────────────────────────────────── */
+for (const name of scrolled) {
+  const found = await p.evaluate((n) => {
+    const el = document.querySelector(`[data-beat="${n}"]`);
+    if (!el) return false;
+    window.__resetMotion();
+    el.scrollIntoView({ block: "center", behavior: "instant" });
+    return true;
+  }, name);
+  if (!found) { check(`named · ${name}`, false, `NOT EXERCISED — nothing on the page carries data-beat="${name}"`); continue; }
+  await new Promise((r) => setTimeout(r, 1400));
+  beat(`named · ${name} (scrolled to)`, (await p.evaluate(() => window.__motion)).named[name] ?? []);
 }
 
 /* ── reduced motion ─────────────────────────────────────────────────────── */

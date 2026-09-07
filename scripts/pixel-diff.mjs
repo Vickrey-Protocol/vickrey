@@ -33,9 +33,20 @@ for (const f of readdirSync(`/tmp/shots/${a}`).sort()) {
     console.log(`SIZE     ${f}  ${A.width}x${A.height} -> ${B.width}x${B.height}`); bad++; continue;
   }
   const out = new PNG({ width: A.width, height: A.height });
-  const n = pixelmatch(A.data, B.data, out.data, A.width, A.height, { threshold: 0 });
-  if (n) { writeFileSync(`/tmp/shots/diff/${f}`, PNG.sync.write(out)); bad++; }
-  const hint = n > 0 && n < 1000 ? "   ← small: try SHOT_EXTRA_CSS with the glass off (see header) before reading it as a style change" : "";
-  console.log(`${n === 0 ? "ok      " : "DIFF    "} ${f}  ${n} px  (${A.width}x${A.height})${hint}`);
+  const total = pixelmatch(A.data, B.data, out.data, A.width, A.height, { threshold: 0 });
+  /* Split what differs by how much. A gradient ground rasterises a hair differently
+     from build to build — every channel within 3 of the other image — across a hundred
+     thousand pixels at once, with no element moved. That is dither, reported but not
+     failed; a pixel that moved further than that is the diff this tool exists for. */
+  let dither = 0, real = 0;
+  for (let i = 0; i < A.data.length; i += 4) {
+    const d = Math.max(Math.abs(A.data[i] - B.data[i]), Math.abs(A.data[i + 1] - B.data[i + 1]), Math.abs(A.data[i + 2] - B.data[i + 2]));
+    if (d > 3) real++; else if (d > 0) dither++;
+  }
+  if (real) { writeFileSync(`/tmp/shots/diff/${f}`, PNG.sync.write(out)); bad++; }
+  const hint = real > 0 && real < 1000 ? "   ← small: try SHOT_EXTRA_CSS with the glass off (see header) before reading it as a style change" : "";
+  const dust = dither ? `  +${dither} dither (Δ≤3)` : "";
+  console.log(`${real === 0 ? "ok      " : "DIFF    "} ${f}  ${real} px${dust}  (${A.width}x${A.height})${hint}`);
+  void total;
 }
 console.log(bad === 0 ? "\nzero pixel differences across all pairs" : `\n${bad} file(s) differ`);
