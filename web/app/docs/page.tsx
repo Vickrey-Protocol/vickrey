@@ -68,9 +68,13 @@ export default function Page() {
             the secret the app shows you when it shows it — but the <em>seed</em> is
             never displayed, lives only in that store, and without it no bidder can
             produce the witnesses settlement verifies. So an auction bid through this
-            app cannot currently reach a proved clearing price. The cause is not yet
-            known; three hypotheses have been eliminated on mainnet. The full account,
-            including what it cost us, is in{" "}
+            app cannot currently reach a proved clearing price. The cause is known: the
+            dashboard&rsquo;s reconciler searched for a bid using a <em>polled</em> bid
+            count, which just after a bid is short by exactly that bid — so the search
+            stopped one index before it and the &ldquo;not found&rdquo; was about the
+            bound, not the chain. The fix is written and tested, and deliberately not
+            deployed this close to the freeze. The full account, including what it cost
+            us, is in{" "}
             <a href={`${REPO}#disclosure--7-sep-2026-the-claim-secret-does-not-reliably-persist`}
                target="_blank" rel="noreferrer">the README disclosure</a>.
           </div>
