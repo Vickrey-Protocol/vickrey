@@ -136,3 +136,36 @@ html:has(.lp) { background: #fff; color-scheme: light; }
 }
 /* The trust statement is R2's component, unchanged; on this ground it is a plain card. */
 .lp .trust { background: #fff; box-shadow: none; }
+
+/* ── the template's grid lines ─────────────────────────────────────────
+   Dashed hairlines that bleed 10% past the feature grid and fade at both
+   ends. Ported from the template's CSS module, light variant only. */
+.lp-gridline-h, .lp-gridline-v {
+  --color: rgba(0, 0, 0, .2); --fade-stop: 90%; --offset: -100px;
+  position: absolute; z-index: 20; pointer-events: none;
+}
+.lp-gridline-h {
+  height: 1px; width: calc(100% + var(--offset)); left: calc(var(--offset) / 2 * -1);
+  background: linear-gradient(to right, var(--color), var(--color) 50%, transparent 0, transparent);
+  background-size: 5px 1px;
+  mask: linear-gradient(to left, #fff var(--fade-stop), transparent), linear-gradient(to right, #fff var(--fade-stop), transparent), linear-gradient(#000, #000);
+  -webkit-mask: linear-gradient(to left, #fff var(--fade-stop), transparent), linear-gradient(to right, #fff var(--fade-stop), transparent), linear-gradient(#000, #000);
+  mask-composite: exclude; -webkit-mask-composite: xor;
+}
+.lp-gridline-v {
+  width: 1px; height: calc(100% + var(--offset)); top: calc(var(--offset) / 2 * -1);
+  background: linear-gradient(to bottom, var(--color), var(--color) 50%, transparent 0, transparent);
+  background-size: 1px 5px;
+  mask: linear-gradient(to top, #fff var(--fade-stop), transparent), linear-gradient(to bottom, #fff var(--fade-stop), transparent), linear-gradient(#000, #000);
+  -webkit-mask: linear-gradient(to top, #fff var(--fade-stop), transparent), linear-gradient(to bottom, #fff var(--fade-stop), transparent), linear-gradient(#000, #000);
+  mask-composite: exclude; -webkit-mask-composite: xor;
+}
+/* Illustrations inside the cards are the instrument's own components; a hair larger
+   than in the app so they read as pictures, and never interactive here. */
+.lp-illus { --rung: 1.6rem; --strip: 7rem; pointer-events: none; }
+.lp-illus .thermo { margin: 1rem 0 0; }
+.lp-illus .thermo figcaption { font-size: .8rem; color: var(--muted); }
+/* In the app a picked rung is accent because it is *your* choice, pre-send. In an
+   illustration it is a sealed value, and the accent means the opposite of sealed. */
+.lp-illus .rung.is-picked { background: #0a0a0a; }
+.lp-illus .picked-note { color: #0a0a0a; }
