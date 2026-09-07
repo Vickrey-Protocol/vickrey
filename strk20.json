@@ -105,11 +105,41 @@
   ],
   "pending": {
     "$comment": "Spec fields omitted because they cannot hold a true value yet. Each says what unblocks it.",
-    "transactions": "Array of at least three mainnet hashes, each having touched the STRK20 pool AND carried an event from a contract listed in `contracts`. Needs the mainnet declare and a shielded balance — see docs/runbook.md step 5.",
     "demo_video": "Script written and timed at docs/demo-script.md. Records after the mainnet auction so the footage shows real hashes."
   },
   "contracts": [
     "0x02d893acf290c61be4afb6999d6fa39244fba514267c1ccea9e124af64bb6831",
     "0x04628cabde44481d1264d9b701147340b32df63172dbad05368178e18e9764ff"
-  ]
+  ],
+  "transactions": [
+    "0x57ba561f86904a692cc96443edaeddb71bc3a9ae2103bef12e3b9d70ebf536",
+    "0x3b113126a21a532c8d1d81e5652e54b7e4fb64547b587feff7dee519be7b5f9",
+    "0x58742bf98c28cb3ecf4f9c12b390d9bed35f76a573722a648f07a5d6736ad93"
+  ],
+  "mainnet_run": {
+    "date": "2026-09-07",
+    "network": "mainnet",
+    "judged_auction": {
+      "id": 1,
+      "lot": "100 VLOT (8 decimals)",
+      "payment": "STRK (18 decimals)",
+      "ladder": "0.03 to 0.24 STRK in 8 levels of 0.03",
+      "collateral": "0.24 STRK, uniform",
+      "dispute_window": 86400,
+      "bid_levels": [
+        0.09,
+        0.18,
+        0.12
+      ],
+      "note": "Three private-rail bids from one wallet. Levels differ so the Vickrey outcome is real: highest is 0.18, the clearing price is the second-highest, 0.12."
+    },
+    "pool_economics": {
+      "fee_per_operation": "6 STRK, read live from get_fee_amount",
+      "fees_paid": "24 STRK across one shield and three bids",
+      "escrow_at_risk": "0.72 STRK across three bids",
+      "ratio": "the pool fee is 33x the economic content of the auction",
+      "measured": "The fee and the collateral both leave the SHIELDED balance, not the public one: on each bid the public balance moved by exactly 0.000000 STRK. Gas is sponsored by the wallet flow (about 2.73 STRK per bid, paid by a paymaster). Measured on mainnet, not quoted from documentation.",
+      "consequence": "Claiming a refund is another 6 STRK to recover 0.24, so recovering your own escrow is uneconomic at this fee. The flat per-operation fee dominates any auction below roughly 100 STRK of escrow, which is an argument for batching privacy: one shield amortised across many bids, uniform collateral, refunds claimed together."
+    }
+  }
 }
