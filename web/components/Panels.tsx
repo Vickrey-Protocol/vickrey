@@ -18,7 +18,10 @@ import { provider, readBidState, type AuctionView, type BidState } from "@/lib/c
 import {
   STRK_DECIMALS, config, countdown, formatUnits, hasAnonymizer, priceAt, utcDate,
 } from "@/lib/config";
-import { markRevealed, reindexBid, saveBid, toPrivateBid, type StoredBid } from "@/lib/vault";
+import {
+  VaultWriteError, backupOf, markRevealed, reindexBid, saveBid, toPrivateBid,
+  vaultWritable, type StoredBid,
+} from "@/lib/vault";
 import { railUsable, submitBlocked } from "@/lib/rails";
 import type { Connection } from "@/lib/wallet";
 import { Ladder } from "./Ladder";
@@ -34,6 +37,24 @@ const errText = (e: unknown) => {
   return err.recognised || err.code !== null
     ? (err.recognised ? err.say : `${err.say} Raw: ${err.raw}`)
     : (e instanceof Error ? e.message : err.raw);
+};
+
+/**
+ * Hands the bidder a file holding the whole entry, in the shape the vault's own import
+ * accepts, so the copy that leaves the browser is a copy that can come back.
+ *
+ * The panel used to offer the claim secret alone. That is enough to take an escrow back
+ * (`redeem_forfeit` and `claim_lot` want only the secret) but not enough to *reveal* —
+ * which takes the seed and the level — and a bid that cannot reveal cannot win the lot,
+ * only be forfeited. A backup that silently drops the winning path is not a backup.
+ */
+const downloadBackup = (b: StoredBid) => {
+  const url = URL.createObjectURL(new Blob([backupOf(b)], { type: "application/json" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `vickrey-bid-${b.auctionId}-${b.index}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
 };
 
 /* ── bidding ─────────────────────────────────────────────────────────── */
@@ -70,6 +91,14 @@ export function BidPanel({
   const [error, setError] = useState<string | null>(null);
   const [placed, setPlaced] = useState<StoredBid | null>(null);
   const [ack, setAck] = useState(false);
+  /*
+    Asked once, on mount, rather than at submit: a bidder who cannot store a secret should
+    meet a disabled button with a reason, not a failure after choosing a level. Optimistic
+    until proven otherwise so server render and first paint agree — `vaultWritable` cannot
+    run during SSR, and a pessimistic default would flash a false alarm on every load.
+  */
+  const [storable, setStorable] = useState(true);
+  useEffect(() => { setStorable(vaultWritable()); }, []);
 
   const canPrivate = !!connection?.strk20Declared && hasAnonymizer() && strk20Proof !== "failed";
 
@@ -173,6 +202,11 @@ export function BidPanel({
          positive "no bid carries this commitment" after a successful read, never on a
          failed one. The worst case is a stale entry until that pass runs, which is
          cosmetic. Losing a seed is not. */
+      /* Thrown by `saveBid` before anything was signed, so this is not a wallet or pool
+         failure and must not be recorded as one — marking the pool broken here would
+         disable the private rail over a browser storage problem. Its own message already
+         says no funds moved; `errText` would rewrite it as an unrecognised wallet error. */
+      if (e instanceof VaultWriteError) return setError(e.message);
       if (rail === "private") noteStrk20Error(e);
       setError(errText(e));
     } finally {
@@ -219,14 +253,22 @@ export function BidPanel({
           Save your claim secret
         </h3>
         <p className="note" style={{ color: "var(--ink-soft)" }}>
-          This is the only thing that can collect your refund or the lot. It is not on
-          any server and there is no recovery. If you clear this browser without it,
-          the money stays in the contract for good.
+          This is what collects your refund or the lot. It is not on any server and there
+          is no recovery. If you clear this browser without it, the money stays in the
+          contract for good.
         </p>
         <div className="value">{placed.claimSecret}</div>
+        <p className="note" style={{ color: "var(--ink-soft)" }}>
+          The secret alone takes the escrow back. <b>Revealing</b> — which is what wins
+          the lot — also needs the seed for this bid, so the download below is the backup
+          to keep: it holds every field, and restores through <b>My bids → Import</b>.
+        </p>
         <div className="row">
           <button onClick={() => navigator.clipboard?.writeText(placed.claimSecret)}>
-            Copy
+            Copy secret
+          </button>
+          <button onClick={() => downloadBackup(placed)}>
+            Download backup
           </button>
           <label style={{ display: "flex", gap: ".45rem", alignItems: "center", margin: 0 }}>
             <input
@@ -381,9 +423,25 @@ export function BidPanel({
             </div>
           </dl>
 
+          {/*
+            A disabled button with no reason beside it is the same defect as a live button
+            that fails: the interface knows something the bidder does not. This is the one
+            precondition they can actually fix, so it says how.
+          */}
+          {!storable && (
+            <p className="note" role="alert" style={{ color: "var(--bad, #b4341f)" }}>
+              <b>This browser will not keep your claim secret.</b> Bidding is disabled,
+              because the secret is stored before the transaction is sent — a bid placed
+              without it is escrow that nobody can ever release. Private browsing, a full
+              store, or blocked site data cause this. Allow site data for this site in a
+              normal window and reload.
+            </p>
+          )}
+
           <div className="row">
             <button className="primary" onClick={submit}
-                    disabled={submitBlocked({ rail, canPrivate, busy: !!busy, connected: !!connection })}>
+                    disabled={submitBlocked({
+                      rail, canPrivate, busy: !!busy, connected: !!connection, storable })}>
               {busy ? "Working…" : rail === "private" ? "Bid privately" : "Place sealed bid"}
             </button>
             {/* R5: name the wait before it starts. */}

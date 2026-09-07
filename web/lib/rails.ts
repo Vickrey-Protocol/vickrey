@@ -18,6 +18,14 @@ export interface RailGate {
   canPrivate: boolean;
   busy: boolean;
   connected: boolean;
+  /**
+   * This browser will actually keep the claim secret.
+   *
+   * The secret is written before the send, so a store that silently drops it produces a
+   * bid on chain whose escrow nobody can release. That is the one failure here with no
+   * recovery, so it blocks the submit rather than warning beside it.
+   */
+  storable: boolean;
 }
 
 /** The selected rail is one we have not proven broken. */
@@ -25,5 +33,5 @@ export const railUsable = (rail: Rail, canPrivate: boolean) =>
   rail === "public" || canPrivate;
 
 /** Every reason a submit must not fire, in one place so the button cannot forget one. */
-export const submitBlocked = ({ rail, canPrivate, busy, connected }: RailGate) =>
-  busy || !connected || !railUsable(rail, canPrivate);
+export const submitBlocked = ({ rail, canPrivate, busy, connected, storable }: RailGate) =>
+  busy || !connected || !storable || !railUsable(rail, canPrivate);

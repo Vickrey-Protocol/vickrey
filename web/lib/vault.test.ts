@@ -10,8 +10,10 @@
  * mismatched index fails the commitment check. What they could do is look exactly like a
  * defect during a run where every figure is being checked by eye.
  */
-import { beforeEach, describe, expect, it } from "vitest";
-import { allBids, dropBid, reindexBid, saveBid } from "@/lib/vault";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  VaultWriteError, allBids, dropBid, exportBids, importBids, reindexBid, saveBid,
+} from "@/lib/vault";
 
 const KEY = "vickrey.bids.v1";
 const bid = (level: number) => ({
@@ -60,5 +62,71 @@ describe("correcting an index the chain assigned differently", () => {
     saveBid(9n, bid(1), 0);
     reindexBid(8n, 0, 5);
     expect(allBids().map((b) => `${b.auctionId}:${b.index}`).sort()).toEqual(["8:5", "9:0"]);
+  });
+});
+
+describe("a store that accepts a write and keeps nothing", () => {
+  /*
+    `setItem` is not a signal. It throws on quota in some browsers and returns silently in
+    others, and a partitioned store or a site-data block can accept the call and discard
+    the value. The old `write` swallowed all of it, so the panel showed a claim secret it
+    had never stored — and the bid went to the chain anyway, leaving escrow nobody can
+    release. The write is now read back, and the failure reaches the caller.
+  */
+  afterEach(() => vi.restoreAllMocks());
+
+  it("refuses to return a secret it did not manage to store", () => {
+    vi.spyOn(window.localStorage.__proto__, "setItem").mockImplementation(() => {});
+    expect(() => saveBid(8n, bid(1), 0)).toThrow(VaultWriteError);
+  });
+
+  it("says plainly that nothing was signed, because nothing was", () => {
+    vi.spyOn(window.localStorage.__proto__, "setItem").mockImplementation(() => {});
+    /* The bid path calls this before the wallet, so this message is always true — and a
+       bidder reading "failed" after a wallet dialog would otherwise assume the reverse. */
+    expect(() => saveBid(8n, bid(1), 0)).toThrow(/no funds moved/);
+  });
+
+  it("reports a throwing store the same way", () => {
+    vi.spyOn(window.localStorage.__proto__, "setItem").mockImplementation(() => {
+      throw new DOMException("quota", "QuotaExceededError");
+    });
+    expect(() => saveBid(8n, bid(1), 0)).toThrow(VaultWriteError);
+  });
+
+  it("stores normally when the browser cooperates", () => {
+    expect(() => saveBid(8n, bid(1), 0)).not.toThrow();
+    expect(allBids()).toHaveLength(1);
+  });
+});
+
+describe("restoring a backup", () => {
+  it("merges rather than replacing, so a one-bid backup cannot wipe the rest", () => {
+    /*
+      The bid panel now hands out a single-bid file. Importing it used to write the parsed
+      array wholesale, which would have destroyed every other secret in the browser —
+      restoring one bid as a way to lose three.
+    */
+    saveBid(8n, bid(1), 0);
+    saveBid(8n, bid(2), 1);
+    const oneBid = JSON.stringify([JSON.parse(exportBids())[1]]);
+    window.localStorage.removeItem(KEY);
+    saveBid(9n, bid(3), 0);
+
+    importBids(oneBid);
+    expect(allBids().map((b) => `${b.auctionId}:${b.index}`).sort())
+      .toEqual(["8:1", "9:0"]);
+  });
+
+  it("lets the imported copy win a collision on the same bid", () => {
+    saveBid(8n, bid(1), 0);
+    const backup = exportBids().replace('"level": 1', '"level": 7');
+    importBids(backup);
+    expect(allBids()).toHaveLength(1);
+    expect(allBids()[0]!.level).toBe(7);
+  });
+
+  it("still rejects something that is not a list of bids", () => {
+    expect(() => importBids('{"nope":true}')).toThrow(/expected a list/);
   });
 });
