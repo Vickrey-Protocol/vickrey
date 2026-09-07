@@ -18,7 +18,7 @@ import { provider, readBidState, type AuctionView, type BidState } from "@/lib/c
 import {
   STRK_DECIMALS, config, countdown, formatUnits, hasAnonymizer, priceAt, utcDate,
 } from "@/lib/config";
-import { dropBid, markRevealed, reindexBid, saveBid, toPrivateBid, type StoredBid } from "@/lib/vault";
+import { markRevealed, reindexBid, saveBid, toPrivateBid, type StoredBid } from "@/lib/vault";
 import { railUsable, submitBlocked } from "@/lib/rails";
 import type { Connection } from "@/lib/wallet";
 import { Ladder } from "./Ladder";
@@ -91,10 +91,9 @@ export function BidPanel({
     }
     if (!(await ensureChain())) return;
     setError(null);
-    /* Outside the `try` so the catch can read them. `sent` is the whole of the rollback
-       rule: only while it is false may the vault entry be removed. */
+    /* Outside the `try` so the catch can read it. Nothing in the catch removes a vault
+       entry any more — see the note there. */
     const guessed = auction.bidCount;
-    let sent = false;
     try {
       const bid = createBid(auction.terms, level);
       /* Written before the send, deliberately: a transaction that lands while the secret
@@ -133,8 +132,6 @@ export function BidPanel({
         ({ transaction_hash } = await connection.account.strk20InvokeTransaction(actions));
       }
 
-      sent = true;
-
       /*
         B: the index the chain actually assigned, read from `BidPlaced` in the receipt.
         `index` is a keyed field, and the event is matched on our own `claim_commitment`
@@ -163,10 +160,19 @@ export function BidPanel({
       /* A private-rail failure is the same pool read failing. Recording it stops the
          rail being offered again, so the next attempt is a button that explains itself
          rather than a bid that fails. */
-      /* A: roll back only when the wallet threw before returning a hash. A timeout after
-         submission is silence, not a refusal — Rule 11 — and the transaction may still
-         land. */
-      if (!sent) dropBid(auction.terms.auctionId, guessed);
+      /* The vault entry stays. It used to be rolled back whenever a flag set *after* the
+         wallet call was still false — which was meant to mean "the wallet threw before
+         returning a hash", but could not tell a throw before broadcast from one after.
+         Any timeout, disconnect or unexpected response shape deleted the claim secret
+         for a transaction that was already on chain. On mainnet that destroyed six seeds
+         and stranded the escrow behind them: Rule 11 broken by the code written to
+         honour Rule 11.
+
+         Nothing is deleted here now. The chain is the only authority on whether a bid
+         exists, and DashData's reconciler already asks it — dropping an entry only on a
+         positive "no bid carries this commitment" after a successful read, never on a
+         failed one. The worst case is a stale entry until that pass runs, which is
+         cosmetic. Losing a seed is not. */
       if (rail === "private") noteStrk20Error(e);
       setError(errText(e));
     } finally {
