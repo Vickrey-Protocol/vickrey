@@ -110,12 +110,24 @@ and the controls are there so the check can still fail if the encoding drifts.
 Sepolia pool `0x254a…0d91`, live `get_fee_amount` **2 STRK** — not the 4 the docs quote
 for mainnet, which is why it is read and never hardcoded.
 
-### Still open, and gating a deploy
+### Done on mainnet, 7 Sep 2026
 
-- **No wallet has assembled, proven and submitted one of these.** That is the
-  remaining gap and the only one needing a human at a browser.
-- The helper has never run, because nothing is deployed.
-- Mainnet gas for `settle`, measured rather than estimated.
+- **A browser wallet assembled, proved and submitted three of these.** Auction #2,
+  three private-rail bids, each verified against the §6c predicate:
+  `0x57ba561f…`, `0x3b113126…`, `0x58742bf9…`.
+- The helper has run. It is deployed at `0x04628cab…` and each of those three
+  transactions carries its `Routed` event alongside the auction's `BidPlaced`.
+- Pool economics measured rather than quoted: **6 STRK per operation**, read live from
+  `get_fee_amount`, taken from the *shielded* balance — the public balance moved by
+  exactly 0.000000 on each bid. Gas about 2.73 STRK per bid, paymaster-sponsored.
+
+### Still open
+
+- **Mainnet gas for `settle`.** Settlement has not run on mainnet, and cannot for these
+  auctions: the witnesses `settle` verifies are built from each bid's seed, and those
+  seeds were destroyed by the defect disclosed immediately below. The proof path is
+  exercised on Sepolia, where two full lifecycles settle and finalize.
+
 ### Disclosure — 7 Sep 2026: the claim secret does not reliably persist
 
 **A bid placed through this app may leave no recoverable claim secret in the browser,
@@ -134,8 +146,30 @@ lost is **settlement**: the *seed* is never displayed, it exists only in the vau
 without it no bidder can produce the witnesses `settle` verifies. An auction bid through
 this app therefore cannot currently reach a proved clearing price.
 
-**We do not know the cause.** Three hypotheses have been eliminated on mainnet, in this
-order:
+**The cause is now known: a search bounded by a stale count, read as a bid that does not
+exist.** A stored bid's index is a guess taken from a polled `bidCount`. The dashboard
+reconciler checked that guess by searching bid indices `0..count-1` for the commitment —
+bounding the search with that same polled count. Immediately after a bid the poll is
+short by exactly the bid just placed, so the stored index *equals* the stale count: the
+direct read is skipped, the search stops one index before the bid it is looking for, and
+the `null` it returns means *the range excluded it*, not *no bid carries this
+commitment*. The reconciler read that as a negative and deleted the entry. It fired when
+the bidder opened the dashboard to look at the bid they had just made.
+
+That is the third hypothesis below, and its elimination was wrong: `useDashData` is
+indeed not used by the auction page, which is true and beside the point — the reconciler
+only ever needed to run on the dashboard, which is where a bidder goes next.
+
+**The fix is written, tested and not deployed.** It sits on the `fix/vault-persistence`
+branch, deliberately unmerged: it landed inside the final hour before the 23:59 UTC
+freeze, and this project's own rule is that nothing risky lands in the final hours. The
+entry does not depend on it. It reads the search bound from the chain, drops a bid only
+on a search that actually covered its index, reads back every `localStorage` write before
+anything is signed, and hands the bidder the whole entry as a backup rather than the
+claim secret alone.
+
+For the record, the three hypotheses eliminated on mainnet before the cause was found,
+in order:
 
 - *The rollback in the bid flow.* It deleted the entry whenever a flag set after the
   wallet call was still false, which could not distinguish a throw before broadcast from
@@ -147,8 +181,7 @@ order:
 - *The dashboard reconciler.* It can drop an entry the chain does not confirm, but it
   lives in `useDashData`, which the auction page does not use.
 
-Writes work, no error fires, no deletion path is running, and the entry is still absent.
-Naming a fourth cause without evidence would be worth less than saying this.
+The first two were correctly eliminated. The third was not.
 
 **Cost to us:** 1.44 STRK of escrow stranded across mainnet auctions #1 and #2, plus
 0.24 on #3. Recoverable via `abandon` where the claim secret was saved outside the
