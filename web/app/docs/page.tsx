@@ -62,16 +62,19 @@ export default function Page() {
           {/* Above everything else in the reference, because a reader who is about to bid
               needs it before they read how bidding works. */}
           <div className="banner" style={{ borderColor: "var(--accent-edge)" }}>
-            <b>Known defect, 7 Sep 2026 — bidding cannot currently be settled.</b>{" "}
-            The claim secret a bid generates does not reliably persist in the browser.
-            The bid transaction succeeds and your escrow stays recoverable if you save
-            the secret the app shows you when it shows it — but the <em>seed</em> is
-            never displayed, lives only in that store, and without it no bidder can
-            produce the witnesses settlement verifies. So an auction bid through this
-            app cannot currently reach a proved clearing price. The cause is not yet
-            known; three hypotheses have been eliminated on mainnet. The full account,
-            including what it cost us, is in{" "}
-            <a href={`${REPO}#disclosure--7-sep-2026-the-claim-secret-does-not-reliably-persist`}
+            <b>Fixed defect, 7&ndash;8 Sep 2026 — claim secrets could be deleted.</b>{" "}
+            A bid&rsquo;s claim secret and seed did not reliably survive in the browser,
+            so bids placed in that window cannot reach a proved clearing price. The
+            cause was the dashboard&rsquo;s reconciler: it checked a stored bid against
+            the chain with a search bounded by a <em>polled</em> bid count, which
+            immediately after a bid is short by exactly that bid — so the search stopped
+            one index before it, and the reconciler read &ldquo;the range excluded
+            it&rdquo; as &ldquo;this bid does not exist&rdquo; and deleted the secret.
+            The bound is now read from the chain, a bid is only dropped on a search that
+            actually covered it, every write is read back before anything is signed, and
+            the panel hands you the whole entry as a backup rather than the secret alone.
+            The full account, including what it cost us, is in{" "}
+            <a href={`${REPO}#disclosure--7-sep-2026-the-claim-secret-did-not-reliably-persist--fixed-8-sep`}
                target="_blank" rel="noreferrer">the README disclosure</a>.
           </div>
 

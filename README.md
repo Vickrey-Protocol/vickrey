@@ -116,39 +116,59 @@ for mainnet, which is why it is read and never hardcoded.
   remaining gap and the only one needing a human at a browser.
 - The helper has never run, because nothing is deployed.
 - Mainnet gas for `settle`, measured rather than estimated.
-### Disclosure — 7 Sep 2026: the claim secret does not reliably persist
+### Disclosure — 7 Sep 2026: the claim secret did not reliably persist — fixed 8 Sep
 
-**A bid placed through this app may leave no recoverable claim secret in the browser,
-and an auction it was placed in cannot then be settled.** Found during the mainnet run,
-by losing six of our own.
+**A bid placed through this app could leave no recoverable claim secret in the browser,
+and an auction it was placed in could not then be settled.** Found during the mainnet
+run, by losing six of our own. The cause is identified and fixed; this record stands
+because the loss was real and the stranded escrow is still stranded.
 
-What happens: the bid transaction succeeds and is verifiable on chain. The app writes
+What happened: the bid transaction succeeded and is verifiable on chain. The app writes
 the claim secret and the seed to `localStorage` *before* calling the wallet, and shows
-the claim secret afterwards behind an "I have saved it" gate. But on mainnet the stored
-entry was repeatedly absent afterwards, with no error raised anywhere.
+the claim secret afterwards behind an "I have saved it" gate. The stored entry was then
+repeatedly absent, with no error raised anywhere.
 
-**What that costs.** The escrow is still recoverable — `claim_refund` takes the claim
+**What that cost.** The escrow stayed recoverable — `claim_refund` takes the claim
 secret, the app displays it, and `abandon` makes it claimable after the dispute window
-— so a bidder who saves what the screen tells them to save keeps their money. What is
+— so a bidder who saved what the screen told them to save kept their money. What was
 lost is **settlement**: the *seed* is never displayed, it exists only in the vault, and
 without it no bidder can produce the witnesses `settle` verifies. An auction bid through
-this app therefore cannot currently reach a proved clearing price.
+this app in that window therefore cannot reach a proved clearing price.
 
-**We do not know the cause.** Three hypotheses have been eliminated on mainnet, in this
-order:
+**The cause: a search bounded by a stale count, read as a bid that does not exist.**
 
-- *The rollback in the bid flow.* It deleted the entry whenever a flag set after the
-  wallet call was still false, which could not distinguish a throw before broadcast from
-  one after. It was a real defect and is removed. It is not this one: the failing bid
-  raised no error at all, so the `catch` never ran.
-- *Blocked or full site data.* `localStorage.setItem` followed by `getItem` returns the
-  written value on the affected origin, and the store holds older entries from previous
-  deployments.
-- *The dashboard reconciler.* It can drop an entry the chain does not confirm, but it
-  lives in `useDashData`, which the auction page does not use.
+A stored bid's index is a guess taken from a polled `bidCount`. The dashboard reconciler
+checked that guess against the chain by searching bid indices `0..count-1` for the
+commitment — and bounded the search with the same polled count. Immediately after a bid
+that poll is short by exactly the bid just placed, so the stored index *equals* the stale
+count: the direct read is skipped, the search stops one index before the bid it is
+looking for, and the `null` it returns means *the range excluded it*, not *no bid carries
+this commitment*. The reconciler read that as a negative and deleted the entry.
 
-Writes work, no error fires, no deletion path is running, and the entry is still absent.
-Naming a fourth cause without evidence would be worth less than saying this.
+It fired when the bidder opened the dashboard to look at the bid they had just made.
+
+That is the hypothesis eliminated third above, and the elimination was wrong. Its
+reasoning — `useDashData` is not used by the auction page — was true and beside the
+point: the reconciler never needed to run on the auction page, only on the dashboard,
+which is where a bidder goes next.
+
+**The fix**, all in `web/`:
+
+- The search bound is read from the chain at that moment, never from the polled view, and
+  a drop requires a search that actually covered the stored index; below that bound the
+  answer is "not yet". The decision moved into a pure function, `lib/reconcile.ts`, with
+  tests — it destroyed the secrets while inline in a React effect where no test could
+  reach it. Rule 11 on the edge the earlier rollback fix did not cover.
+- Writes are read back. `setItem` is not a signal of storage — it throws on quota in some
+  browsers and returns silently in others, and a partitioned or blocked store can accept
+  the call and keep nothing — so `saveBid` proves the value landed and throws rather than
+  returning a secret it did not store. That happens before the wallet call, so nothing
+  can be signed against a secret that was not kept, and the same question is asked on
+  mount, so a browser that will not hold one shows a disabled button with a reason.
+- The panel hands over the whole entry as a downloadable backup rather than the claim
+  secret alone: the secret takes an escrow back, but `reveal` needs the seed and the
+  level, and a bid that cannot reveal cannot win the lot. Restoring a backup merges now
+  — it replaced the store wholesale, so restoring one bid would have destroyed the rest.
 
 **Cost to us:** 1.44 STRK of escrow stranded across mainnet auctions #1 and #2, plus
 0.24 on #3. Recoverable via `abandon` where the claim secret was saved outside the
