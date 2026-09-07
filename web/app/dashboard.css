@@ -74,16 +74,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* ── controls ── the template's buttons: a dark pill for the primary, an outline pill
-   for the rest. Ink-on-surface inverts correctly in both themes. */
-.dash .primary, .dash a.primary, .dash-gate .primary {
-  background: var(--ink); color: var(--surface); border-color: transparent;
-  border-radius: 999px; box-shadow: none; padding: .55rem 1rem; text-decoration: none;
-}
-.dash .primary:hover:not(:disabled), .dash-gate .primary:hover:not(:disabled) { filter: brightness(1.12); }
-.dash button:not([class]), .dash-gate button:not([class]) {
-  border-radius: 999px; padding: .55rem 1rem; background: var(--surface); border-color: var(--line-lit);
-}
+/* Buttons: see worlds.css — one rule for the landing page, the public pages and here. */
 .dash input, .dash select, .dash textarea { background: var(--surface); border-color: var(--line-lit); border-radius: 8px; }
 .dash table th { color: var(--muted); }
 

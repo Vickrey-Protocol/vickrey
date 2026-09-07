@@ -79,8 +79,12 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  /* suppressHydrationWarning: the pre-paint script below adds data-theme to <html>
+     before React hydrates it. That is the one attribute the server cannot know, and
+     React must leave it rather than flag it — the same thing every theme library asks
+     for on the root element. */
   return (
-    <html lang="en" className={`${display.variable} ${body.variable} ${mono.variable} ${lpSans.variable} ${lpMono.variable}`}>
+    <html lang="en" suppressHydrationWarning className={`${display.variable} ${body.variable} ${mono.variable} ${lpSans.variable} ${lpMono.variable}`}>
       <body>
         {/* The theme, before paint. Light unless the visitor chose dark; the choice is the
             only thing stored, and nothing is read from the system — the template's own

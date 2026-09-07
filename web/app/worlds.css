@@ -70,3 +70,25 @@ html:has(.lp, .dash, .dash-gate) .acct-dot { border-color: var(--surface); }
 [data-theme="dark"] .lp-moon { display: block; }
 [data-motion="play"] .lp-sun, [data-motion="play"] .lp-moon { animation: lp-icon-in .3s ease-out; }
 @keyframes lp-icon-in { from { opacity: 0; transform: translateX(40px); } }
+
+/* ── controls, in the template's shapes ────────────────────────────────
+   A dark pill for the primary, an outline pill for a bare button. Ink on
+   surface inverts correctly in both themes. Text nested inside a primary —
+   a preset's description, a filter's count — inherits the pill's colour:
+   it kept its muted grey and vanished on the black. */
+html:has(.lp, .dash, .dash-gate) :is(.primary, a.primary) {
+  background: var(--ink); color: var(--surface); border-color: transparent;
+  border-radius: 999px; box-shadow: none; padding: .55rem 1rem; text-decoration: none;
+}
+html:has(.lp, .dash, .dash-gate) .primary:hover:not(:disabled) { filter: brightness(1.12); }
+html:has(.lp, .dash, .dash-gate) .primary :is(.note, b, span) { color: inherit; }
+html:has(.lp, .dash, .dash-gate) .primary .note { opacity: .75; }
+html:has(.lp, .dash, .dash-gate) button:not([class]) {
+  border-radius: 999px; padding: .55rem 1rem; background: var(--surface); border-color: var(--line-lit);
+}
+
+/* The mark was seated for Bodoni's baseline. Against Geist it rode high; centred on
+   the word and nudged down it sits on the same line, on the landing page and in the
+   dashboard rail alike. */
+html:has(.lp, .dash, .dash-gate) .wordmark { align-items: center; }
+html:has(.lp, .dash, .dash-gate) .wordmark-mark { transform: translateY(.08em); }

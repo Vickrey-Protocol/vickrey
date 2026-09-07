@@ -150,10 +150,6 @@
 .lp-illus { --rung: 1.6rem; --strip: 7rem; pointer-events: none; }
 .lp-illus .thermo { margin: 1rem 0 0; }
 .lp-illus .thermo figcaption { font-size: .8rem; color: var(--muted); }
-/* In the app a picked rung is accent because it is *your* choice, pre-send. In an
-   illustration it is a sealed value, and the accent means the opposite of sealed. */
-.lp-illus .rung.is-picked { background: #0a0a0a; }
-.lp-illus .picked-note { color: #0a0a0a; }
 
 /* ── auction cards on this ground ──────────────────────────────────────
    The app's card, in the template's card treatment: white, a neutral
@@ -205,6 +201,19 @@
 [data-theme="dark"] .lp .trust { background: #000; }
 [data-theme="dark"] .lp .card-auction { background: #000; border-color: #404040; box-shadow: none; }
 [data-theme="dark"] .lp .card-auction:hover { border-color: #fff; }
-[data-theme="dark"] .lp-illus .rung.is-picked { background: #fff; }
-[data-theme="dark"] .lp-illus .picked-note { color: #fff; }
 
+
+/* ── the public inner pages ────────────────────────────────────────────
+   Auctions, an auction, the docs, the wallet check: the design system's
+   panels and headings in the template's card treatment, both themes. */
+.lp .display { font-family: var(--font-body); font-weight: 600; letter-spacing: -.02em; }
+.lp .panel, .lp .banner, .lp .secret {
+  background: var(--surface); border-color: var(--line); border-radius: 12px;
+  box-shadow: 0px 2px 3px -1px rgba(0, 0, 0, .1), 0px 1px 0px 0px rgba(25, 28, 33, .02), 0px 0px 0px 1px rgba(25, 28, 33, .08);
+  backdrop-filter: none; -webkit-backdrop-filter: none;
+}
+.lp .panel::before { display: none; }
+.lp .panel.accent { border-color: var(--accent-edge); }
+.lp .code, .lp pre { background: var(--glass-2); border-color: var(--line); }
+@media (max-width: 860px) { .lp .docs-nav { background: var(--surface); } }
+[data-theme="dark"] .lp .panel, [data-theme="dark"] .lp .banner, [data-theme="dark"] .lp .secret { box-shadow: none; border-color: #262626; }
