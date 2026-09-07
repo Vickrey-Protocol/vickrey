@@ -25,3 +25,21 @@
 
 @import "tailwindcss/theme.css" layer(theme) prefix(tw);
 @import "tailwindcss/utilities.css" layer(utilities) prefix(tw);
+
+/* Where utilities are used. Explicit rather than auto-detected so a class in a new
+   directory cannot silently fail to compile. Paths are relative to this file. */
+@source "../components";
+@source "../app";
+
+/* The landing page's theme, in Tailwind's namespace (`tw:text-accent`, `tw:font-sans`).
+   One accent, and it means exactly one thing: that a value became public. It is the
+   colour of the clearing rung and of nothing decorative. The fonts resolve to the
+   variables next/font sets on the page wrapper. */
+@theme {
+  --color-accent: #E2513C;
+  --color-ember: #F2913F;
+  --font-sans: var(--font-lp), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: var(--font-lp-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  --shadow-aceternity: 0px 2px 3px -1px rgba(0, 0, 0, 0.1), 0px 1px 0px 0px rgba(25, 28, 33, 0.02), 0px 0px 0px 1px rgba(25, 28, 33, 0.08);
+  --shadow-derek: 0px 0px 0px 1px rgb(0 0 0 / 0.06), 0px 1px 1px -0.5px rgb(0 0 0 / 0.06), 0px 3px 3px -1.5px rgb(0 0 0 / 0.06), 0px 6px 6px -3px rgb(0 0 0 / 0.06), 0px 12px 12px -6px rgb(0 0 0 / 0.06), 0px 24px 24px -12px rgb(0 0 0 / 0.06);
+}

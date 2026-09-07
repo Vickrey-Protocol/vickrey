@@ -1,0 +1,86 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   The landing page, light-first.
+
+   The rest of the site is the dark design system in globals.css. This page is
+   rebuilt on a light template, and the two coexist because everything the dark
+   system paints comes from custom properties: inside `.lp` those properties are
+   re-based on a white ground, so the instrument (ladder, rungs, braces, readout)
+   draws itself correctly here without a line of its code changing.
+
+   The ground is set on <html> via :has(), not on the wrapper — the overscroll
+   rubber-band paints the canvas, and a white page over a dark canvas flashes
+   dark at both ends of every scroll.
+
+   Everything that selects an element lives in @layer base, for the same reason
+   globals.css's element rules do: a utility on a bare heading must win.
+   ───────────────────────────────────────────────────────────────────────── */
+html:has(.lp) { background: #fff; color-scheme: light; }
+
+@layer base {
+  .lp {
+    --ink:        #0a0a0a;
+    --ink-2:      #404040;
+    --muted:      #737373;
+    --line:       rgba(0, 0, 0, .08);
+    --line-lit:   rgba(0, 0, 0, .16);
+    --glass:      rgba(255, 255, 255, .72);
+    --glass-2:    rgba(0, 0, 0, .035);
+    --hatch:      rgba(0, 0, 0, .10);
+    --hatch-bg:   rgba(0, 0, 0, .025);
+    --accent-dim:  rgba(226, 81, 60, .12);
+    --accent-edge: rgba(226, 81, 60, .5);
+    --accent-glow: 0 0 24px rgba(226, 81, 60, .18);
+    --good:        #15803d;
+    --font-display: var(--font-lp), ui-sans-serif, system-ui, -apple-system, sans-serif;
+    --font-body:    var(--font-lp), ui-sans-serif, system-ui, -apple-system, sans-serif;
+    --font-mono:    var(--font-lp-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: var(--ink);
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+  }
+  /* Geist has no display cut; headings are the same face, tighter and a step heavier. */
+  .lp h1, .lp h2, .lp h3 { font-weight: 500; letter-spacing: -.02em; }
+}
+
+/* The ambient grid: lines, faded towards the edges so it never competes with copy.
+   Pure CSS — decoration is never a reason to ship a runtime. */
+.lp-bg {
+  position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background-image:
+    linear-gradient(#efefef 1px, transparent 1px),
+    linear-gradient(90deg, #efefef 1px, transparent 1px);
+  background-size: 240px 140px; background-position: 50% 0;
+}
+.lp-bg::after {
+  content: ""; position: absolute; inset: 0;
+  background: radial-gradient(ellipse at center, transparent 25%, #fff 78%);
+}
+/* The old dark backdrop must not render behind this page. */
+.lp .backdrop { display: none; }
+
+/* Nav: transparent at the top of the page, a pill once scrolled. State comes from
+   watchScroll's data-scrolled on the root — no scroll library. */
+html[data-scrolled="true"] .lp-nav-bar {
+  background: #fafafa;
+  box-shadow: 0 -2px 0 0 #f5f5f5, 0 2px 0 0 #f5f5f5;
+}
+/* The narrow menu is a native <details>: no state, no listener, works before hydration.
+   Open, the summary rises above its own overlay and becomes the close control. */
+.lp-menu > summary::-webkit-details-marker { display: none; }
+/* Closed, the sheet must have no box at all. Chrome keeps a closed <details>' content
+   in the tree with content-visibility rather than display:none, and its fixed overlay
+   still reported a scroll width and 0×44 link targets to the audit. */
+.lp-menu:not([open]) > :not(summary) { display: none; }
+.lp-menu[open] > summary { position: relative; z-index: 60; }
+.lp-menu[open] .lp-burger { display: none; }
+.lp-menu:not([open]) .lp-x { display: none; }
+
+/* Instrument details that were hardcoded for a dark ground. */
+.lp .brace { border-color: rgba(0, 0, 0, .35); }
+.lp .brace.above { border-color: rgba(226, 81, 60, .75); }
+.lp .rig {
+  background: #fff;
+  box-shadow: 0 1px 0 0 rgba(0, 0, 0, .03) inset, 0 22px 50px -28px rgba(0, 0, 0, .25);
+}
+.lp .rig-replay { background: #fafafa; }
+.lp .rig-open { background: rgba(0, 0, 0, .04); }

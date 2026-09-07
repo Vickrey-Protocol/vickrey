@@ -13,9 +13,9 @@ import { watchBackdrop, watchGlow, watchScroll } from "@/lib/chrome";
 import { watchReveals } from "@/lib/reveal";
 import { AuctionCard } from "@/components/AuctionCard";
 import { Faq } from "@/components/Faq";
-import { Footer } from "@/components/Footer";
+import { LpFooter } from "@/components/landing/Footer";
 import { HeroInstrument } from "@/components/HeroInstrument";
-import { Masthead } from "@/components/Masthead";
+import { Nav } from "@/components/landing/Nav";
 import { Problem } from "@/components/Problem";
 import { TrustStatement } from "@/components/TrustStatement";
 import { useNow } from "@/components/WalletProvider";
@@ -88,9 +88,11 @@ export default function LandingClient({ initial }: { initial: WireAuction[] }) {
   }, [showcase, router]);
 
   return (
-    <main>
-      <div className="backdrop" aria-hidden="true" />
-      <Masthead />
+    <>
+      <div className="lp-bg" aria-hidden="true" />
+      <Nav />
+      {/* The nav floats over the top of the page, so the page starts below it. */}
+      <main className="lp-main tw:mx-auto tw:max-w-7xl tw:px-4 tw:pt-24 tw:lg:pt-32">
 
       <div className="hero-grid">
         <div className="hero-left">
@@ -177,7 +179,8 @@ export default function LandingClient({ initial }: { initial: WireAuction[] }) {
       )}
 
       <Faq />
-      <Footer />
-    </main>
+      </main>
+      <LpFooter />
+    </>
   );
 }
