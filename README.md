@@ -19,12 +19,20 @@ on-chain by hash-preimage witnesses over a bid set the contract froze before any
 could open it. The losing bids are never published — not on chain, not in the app, not
 anywhere except the bidders' own devices. Neither is the winner's.
 
+> [!WARNING]
+> **Do not place a bid expecting to settle it.** As of 7 Sep 2026 the claim secret a
+> bid generates does not reliably persist in the browser, so an auction you bid in
+> **cannot currently be settled**. The bid transaction itself succeeds and your escrow
+> stays recoverable — but only if you save the secret the app shows you at the moment
+> it is shown. The cause is not yet known.
+> [Full disclosure below](#disclosure--7-sep-2026-the-claim-secret-does-not-reliably-persist).
+
 **To try it: connect a wallet, pick a level, sign.** That is the public rail and it
 needs no shielded balance and no set-up. Your bid is sealed either way — the private
 rail additionally hides your address, and costs a pool fee and a shield you make inside
 your own wallet. [Both rails, and which one you want](#two-rails-and-which-one-you-will-actually-use).
 
-**Submissions close 31 Aug 2026, 23:59 UTC.** Whatever this repository shows at that
+**Submissions close 7 Sep 2026, 23:59 UTC.** Whatever this repository shows at that
 moment is the entry — there is no separate submission step.
 
 ## Trust statement
@@ -108,6 +116,48 @@ for mainnet, which is why it is read and never hardcoded.
   remaining gap and the only one needing a human at a browser.
 - The helper has never run, because nothing is deployed.
 - Mainnet gas for `settle`, measured rather than estimated.
+### Disclosure — 7 Sep 2026: the claim secret does not reliably persist
+
+**A bid placed through this app may leave no recoverable claim secret in the browser,
+and an auction it was placed in cannot then be settled.** Found during the mainnet run,
+by losing six of our own.
+
+What happens: the bid transaction succeeds and is verifiable on chain. The app writes
+the claim secret and the seed to `localStorage` *before* calling the wallet, and shows
+the claim secret afterwards behind an "I have saved it" gate. But on mainnet the stored
+entry was repeatedly absent afterwards, with no error raised anywhere.
+
+**What that costs.** The escrow is still recoverable — `claim_refund` takes the claim
+secret, the app displays it, and `abandon` makes it claimable after the dispute window
+— so a bidder who saves what the screen tells them to save keeps their money. What is
+lost is **settlement**: the *seed* is never displayed, it exists only in the vault, and
+without it no bidder can produce the witnesses `settle` verifies. An auction bid through
+this app therefore cannot currently reach a proved clearing price.
+
+**We do not know the cause.** Three hypotheses have been eliminated on mainnet, in this
+order:
+
+- *The rollback in the bid flow.* It deleted the entry whenever a flag set after the
+  wallet call was still false, which could not distinguish a throw before broadcast from
+  one after. It was a real defect and is removed. It is not this one: the failing bid
+  raised no error at all, so the `catch` never ran.
+- *Blocked or full site data.* `localStorage.setItem` followed by `getItem` returns the
+  written value on the affected origin, and the store holds older entries from previous
+  deployments.
+- *The dashboard reconciler.* It can drop an entry the chain does not confirm, but it
+  lives in `useDashData`, which the auction page does not use.
+
+Writes work, no error fires, no deletion path is running, and the entry is still absent.
+Naming a fourth cause without evidence would be worth less than saying this.
+
+**Cost to us:** 1.44 STRK of escrow stranded across mainnet auctions #1 and #2, plus
+0.24 on #3. Recoverable via `abandon` where the claim secret was saved outside the
+browser, at a 6 STRK pool fee each — which is more than the escrow, so in practice it
+stays there. Full account in [docs/mainnet.md](docs/mainnet.md).
+
+**The three qualifying transactions are unaffected.** They are on chain, verified, and
+independent of any secret.
+
 ### Disclosure — 30 Aug 2026: an endpoint that exposed every revealed bid
 
 The reveal relay at `/api/reveals` had an **unauthenticated read**. `GET

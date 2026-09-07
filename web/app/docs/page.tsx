@@ -59,6 +59,22 @@ export default function Page() {
         </details>
 
         <article className="docs-body">
+          {/* Above everything else in the reference, because a reader who is about to bid
+              needs it before they read how bidding works. */}
+          <div className="banner" style={{ borderColor: "var(--accent-edge)" }}>
+            <b>Known defect, 7 Sep 2026 — bidding cannot currently be settled.</b>{" "}
+            The claim secret a bid generates does not reliably persist in the browser.
+            The bid transaction succeeds and your escrow stays recoverable if you save
+            the secret the app shows you when it shows it — but the <em>seed</em> is
+            never displayed, lives only in that store, and without it no bidder can
+            produce the witnesses settlement verifies. So an auction bid through this
+            app cannot currently reach a proved clearing price. The cause is not yet
+            known; three hypotheses have been eliminated on mainnet. The full account,
+            including what it cost us, is in{" "}
+            <a href={`${REPO}#disclosure--7-sep-2026-the-claim-secret-does-not-reliably-persist`}
+               target="_blank" rel="noreferrer">the README disclosure</a>.
+          </div>
+
           {/* ── 1 ─────────────────────────────────────────────────────────── */}
           <section id="what">
             <h2 className="section" style={{ marginTop: 0 }}>What this is</h2>

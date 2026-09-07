@@ -230,3 +230,10 @@
 .lp .code, .lp pre { background: var(--glass-2); border-color: var(--line); }
 @media (max-width: 860px) { .lp .docs-nav { background: var(--surface); } }
 [data-theme="dark"] .lp .panel, [data-theme="dark"] .lp .banner, [data-theme="dark"] .lp .secret { box-shadow: none; border-color: #262626; }
+
+/* The disclosure banner's link is prose, so it inherits a 17px line box — under the 44px
+   a finger needs. Scoped to the banner rather than to prose generally, because forcing
+   every inline link to 44px would open up the line spacing of the whole reference. */
+@media (max-width: 63.99rem) {
+  .lp .banner a { display: inline-flex; align-items: center; min-block-size: 44px; }
+}
