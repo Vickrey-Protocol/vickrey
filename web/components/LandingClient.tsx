@@ -12,7 +12,7 @@ import { LpLiveAuctions } from "@/components/landing/LiveAuctions";
 import { initMotion, onReplayKey, replayMotion } from "@/lib/motion";
 import { watchBackdrop, watchGlow, watchScroll } from "@/lib/chrome";
 import { watchReveals } from "@/lib/reveal";
-import { Faq } from "@/components/Faq";
+import { LpFaq } from "@/components/landing/Faq";
 import { LpFooter } from "@/components/landing/Footer";
 import { Nav } from "@/components/landing/Nav";
 import { Background } from "@/components/landing/Background";
@@ -107,7 +107,7 @@ export default function LandingClient({ initial }: { initial: WireAuction[] }) {
 
       <LpLiveAuctions featured={featured} now={now} onOpen={(a) => router.push(`/auction/${a.terms.auctionId}`)} />
 
-      <Faq />
+      <LpFaq />
       </main>
       </div>
       <LpFooter />

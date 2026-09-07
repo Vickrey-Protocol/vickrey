@@ -1,20 +1,15 @@
 /**
- * The questions a visitor actually has.
+ * The questions a visitor actually has, in the template's shape: a centred heading,
+ * one column of rows divided by hairlines, an arrow that turns when a row opens.
  *
  * Every answer has to agree with the trust statement — including the ones that are
  * unflattering. Overclaiming here costs more than it buys.
  *
- * Six answers open at once was a wall of prose in a two-column grid: nobody reads it,
- * and the questions themselves — which are the scannable part — were buried inside it.
- * One column of rows that open on click puts the six questions on screen at once and
- * gives the reader the one they came for.
- *
- * Native <details> rather than an accordion component. Every answer is in the document
- * whether or not any script ran, so the content is never conditional on hydration;
- * open, close, keyboard and screen-reader semantics come from the browser; and
- * `name` makes the group exclusive without a line of state. The height animation is
- * ::details-content, which only some browsers have — where they do not, the rows open
- * instantly, which is the correct thing to lose.
+ * The template rendered each answer only while open, on a motion library, so five of
+ * six answers were not in the document until a click. Every answer here is in the
+ * HTML: each row is a native <details>, one `name` makes the group exclusive, and the
+ * opening height is a CSS transition where the browser has it and instant where it
+ * does not — which is the right thing to lose.
  */
 const QA: Array<{ q: string; a: React.ReactNode }> = [
   {
@@ -85,30 +80,29 @@ const QA: Array<{ q: string; a: React.ReactNode }> = [
   },
 ];
 
-export function Faq() {
+export function LpFaq() {
   return (
-    <section id="faq">
-      <p className="eyebrow">Questions</p>
-      <h2 className="section" style={{ marginTop: 0 }} data-reveal>Before you bid</h2>
-      <div className="faq">
+    <section id="faq" data-anchor className="lp-faq tw:mx-auto tw:w-full tw:max-w-7xl tw:p-0 tw:py-10 tw:md:py-20" aria-labelledby="faq-h">
+      <h2
+        id="faq-h" data-reveal data-beat="faq"
+        className="tw:mx-auto tw:max-w-4xl tw:text-center tw:text-3xl tw:font-medium tw:tracking-tight tw:text-balance tw:md:text-6xl"
+      >
+        Before you bid
+      </h2>
+      <p data-reveal className="tw:mx-auto tw:mt-4 tw:max-w-lg tw:text-center tw:text-sm tw:text-neutral-500 tw:text-balance">
+        Every answer here agrees with the trust statement — including the ones that are
+        unflattering.
+      </p>
+      <div className="tw:mx-auto tw:mt-10 tw:max-w-3xl tw:divide-y tw:divide-neutral-200 tw:md:mt-20" data-reveal>
         {QA.map(({ q, a }, i) => (
-          <details
-            className="faq-item glow"
-            /* One group, so opening an answer closes the last one. */
-            name="faq"
-            /* The first is open so the section reads as answers, not as six shut doors. */
-            open={i === 0}
-            key={q}
-            data-reveal
-            style={{ ["--d" as string]: `${i * 0.04}s` }}
-          >
-            <summary className="faq-q">
-              {q}
-              {/* A plus that loses its upright stroke when the row opens. Decoration:
-                  the state is already announced by the summary itself. */}
-              <span className="faq-mark" aria-hidden="true" />
+          <details key={q} name="faq" open={i === 0} className="tw:group tw:py-4 tw:md:py-6">
+            <summary className="tw:flex tw:cursor-pointer tw:list-none tw:items-start tw:justify-between tw:gap-6 tw:[&::-webkit-details-marker]:hidden">
+              <h3 className="tw:m-0 tw:text-base tw:font-medium tw:tracking-normal tw:text-neutral-800 tw:md:text-lg">{q}</h3>
+              <span aria-hidden="true" className="tw:relative tw:mt-1 tw:mr-2 tw:h-5 tw:w-5 tw:flex-none tw:transition-transform tw:duration-200 tw:group-open:rotate-90 tw:md:mr-4 tw:md:h-6 tw:md:w-6">
+                <svg className="tw:absolute tw:inset-0 tw:h-full tw:w-full tw:text-neutral-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+              </span>
             </summary>
-            <p className="faq-a">{a}</p>
+            <p className="tw:m-0 tw:mt-2 tw:pr-8 tw:text-sm tw:text-neutral-500 tw:md:pr-12 tw:md:text-base">{a}</p>
           </details>
         ))}
       </div>
