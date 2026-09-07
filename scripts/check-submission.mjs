@@ -38,7 +38,14 @@ const POOL = process.env.POOL_ADDRESS
   || "0x040337b1af3c663e86e333bab5a4b28da8d4652a15a69beee2b677776ffe812a";
 const MIN_MAINNET_TXS = 3;
 const RPCS = [
-  ["mainnet", process.env.MAINNET_RPC_URL || "https://rpc.starknet.lava.build"],
+  /* Cartridge, because it is the one mainnet endpoint verified to answer every method
+     this check needs — the same reasoning, and the same URL, as scripts/deploy.sh.
+     The previous default (rpc.starknet.lava.build) is dead: it does not answer
+     starknet_chainId at all. That is worse than a wrong answer, because the check
+     degrades quietly — a live contract reads back as network "unknown" and a
+     qualifying transaction cannot be fetched, so the gate that is supposed to refuse a
+     bad submission would have refused a good one, minutes before the deadline. */
+  ["mainnet", process.env.MAINNET_RPC_URL || "https://api.cartridge.gg/x/starknet/mainnet"],
   ["sepolia", process.env.SEPOLIA_RPC_URL || "https://api.cartridge.gg/x/starknet/sepolia"],
 ];
 

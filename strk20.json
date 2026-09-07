@@ -12,7 +12,8 @@
     "_comment": "Our own record. The spec's `contracts` is a flat array of deployed addresses; this keeps the class hashes and sources that array has no room for.",
     "SealedBidAuction": {
       "class_hash": "0x2cf4e3d00a71c2b7019a9b021309ba442b2e0e1e6b51d162a6faf1b183d9923",
-      "source": "packages/auction/src/auction.cairo"
+      "source": "packages/auction/src/auction.cairo",
+      "mainnet_address": "0x02d893acf290c61be4afb6999d6fa39244fba514267c1ccea9e124af64bb6831"
     },
     "AuctionAnonymizer": {
       "class_hash": "0x112814b7d151b1499d65e8afffae67cc23e47cc5684229a6a2576aeb58b0f84",
@@ -20,7 +21,14 @@
       "constructor": [
         "privacy_pool",
         "auction_contract"
-      ]
+      ],
+      "mainnet_address": "0x04628cabde44481d1264d9b701147340b32df63172dbad05368178e18e9764ff"
+    },
+    "MockERC20": {
+      "class_hash": "0x23bd6340d5c7f252343c6423fe9839b4bd3aa673e649c819cf276d448fe1e5e",
+      "source": "packages/auction/src/mocks.cairo",
+      "mainnet_address": "0x06593745d3fdcf7f50d3d49a0eebfad43d08ec37d7cdff87e33c26017957f62b",
+      "note": "The lot token for the judged auction. A test ERC-20 with no mint entrypoint on the declared class — the whole supply is minted to the deployer by the constructor. It is the thing being sold, not part of the protocol, so it is recorded here and deliberately NOT in `contracts`: that array gates which contracts a qualifying transaction must have run through, and a bid runs through the auction and the anonymizer, never the lot token."
     }
   },
   "strk20_integration": {
@@ -98,7 +106,10 @@
   "pending": {
     "$comment": "Spec fields omitted because they cannot hold a true value yet. Each says what unblocks it.",
     "transactions": "Array of at least three mainnet hashes, each having touched the STRK20 pool AND carried an event from a contract listed in `contracts`. Needs the mainnet declare and a shielded balance — see docs/runbook.md step 5.",
-    "contracts": "Array of the two deployed mainnet addresses. Class hashes are already final and recorded under contract_details.",
     "demo_video": "Script written and timed at docs/demo-script.md. Records after the mainnet auction so the footage shows real hashes."
-  }
+  },
+  "contracts": [
+    "0x02d893acf290c61be4afb6999d6fa39244fba514267c1ccea9e124af64bb6831",
+    "0x04628cabde44481d1264d9b701147340b32df63172dbad05368178e18e9764ff"
+  ]
 }
