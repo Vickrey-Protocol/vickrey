@@ -9,7 +9,7 @@ import { LpHero } from "@/components/landing/Hero";
 import { LpHowItWorks } from "@/components/landing/HowItWorks";
 import { LpProperties } from "@/components/landing/Properties";
 import { LpLiveAuctions } from "@/components/landing/LiveAuctions";
-import { initMotion, onReplayKey, replayMotion } from "@/lib/motion";
+import { initMotion, motionPlaying, onReplayKey } from "@/lib/motion";
 import { watchBackdrop, watchGlow, watchScroll } from "@/lib/chrome";
 import { watchReveals } from "@/lib/reveal";
 import { LpFaq } from "@/components/landing/Faq";
@@ -37,9 +37,22 @@ export default function LandingClient({ initial }: { initial: WireAuction[] }) {
   const [playing, setPlaying] = useState(false);
   const [motionKey, setMotionKey] = useState(0);
 
+  /**
+   * Replay the settlement animation — and only that.
+   *
+   * This used to call the global replay, which flips `data-motion` on the root from
+   * "still" back to "play". Every rule keyed to `[data-motion="play"]` then restarts:
+   * the navbar slid in from above again, the background beams re-fired, every reveal
+   * re-ran. A control labelled "replay the settlement animation" appeared to reload the
+   * entire page, navbar and all.
+   *
+   * The instrument does not need that. `Ladder` and `CountUp` are keyed on `motionKey`,
+   * so bumping it remounts them, and a fresh element runs its CSS animations from the
+   * start. Re-keying replays the three beats and touches nothing else on the page.
+   */
   const replay = useCallback(() => {
     setMotionKey((k) => k + 1);
-    setPlaying(replayMotion());
+    setPlaying(motionPlaying());
   }, []);
 
   useEffect(() => {

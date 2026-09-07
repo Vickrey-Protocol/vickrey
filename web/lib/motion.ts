@@ -49,6 +49,12 @@ export function replayMotion(): boolean {
   return !prefersReduced();
 }
 
+/** Whether the beats are running, read without changing anything. */
+export function motionPlaying(): boolean {
+  if (typeof document === "undefined") return false;
+  return document.documentElement.dataset.motion === "play";
+}
+
 /** `R` replays, unless the visitor is typing. */
 export function onReplayKey(handler: () => void): () => void {
   const listener = (e: KeyboardEvent) => {
