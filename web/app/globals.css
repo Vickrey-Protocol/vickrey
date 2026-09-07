@@ -47,7 +47,29 @@
   --strip: 4.6rem;
 }
 
+/* ── the base layer ────────────────────────────────────────────────────
+   Every rule that selects a bare element — html, body, headings, links,
+   buttons, inputs, tables, section, main, footer — is wrapped in
+   `@layer base`. Everything selected by class stays unlayered.
+
+   Why: Tailwind's utilities live in the `utilities` layer, and unlayered
+   CSS beats every layer. So while `h2 { font-family: Bodoni }` was
+   unlayered, a bought component's `tw:font-sans` on that heading lost —
+   silently — and every port needed its headings, buttons and inputs
+   hand-edited. Now `base` sits below `utilities`, a utility wins on a bare
+   element, and our own classes (`.panel`, `.act`, `.price`) still win over
+   utilities exactly as before, because they are still unlayered.
+
+   The cost is one cascade rule to remember: an element rule in here loses
+   to *any* unlayered class rule, regardless of source order or specificity.
+   `input[type="checkbox"]` (0,1,1) used to beat `.foo` (0,1,0) on the same
+   element; it no longer does. `scripts/cascade-probe.mjs` proves the
+   utilities side; `npm run pixel-diff` proves nothing else moved.
+   ───────────────────────────────────────────────────────────────────── */
+@layer base {
 * { box-sizing: border-box; }
+}
+@layer base {
 html {
   -webkit-text-size-adjust: 100%;
   /* Dark scrollbars and form controls to match. */
@@ -66,7 +88,9 @@ html {
     linear-gradient(172deg, #0D1A18 0%, #0A1514 40%, #071110 74%, #040909 100%);
   background-repeat: no-repeat;
 }
+}
 
+@layer base {
 body {
   margin: 0;
   color: var(--ink);
@@ -78,9 +102,22 @@ body {
   background: transparent;
   min-height: 100vh;
 }
+}
 
-/* The four Bodoni roles: headline, section heads, auction/state titles, price. */
-h1, h2, h3, .display, .title, .price {
+/* The four Bodoni roles: headline, section heads, auction/state titles, price.
+   Written twice on purpose: the element half lives in the base layer so a utility
+   on a bare heading can override it, the class half stays unlayered so `.price`
+   and friends keep beating everything they beat today. */
+@layer base {
+h1, h2, h3 {
+  font-family: var(--font-display), Didot, "Bodoni MT", Georgia, serif;
+  font-weight: 400;
+  margin: 0;
+  text-wrap: balance;
+  letter-spacing: -.015em;
+}
+}
+.display, .title, .price {
   font-family: var(--font-display), Didot, "Bodoni MT", Georgia, serif;
   font-weight: 400;
   margin: 0;
@@ -93,12 +130,20 @@ h1, h2, h3, .display, .title, .price {
   font-variant-numeric: tabular-nums;
 }
 
+@layer base {
 a { color: inherit; text-decoration-color: var(--accent-edge); text-underline-offset: .18em; }
+}
+@layer base {
 a:hover { text-decoration-color: var(--ember); }
+}
 :focus-visible { outline: 2px solid var(--ember); outline-offset: 3px; border-radius: 8px; }
 
+@layer base {
 main { max-width: 96rem; margin: 0 auto; padding: 0 var(--gutter) 0; }
+}
+@layer base {
 section { padding-block: clamp(1.3rem, 3vw, 2.3rem); }
+}
 
 /* ── glass ──────────────────────────────────────────────────────────── */
 .panel, .card-auction, .secret {
@@ -370,14 +415,27 @@ h2.section { font-size: var(--s-3); margin-block: 1.3rem .7rem; }
    queue's CTA among them — and `:is(button, a).primary` is element-scoped, so all three rendered
    as plain underlined text. Rule 13's cousin: the selector was doing less than it read
    as doing. */
-button, .btn, a.primary {
+@layer base {
+button {
   font: inherit; font-size: var(--s--1); font-weight: 600; letter-spacing: .02em;
   padding: .55rem 1rem; border-radius: 10px; border: 1px solid var(--line);
   background: var(--glass-2); color: var(--ink); cursor: pointer;
   transition: filter .18s, border-color .18s;
 }
+}
+/* Same declarations, unlayered: these are ours by class, not by element. */
+.btn, a.primary {
+  font: inherit; font-size: var(--s--1); font-weight: 600; letter-spacing: .02em;
+  padding: .55rem 1rem; border-radius: 10px; border: 1px solid var(--line);
+  background: var(--glass-2); color: var(--ink); cursor: pointer;
+  transition: filter .18s, border-color .18s;
+}
+@layer base {
 button:hover:not(:disabled) { border-color: var(--accent-edge); }
+}
+@layer base {
 button:disabled { opacity: .42; cursor: not-allowed; }
+}
 :is(button, a).primary {
   background: var(--accent); color: #17100E; border-color: transparent;
   box-shadow: 0 6px 18px -8px rgba(226, 81, 60, .7);
@@ -396,13 +454,19 @@ a.primary {
 }
 :is(button, a).primary:hover:not(:disabled) { filter: brightness(1.07); }
 
+@layer base {
 label { display: block; font-size: var(--s--1); color: var(--muted); margin-block-end: .25rem; }
+}
+@layer base {
 input, select, textarea {
   font: inherit; width: 100%; padding: .45rem .6rem;
   border-radius: 8px; border: 1px solid var(--line);
   background: rgba(0, 0, 0, .25); color: var(--ink);
 }
+}
+@layer base {
 input[type="checkbox"] { width: auto; }
+}
 
 /* ── status ─────────────────────────────────────────────────────────── */
 .pill {
@@ -448,12 +512,18 @@ input[type="checkbox"] { width: auto; }
 
 /* ── tables ─────────────────────────────────────────────────────────── */
 .scroller { overflow-x: auto; }
+@layer base {
 table { width: 100%; border-collapse: collapse; font-size: var(--s--1); }
+}
+@layer base {
 th, td { text-align: left; padding: .42rem .5rem; border-block-end: 1px solid var(--line); }
+}
+@layer base {
 th {
   color: var(--muted); font-weight: 500;
   font-family: var(--font-mono), monospace; font-size: var(--s--1);
   letter-spacing: .06em; text-transform: uppercase;
+}
 }
 td.mono { word-break: break-all; }
 td.undisclosed { color: var(--muted); font-style: italic; }
@@ -740,10 +810,12 @@ td.undisclosed { color: var(--muted); font-style: italic; }
 }
 
 /* ── footer ─────────────────────────────────────────────────────────── */
+@layer base {
 footer {
   margin-block-start: clamp(2rem, 5vw, 3.5rem);
   border-block-start: 1px solid var(--line);
   padding-block: clamp(1.75rem, 4vw, 2.75rem) 1.5rem;
+}
 }
 .foot-grid {
   display: grid;
@@ -1266,7 +1338,9 @@ ul.tight li { font-size: var(--s--1); color: var(--ink-2); line-height: 1.5; }
    breaks `position: sticky` on every descendant — which is exactly what happened to the
    docs contents rail when this rule was added. `clip` cuts the overflow without becoming
    a scroll container, so sticky keeps working. */
+@layer base {
 html { overflow-x: clip; }
+}
 
 /* ── seed arrival ─────────────────────────────────────────────────────────
    Arrival, never level. A missing seed is a bid about to be forfeited and

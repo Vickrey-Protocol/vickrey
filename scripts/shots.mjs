@@ -40,6 +40,9 @@ for (const [w,h,name] of [[1440,900,"desk"],[390,844,"mob"]]) {
       const real = await p.$eval("body", (b) => b.innerText.trim().length);
       if (real < 200) throw new Error(`page is empty (${real} chars of text)`);
       await p.addStyleTag({ content:"*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}" });
+      /* SHOT_EXTRA_CSS lets a diff isolate one rendering feature — e.g. capture both sides
+         with backdrop-filter off to test whether a residual delta lives in the glass. */
+      if (process.env.SHOT_EXTRA_CSS) await p.addStyleTag({ content: process.env.SHOT_EXTRA_CSS });
       await new Promise(r=>setTimeout(r,700));
       const file = `/tmp/shots/${tag}/${name}${path.replace(/\//g,"_")}.png`;
       await p.screenshot({ path:file, fullPage:true });
