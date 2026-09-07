@@ -94,8 +94,17 @@
 .lp-frame .rig {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(15rem, 20rem);
-  grid-template-rows: auto auto 1fr;
-  grid-template-areas: "head head" "ladder readout" "ladder open";
+  /* Two flexible rows, one above the readout and one below, so the right column's
+     content sits centred against the ladder instead of pinned to the top with ~350px
+     of nothing under it. The ladder's own min-height still sets the frame height, so
+     nothing outside this grid moves. */
+  grid-template-rows: auto 1fr auto auto 1fr;
+  grid-template-areas:
+    "head   head"
+    "ladder ."
+    "ladder readout"
+    "ladder open"
+    "ladder .";
   align-items: start;
   column-gap: 2rem;
   --rung: 2.3rem; --strip: 9rem;
@@ -114,6 +123,10 @@
 @media (max-width: 48rem) {
   .lp-frame .rig {
     grid-template-columns: minmax(0, 1fr);
+    /* Reset the rows too. The wide layout uses five — two of them flexible spacers that
+       centre the right column — and inheriting those here left a phantom sixth row and
+       288px of extra page height, which the pixel diff caught. */
+    grid-template-rows: auto auto auto auto;
     grid-template-areas: "head" "ladder" "readout" "open";
     --rung: 1.6rem; --strip: 4.6rem; padding: 1rem;
   }
