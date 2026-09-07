@@ -15,47 +15,7 @@
    globals.css's element rules do: a utility on a bare heading must win.
    ───────────────────────────────────────────────────────────────────────── */
 
-/* Tokens live on <html> while the landing page is mounted, not on the wrapper, so a
-   modal the wallet provider renders at body level takes this page's colours too. */
-html:has(.lp) {
-  --ink:        #0a0a0a;
-  --ink-2:      #404040;
-  --muted:      #737373;
-  --line:       rgba(0, 0, 0, .08);
-  --line-lit:   rgba(0, 0, 0, .16);
-  --glass:      rgba(255, 255, 255, .72);
-  --glass-2:    rgba(0, 0, 0, .035);
-  --hatch:      rgba(0, 0, 0, .10);
-  --hatch-bg:   rgba(0, 0, 0, .025);
-  --accent-dim:  rgba(226, 81, 60, .12);
-  --accent-edge: rgba(226, 81, 60, .5);
-  --accent-glow: 0 0 24px rgba(226, 81, 60, .18);
-  --good:        #15803d;
-  --font-display: var(--font-lp), ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --font-body:    var(--font-lp), ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --font-mono:    var(--font-lp-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
-  --surface: #fff;
-  background: #fff; color-scheme: light;
-}
-/* Dark is the template's dark — a black ground, neutral-800 lines — and the instrument's
-   own native tokens, which were designed for exactly this. */
-html[data-theme="dark"]:has(.lp) {
-  --ink:        #EDF2EF;
-  --ink-2:      #A9B8B2;
-  --muted:      #8A9A94;
-  --line:       rgba(255, 255, 255, .09);
-  --line-lit:   rgba(255, 255, 255, .16);
-  --glass:      rgba(255, 255, 255, .035);
-  --glass-2:    rgba(255, 255, 255, .055);
-  --hatch:      rgba(255, 255, 255, .07);
-  --hatch-bg:   rgba(255, 255, 255, .018);
-  --accent-dim:  rgba(226, 81, 60, .16);
-  --accent-edge: rgba(226, 81, 60, .42);
-  --accent-glow: 0 0 24px rgba(226, 81, 60, .35);
-  --good:        #7FCE97;
-  --surface: #0a0a0a;
-  background: #000; color-scheme: dark;
-}
+/* Tokens for this page live in worlds.css, on <html>, shared with the dashboard. */
 
 @layer base {
   .lp {
@@ -248,12 +208,3 @@ html[data-theme="dark"]:has(.lp) {
 [data-theme="dark"] .lp-illus .rung.is-picked { background: #fff; }
 [data-theme="dark"] .lp-illus .picked-note { color: #fff; }
 
-/* ── the mode toggle ───────────────────────────────────────────────────
-   Sun in light, moon in dark, decided by the attribute rather than by
-   state, so the right icon is there before hydration. The swap slides in
-   as the template's did. */
-.lp-moon { display: none; }
-[data-theme="dark"] .lp-sun { display: none; }
-[data-theme="dark"] .lp-moon { display: block; }
-[data-motion="play"] .lp-sun, [data-motion="play"] .lp-moon { animation: lp-icon-in .3s ease-out; }
-@keyframes lp-icon-in { from { opacity: 0; transform: translateX(40px); } }

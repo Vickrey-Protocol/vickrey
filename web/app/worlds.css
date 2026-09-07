@@ -1,0 +1,72 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   Worlds.
+
+   Two pages take the template's light / dark treatment: the landing page
+   and the dashboard. Their tokens live on <html> while either is mounted —
+   not on a wrapper — so a dialog, a sheet or a tour rendered at body level
+   takes the same colours. Every other route keeps the dark design system
+   in globals.css untouched: nothing here matches unless one of these
+   classes is on the page.
+
+   Light is the template's light; dark is its dark — a black ground,
+   neutral-800 lines — with the instrument's own native tokens, which were
+   designed for exactly that.
+   ───────────────────────────────────────────────────────────────────────── */
+html:has(.lp, .dash, .dash-gate) {
+  --ink:        #0a0a0a;
+  --ink-2:      #404040;
+  --muted:      #737373;
+  --line:       rgba(0, 0, 0, .08);
+  --line-lit:   rgba(0, 0, 0, .16);
+  --glass:      rgba(255, 255, 255, .72);
+  --glass-2:    rgba(0, 0, 0, .035);
+  --hatch:      rgba(0, 0, 0, .10);
+  --hatch-bg:   rgba(0, 0, 0, .025);
+  --accent-dim:  rgba(226, 81, 60, .12);
+  --accent-edge: rgba(226, 81, 60, .5);
+  --accent-glow: 0 0 24px rgba(226, 81, 60, .18);
+  --good:        #15803d;
+  --surface:     #fff;
+  --ground:      #fafafa;
+  --font-display: var(--font-lp), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-body:    var(--font-lp), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono:    var(--font-lp-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: #fff; color-scheme: light;
+}
+html[data-theme="dark"]:has(.lp, .dash, .dash-gate) {
+  --ink:        #EDF2EF;
+  --ink-2:      #A9B8B2;
+  --muted:      #8A9A94;
+  --line:       rgba(255, 255, 255, .09);
+  --line-lit:   rgba(255, 255, 255, .16);
+  --glass:      rgba(255, 255, 255, .035);
+  --glass-2:    rgba(255, 255, 255, .055);
+  --hatch:      rgba(255, 255, 255, .07);
+  --hatch-bg:   rgba(255, 255, 255, .018);
+  --accent-dim:  rgba(226, 81, 60, .16);
+  --accent-edge: rgba(226, 81, 60, .42);
+  --accent-glow: 0 0 24px rgba(226, 81, 60, .35);
+  --good:        #7FCE97;
+  --surface:     #0a0a0a;
+  --ground:      #000;
+  background: #000; color-scheme: dark;
+}
+
+/* Overlays that were painted in the dark system's own petrol take the surface here:
+   the notification sheet, the account panel, the narrow nav sheet, the tour. */
+html:has(.lp, .dash, .dash-gate) :is(.sheet, .navsheet, .tour, .acct-sheet) {
+  background: var(--surface); color: var(--ink);
+  box-shadow: 0 0 0 1px rgb(0 0 0 / .06), 0 12px 12px -6px rgb(0 0 0 / .08), 0 24px 24px -12px rgb(0 0 0 / .1);
+}
+html:has(.lp, .dash, .dash-gate) :is(.sheet-veil, .navsheet-veil, .tour-veil:not(.anchored)) { background: rgba(0, 0, 0, .5); }
+html:has(.lp, .dash, .dash-gate) .acct-dot { border-color: var(--surface); }
+
+/* ── the mode toggle ─ (shared: the landing page and the dashboard both carry it)──────────────────────────────────────────────────
+   Sun in light, moon in dark, decided by the attribute rather than by
+   state, so the right icon is there before hydration. The swap slides in
+   as the template's did. */
+.lp-moon { display: none; }
+[data-theme="dark"] .lp-sun { display: none; }
+[data-theme="dark"] .lp-moon { display: block; }
+[data-motion="play"] .lp-sun, [data-motion="play"] .lp-moon { animation: lp-icon-in .3s ease-out; }
+@keyframes lp-icon-in { from { opacity: 0; transform: translateX(40px); } }

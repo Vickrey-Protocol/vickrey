@@ -17,6 +17,7 @@
  */
 import puppeteer from "puppeteer-core";
 import { mkdirSync } from "node:fs";
+import { FAKE_WALLET, SEPOLIA } from "./lib/fake-wallet.mjs";
 const tag = process.argv[2] ?? "before";
 const port = process.argv[3] ?? "3000";
 /* Override when the configured deployment holds different auction ids:
@@ -34,19 +35,28 @@ for (const [w,h,name] of [[1440,900,"desk"],[390,844,"mob"]]) {
     try {
       /* SHOT_THEME=dark captures the page as a visitor who chose dark sees it: the
          choice is stored before navigation, exactly where the pre-paint script reads it. */
+      /* SHOT_WALLET=0x… photographs the dashboard connected: the camera wallet is injected,
+         remembered under the app's own key so the silent reconnect picks it up with no
+         click, and the first-visit tour is marked seen so it does not cover the page. */
+      if (process.env.SHOT_WALLET) {
+        await p.evaluateOnNewDocument(FAKE_WALLET, process.env.SHOT_WALLET, SEPOLIA);
+        await p.evaluateOnNewDocument(() => { try { localStorage.setItem("vickrey.wallet", "Camera"); localStorage.setItem("vickrey.tour.v1", "done"); } catch {} });
+      }
       if (process.env.SHOT_THEME) await p.evaluateOnNewDocument((t) => { try { localStorage.setItem("theme", t); } catch {} }, process.env.SHOT_THEME);
       const res = await p.goto(`http://localhost:${port}${path}?motion=0`, { waitUntil:"networkidle0", timeout:45000 });
       /* A screenshot of an error page diffs perfectly against another screenshot of the
          same error page. Without this the harness will happily "prove" two broken builds
          identical, which is worse than no proof at all. */
       if (!res || res.status() >= 400) throw new Error(`HTTP ${res?.status()}`);
-      const real = await p.$eval("body", (b) => b.innerText.trim().length);
-      if (real < 200) throw new Error(`page is empty (${real} chars of text)`);
+      /* An error page has a sentence and a handful of elements. A short real page — a
+         dashboard route with nothing to list — has little text and a full shell. */
+      const real = await p.$eval("body", (b) => ({ chars: b.innerText.trim().length, nodes: b.querySelectorAll("*").length }));
+      if (real.chars < 200 && real.nodes < 40) throw new Error(`page is empty (${real.chars} chars, ${real.nodes} elements)`);
       await p.addStyleTag({ content:"*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}" });
       /* SHOT_EXTRA_CSS lets a diff isolate one rendering feature — e.g. capture both sides
          with backdrop-filter off to test whether a residual delta lives in the glass. */
       if (process.env.SHOT_EXTRA_CSS) await p.addStyleTag({ content: process.env.SHOT_EXTRA_CSS });
-      await new Promise(r=>setTimeout(r,700));
+      await new Promise(r=>setTimeout(r, process.env.SHOT_WALLET ? 4500 : 700));
       const file = `/tmp/shots/${tag}/${name}${path.replace(/\//g,"_")}.png`;
       await p.screenshot({ path:file, fullPage:true });
     } catch (e) { console.log("  FAILED", name, path, String(e).slice(0,70)); failures++; }

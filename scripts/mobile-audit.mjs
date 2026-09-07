@@ -20,6 +20,7 @@
  * Numbers confirm; they do not judge. Look at the screenshots.
  */
 import puppeteer from "puppeteer-core";
+import { FAKE_WALLET, SEPOLIA } from "./lib/fake-wallet.mjs";
 
 const BASE = process.argv[2] ?? "https://vickrey.0xo.in";
 const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
@@ -50,11 +51,15 @@ const VIEWPORT = {
 for (const path of PAGES) {
   const page = await browser.newPage();
   await page.setViewport(VIEWPORT);
+  if (process.env.AUDIT_WALLET) {
+    await page.evaluateOnNewDocument(FAKE_WALLET, process.env.AUDIT_WALLET, SEPOLIA);
+    await page.evaluateOnNewDocument(() => { try { localStorage.setItem("vickrey.wallet", "Camera"); localStorage.setItem("vickrey.tour.v1", "done"); } catch {} });
+  }
   if (process.env.AUDIT_THEME) await page.evaluateOnNewDocument((t) => { try { localStorage.setItem("theme", t); } catch {} }, process.env.AUDIT_THEME);
   try {
     await page.goto(BASE + path, { waitUntil: "networkidle2", timeout: 45000 });
   } catch { console.log(`\n${path}\n  could not load`); await page.close(); continue; }
-  await new Promise((r) => setTimeout(r, 1200));
+  await new Promise((r) => setTimeout(r, process.env.AUDIT_WALLET ? 4500 : 1200));
 
   const report = await page.evaluate((vw) => {
     const label = (el) => {

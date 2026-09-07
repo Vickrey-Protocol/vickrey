@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Bodoni_Moda, Geist, Geist_Mono, IBM_Plex_Mono, Instrument_Sans } from "next/font/google";
 import "./tailwind.css";
 import "./globals.css";
+import "./worlds.css";
 import { WalletProvider } from "@/components/WalletProvider";
 
 /* Self-hosted by Next, so the page makes no third-party font request.

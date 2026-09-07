@@ -9,6 +9,8 @@ import { Notifications } from "@/components/Notifications";
 import { NavSheet } from "@/components/NavSheet";
 import { Wordmark } from "@/components/Wordmark";
 import { Tour } from "@/components/Tour";
+import { ModeToggle } from "@/components/landing/ModeToggle";
+import "@/app/dashboard.css";
 import {
   IconAuctions, IconBids, IconCreate, IconDocs, IconGithub, IconManage, IconOverview,
   IconPublic,
@@ -46,7 +48,7 @@ export function DashShell({
      otherwise a reload of the dashboard shows "Connect to act" and then replaces it. */
   if (!connection && reconnecting) {
     return (
-      <main>
+      <main className="dash-gate">
         <div className="backdrop" aria-hidden="true" />
         <div className="panel" style={{ maxWidth: "52ch", margin: "5rem auto" }}>
           <p className="eyebrow">Dashboard</p>
@@ -60,7 +62,7 @@ export function DashShell({
 
   if (!connection) {
     return (
-      <main>
+      <main className="dash-gate">
         <div className="backdrop" aria-hidden="true" />
         <div className="panel" style={{ maxWidth: "52ch", margin: "5rem auto" }}>
           <p className="eyebrow">Dashboard</p>
@@ -163,6 +165,7 @@ export function DashShell({
               page, and both were previously somewhere else: the count was a pill that
               navigated to a list, and the account sat under the sidebar navigation. */}
           <div className="dash-controls">
+            <ModeToggle />
             <Notifications actions={actions} />
             <WalletMenu />
           </div>

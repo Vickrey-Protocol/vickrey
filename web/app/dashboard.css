@@ -1,0 +1,103 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   The dashboard, in the template's product-shot treatment.
+
+   The template's hero shows a dashboard: a white sidebar with icon-and-label
+   items, a title bar, white cards on a faintly grey ground with hairline
+   borders and a layered shadow, large figures in stat cards. Everything the
+   shell frames — the action queue, the tables, the panels, the forms — is
+   built from the design system's classes on its tokens, so this file
+   restyles those classes for this world and rewrites no component. The
+   controls keep their markup, which is what reachability checks.
+
+   Urgency keeps its red. On the landing page the accent means a value that
+   became public; here `.due`, `.act-urgent` and `.countdown.urgent` mean
+   money at risk, which is the dashboard's own established meaning, and a
+   redesign that muted the one element allowed to shout would be a worse
+   dashboard.
+   ───────────────────────────────────────────────────────────────────────── */
+.dash .backdrop, .dash-gate .backdrop { display: none; }
+.dash { font-family: var(--font-body); color: var(--ink); }
+
+/* ── sidebar ── */
+.dash-side {
+  background: var(--surface);
+  backdrop-filter: none; -webkit-backdrop-filter: none;
+  border-inline-end: 1px solid var(--line);
+  padding: 1.1rem .85rem; gap: 1.1rem;
+}
+.dash-side .wordmark { padding: .35rem .5rem; font-family: var(--font-body); font-weight: 600; font-size: 1.05rem; letter-spacing: -.01em; }
+.dash-nav a {
+  padding: .5rem .65rem; border-radius: 8px;
+  color: var(--ink-2); font-size: .875rem; font-weight: 500;
+}
+.dash-nav a:hover { background: var(--glass-2); color: var(--ink); }
+.dash-nav a.here { background: var(--glass-2); color: var(--ink); font-weight: 600; }
+.dash-nav hr { margin: .6rem .5rem; }
+.dash-group { font-family: var(--font-mono); font-size: .68rem; }
+
+/* ── title bar and body ── */
+.dash-main { background: var(--ground); }
+.dash-top {
+  padding: .8rem 1.5rem;
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  border-block-end: 1px solid var(--line);
+}
+.dash-title { font-size: 1.05rem; font-weight: 600; letter-spacing: -.01em; }
+.dash-controls { gap: .5rem; }
+.dash .bell, .dash .acct { background: var(--surface); border-radius: 999px; }
+.dash-body { padding: 1.5rem; }
+.dash h2.section {
+  font-family: var(--font-body); font-size: 1.05rem; font-weight: 600; letter-spacing: -.01em;
+  margin-block: 0 .8rem;
+}
+
+/* ── cards ── */
+.dash .panel, .dash .act, .dash .stat, .dash-gate .panel {
+  background: var(--surface);
+  border: 1px solid var(--line); border-radius: 12px;
+  box-shadow: 0px 2px 3px -1px rgba(0, 0, 0, .1), 0px 1px 0px 0px rgba(25, 28, 33, .02), 0px 0px 0px 1px rgba(25, 28, 33, .08);
+  backdrop-filter: none; -webkit-backdrop-filter: none;
+}
+.dash .panel::before, .dash-gate .panel::before { display: none; }
+.dash .act-urgent { border-color: var(--accent-edge); background: var(--accent-dim); }
+.dash .act.skel, .dash .panel.skel { box-shadow: none; }
+.dash .banner { background: var(--surface); }
+
+/* Stat cards, as the template draws them: a title, a line under it, the figure large. */
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); gap: 1rem; }
+.stat { padding: 1rem 1.15rem 1.1rem; }
+.stat-title { margin: 0; font-weight: 600; font-size: .95rem; }
+.stat-desc { margin: .15rem 0 0; font-size: .78rem; color: var(--muted); line-height: 1.4; }
+.stat-value {
+  margin: .9rem 0 0; font-size: 1.9rem; font-weight: 600; letter-spacing: -.02em; line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── controls ── the template's buttons: a dark pill for the primary, an outline pill
+   for the rest. Ink-on-surface inverts correctly in both themes. */
+.dash .primary, .dash a.primary, .dash-gate .primary {
+  background: var(--ink); color: var(--surface); border-color: transparent;
+  border-radius: 999px; box-shadow: none; padding: .55rem 1rem; text-decoration: none;
+}
+.dash .primary:hover:not(:disabled), .dash-gate .primary:hover:not(:disabled) { filter: brightness(1.12); }
+.dash button:not([class]), .dash-gate button:not([class]) {
+  border-radius: 999px; padding: .55rem 1rem; background: var(--surface); border-color: var(--line-lit);
+}
+.dash input, .dash select, .dash textarea { background: var(--surface); border-color: var(--line-lit); border-radius: 8px; }
+.dash table th { color: var(--muted); }
+
+/* ── the gate ── the two states before a wallet is connected: one card, centred. */
+.dash-gate { min-block-size: 100dvh; display: grid; place-items: center; padding: 1.5rem; }
+.dash-gate .panel { border-radius: 16px; padding: 1.5rem 1.6rem; }
+.dash-gate .display { font-family: var(--font-body); font-weight: 600; letter-spacing: -.02em; }
+
+/* ── touch ── The connected dashboard had never been under the four-band audit,
+   because no headless run could connect a wallet. The first one found nine targets
+   under 44px on the touch bands: the create form's inputs at 36px, the "Open →"
+   links in the tables, and inline links inside prose. Fixed here for this world;
+   the desktop control band keeps the template's tighter sizes. */
+@media (max-width: 63.99rem) {
+  .dash input:not([type="checkbox"]), .dash select, .dash textarea { min-block-size: 44px; }
+  .dash td a, .dash .note a, .dash .panel p a { display: inline-flex; align-items: center; min-block-size: 44px; }
+}

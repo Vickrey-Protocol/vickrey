@@ -134,11 +134,21 @@ export default function OverviewClient() {
       {/* ── Band 3 ─────────────────────────────────────────────────────────────── */}
       <section style={{ marginTop: "2.4rem" }}>
         <h2 className="section" style={{ marginTop: 0 }}>Protocol</h2>
-        <dl className="hero-stats">
-          <div><dt>Auctions</dt><dd>{d.auctions.length}</dd></div>
-          <div><dt>Bids sealed</dt><dd>{d.auctions.reduce((n, a) => n + a.bidCount, 0)}</dd></div>
-          <div><dt>Amounts disclosed</dt><dd className="zero">0</dd></div>
-        </dl>
+        {/* The template's stat cards. The third is the point of the product, and it is a
+            fact rather than a slogan — so it is set like the other two. */}
+        <div className="stat-grid">
+          {[
+            ["Auctions", "Every auction on this contract, in every state.", d.auctions.length],
+            ["Bids sealed", "Escrowed, hashed, and never opened.", d.auctions.reduce((n, a) => n + a.bidCount, 0)],
+            ["Amounts disclosed", "Losing bids are never on the chain.", 0],
+          ].map(([t, desc, v]) => (
+            <div className="stat" key={String(t)}>
+              <p className="stat-title">{t}</p>
+              <p className="stat-desc">{desc}</p>
+              <p className="stat-value">{v}</p>
+            </div>
+          ))}
+        </div>
       </section>
     </DashShell>
   );
