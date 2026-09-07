@@ -12,9 +12,14 @@
  */
 import puppeteer from "puppeteer-core";
 import { FAKE_WALLET, SEPOLIA } from "./lib/fake-wallet.mjs";
+const MAINNET = "0x534e5f4d41494e";
 
 const BASE = process.argv[2];
 const AUCTION = process.argv[3] ?? "1";
+/* Which chain the target build talks to, and the two indices that make the cases. */
+const CHAIN = process.argv[4] === "mainnet" ? MAINNET : SEPOLIA;
+const UNREACHABLE = Number(process.argv[5] ?? 3);
+const COVERED = Number(process.argv[6] ?? 1);
 const W = "0x079676fd0e0e1f0e0e1f0e0e1f0e0e1f0e0e1f0e0e1f0e0e1f0e0e1f0e0e1f0";
 const KEY = "vickrey.bids.v1";
 
@@ -28,7 +33,7 @@ const entry = (index) => ({
 const run = async (index) => {
   const b = await puppeteer.launch({ channel: "chrome", headless: "new", args: ["--no-sandbox"] });
   const p = await b.newPage();
-  await p.evaluateOnNewDocument(FAKE_WALLET, W, SEPOLIA);
+  await p.evaluateOnNewDocument(FAKE_WALLET, W, CHAIN);
   await p.goto(BASE + "/", { waitUntil: "networkidle2", timeout: 60000 });
   const click = (src) => p.evaluate((s) => {
     const rx = new RegExp(s, "i");
@@ -48,7 +53,7 @@ const run = async (index) => {
   return after.length;
 };
 
-const cannotReach = await run(3);   // index == bidCount -> must survive
-const covered     = await run(1);   // index <  bidCount -> must be dropped
-console.log(`  index 3 (search cannot reach it) : ${cannotReach === 1 ? "KEPT   ✅" : "DELETED ❌"}`);
-console.log(`  index 1 (search covered it)      : ${covered === 0 ? "DROPPED ✅" : "kept    (stale row left)"}`);
+const cannotReach = await run(UNREACHABLE); // index == bidCount -> must survive
+const covered     = await run(COVERED);     // index <  bidCount -> must be dropped
+console.log(`  index ${UNREACHABLE} (search cannot reach it) : ${cannotReach === 1 ? "KEPT   ✅" : "DELETED ❌"}`);
+console.log(`  index ${COVERED} (search covered it)      : ${covered === 0 ? "DROPPED ✅" : "kept    (stale row left)"}`);
