@@ -3,9 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { Status } from "@vickrey/client";
 import {
-  findBidIndex, readAll, readBidState, type AuctionView, type BidState,
+  findBidIndex, readAll, readBidCount, readBidState, type AuctionView, type BidState,
 } from "@/lib/chain";
 import { isDeployed } from "@/lib/config";
+import { reconcile } from "@/lib/reconcile";
 import { allBids, dropBid, reindexBid, type StoredBid } from "@/lib/vault";
 import { sameAddress } from "@/lib/wallet";
 import { actionsFor, type DueAction } from "@/lib/actions";
@@ -104,11 +105,36 @@ export function useDashData(): DashData {
             : null;
           if (here && here.claimCommitment === BigInt(b.claimCommitment)) continue;
 
-          const found = await findBidIndex(
-            a.terms.auctionId, a.bidCount, BigInt(b.claimCommitment));
+          /*
+            The bound is read from the chain here, never taken from `a`.
+
+            `a.bidCount` is a poll, and in the moment that matters most — just after a bid
+            — it is short by exactly that bid. The stored index then equals the stale
+            count, so the `readBidState` above is skipped, the search below covers only
+            0..count-1 and cannot reach the new bid, and the `null` it returns means "the
+            range excluded it", not "no bid carries this commitment". Dropping on that
+            deleted the claim secret for a bid that had just landed, on the dashboard the
+            bidder opened to look at it.
+          */
+          const count = await readBidCount(a.terms.auctionId);
           if (!live) return;
-          if (found !== null) reindexBid(a.terms.auctionId, b.index, found);
-          else dropBid(a.terms.auctionId, b.index);
+          const found = await findBidIndex(
+            a.terms.auctionId, count, BigInt(b.claimCommitment));
+          if (!live) return;
+          const verdict = reconcile(
+            { storedIndex: b.index, chainCount: count, foundIndex: found });
+          if (verdict.do === "reindex") reindexBid(a.terms.auctionId, b.index, verdict.to);
+
+          /*
+            Rule 11 on the other edge. A count that does not yet reach the stored index
+            means the chain has not caught up with this bid — not evidence against it.
+            Only a search that actually covered the index is a negative answer.
+
+            A bid that truly never landed keeps its entry until somebody else bids and the
+            count passes it, at which point the search is conclusive and it is cleaned up.
+            A stale row costs nothing; a deleted seed costs the escrow behind it.
+          */
+          if (verdict.do === "drop") dropBid(a.terms.auctionId, b.index);
         } catch {
           /* Unreadable chain. Absence of an answer is not "this bid does not exist", so
              nothing is dropped and the next poll tries again. */

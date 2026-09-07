@@ -160,13 +160,23 @@ That is the third hypothesis below, and its elimination was wrong: `useDashData`
 indeed not used by the auction page, which is true and beside the point — the reconciler
 only ever needed to run on the dashboard, which is where a bidder goes next.
 
-**The fix is written, tested and not deployed.** It sits on the `fix/vault-persistence`
-branch, deliberately unmerged: it landed inside the final hour before the 23:59 UTC
-freeze, and this project's own rule is that nothing risky lands in the final hours. The
-entry does not depend on it. It reads the search bound from the chain, drops a bid only
-on a search that actually covered its index, reads back every `localStorage` write before
-anything is signed, and hands the bidder the whole entry as a backup rather than the
-claim secret alone.
+**The fix is deployed, and the defect was reproduced before it was.** `npm run
+reconcile-probe` seeds one vault entry, loads the dashboard against a real chain, and
+reports whether it survived. Two cases, chosen so that only a correct build separates
+them — an entry at an index the search *cannot reach*, which must be kept, and one at an
+index it *does* cover and genuinely does not find, which must still be dropped:
+
+| case | before the fix | after |
+|---|---|---|
+| index 3, search covers 0–2 — unreachable | **deleted** | **kept** |
+| index 1, search covers 0–2 — genuinely absent | dropped | dropped |
+
+The first row is the bug, observed rather than argued. The second is the control: a build
+that kept both rows would not be fixed, only inert.
+
+The fix reads the search bound from the chain, drops a bid only on a search that actually
+covered its index, reads back every `localStorage` write before anything is signed, and
+hands the bidder the whole entry as a backup rather than the claim secret alone.
 
 For the record, the three hypotheses eliminated on mainnet before the cause was found,
 in order:

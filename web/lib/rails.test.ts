@@ -13,7 +13,9 @@ import { describe, expect, it } from "vitest";
 import { railUsable, submitBlocked } from "@/lib/rails";
 
 const gate = (o: Partial<Parameters<typeof submitBlocked>[0]> = {}) =>
-  submitBlocked({ rail: "public", canPrivate: true, busy: false, connected: true, ...o });
+  submitBlocked({
+    rail: "public", canPrivate: true, busy: false, connected: true, storable: true, ...o,
+  });
 
 describe("a rail we have proven broken cannot be submitted on", () => {
   it("blocks submit when the private rail is selected and unavailable", () => {
@@ -32,6 +34,22 @@ describe("a rail we have proven broken cannot be submitted on", () => {
   it("still blocks on the ordinary reasons", () => {
     expect(gate({ busy: true })).toBe(true);
     expect(gate({ connected: false })).toBe(true);
+  });
+});
+
+describe("a browser that will not keep the secret cannot be bid from", () => {
+  /*
+    The secret is written before the send. A store that accepts the write and keeps
+    nothing therefore yields a bid on chain that no one can ever claim against — the
+    failure that cost six mainnet seeds. It is not a warning; it is a gate.
+  */
+  it("blocks submit on both rails when storage will not hold the secret", () => {
+    expect(gate({ storable: false })).toBe(true);
+    expect(gate({ rail: "private", storable: false })).toBe(true);
+  });
+
+  it("does not block when storage works", () => {
+    expect(gate({ storable: true })).toBe(false);
   });
 });
 

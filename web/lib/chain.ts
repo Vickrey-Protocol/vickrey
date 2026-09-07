@@ -241,6 +241,23 @@ export async function findBidIndex(
   return null;
 }
 
+/**
+ * The live bid count for one auction, read on its own.
+ *
+ * The dashboard's auction list is a poll, so its `bidCount` lags the chain by exactly the
+ * bid that was just placed. Anything deciding whether a stored bid exists has to ask the
+ * chain at that moment: a search bounded by a lagging count cannot reach the newest bid,
+ * and the "not found" it returns is about the bound, not about the chain.
+ */
+export async function readBidCount(auctionId: bigint): Promise<number> {
+  const r = await provider().callContract({
+    contractAddress: config.auctionAddress,
+    entrypoint: "get_state",
+    calldata: [auctionId.toString()],
+  });
+  return Number(BigInt(r[1]!));
+}
+
 export async function readAuctionCount(): Promise<number> {
   const r = await provider().callContract({
     contractAddress: config.auctionAddress,

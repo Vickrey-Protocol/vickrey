@@ -23,7 +23,8 @@
     "check:submission": "node scripts/check-submission.mjs",
     "shots": "node scripts/shots.mjs",
     "pixel-diff": "node scripts/pixel-diff.mjs",
-    "check:motion": "node scripts/motion-check.mjs"
+    "check:motion": "node scripts/motion-check.mjs",
+    "reconcile-probe": "node scripts/reconcile-probe.mjs"
   },
   "engines": {
     "node": ">=22"

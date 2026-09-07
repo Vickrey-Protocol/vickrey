@@ -72,9 +72,10 @@ export default function Page() {
             dashboard&rsquo;s reconciler searched for a bid using a <em>polled</em> bid
             count, which just after a bid is short by exactly that bid — so the search
             stopped one index before it and the &ldquo;not found&rdquo; was about the
-            bound, not the chain. The fix is written and tested, and deliberately not
-            deployed this close to the freeze. The full account, including what it cost
-            us, is in{" "}
+            bound, not the chain. That is fixed and deployed: the deletion was
+            reproduced against a real chain, and the same probe now shows the entry
+            kept — while a bid the search genuinely covers is still cleaned up. The
+            full account, including what it cost us, is in{" "}
             <a href={`${REPO}#disclosure--7-sep-2026-the-claim-secret-does-not-reliably-persist`}
                target="_blank" rel="noreferrer">the README disclosure</a>.
           </div>

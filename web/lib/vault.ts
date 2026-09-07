@@ -33,13 +33,70 @@ const read = (): StoredBid[] => {
   }
 };
 
-const write = (bids: StoredBid[]) => {
+/**
+ * Writes the store and proves it landed. `false` means the secret is not on this device.
+ *
+ * `setItem` is not a reliable signal of storage. It throws on quota in some browsers and
+ * returns silently in others; a partitioned store, a site-data block or an extension can
+ * accept the call and keep nothing. This swallowed every one of those and told the caller
+ * nothing, which is how six mainnet claim secrets were reported saved and were not.
+ *
+ * A one-byte probe does not detect it either — a store near its quota accepts a token and
+ * refuses five hundred bytes. So the actual payload is written and read back, and the
+ * caller is told the truth about the write it just asked for.
+ */
+const write = (bids: StoredBid[]): boolean => {
+  if (typeof window === "undefined") return false;
+  const payload = JSON.stringify(bids);
   try {
-    window.localStorage.setItem(KEY, JSON.stringify(bids));
+    window.localStorage.setItem(KEY, payload);
+    return window.localStorage.getItem(KEY) === payload;
   } catch {
-    /* private browsing, quota, blocked site data — the caller warns the user */
+    return false;
   }
 };
+
+/**
+ * The store would not keep a claim secret. Thrown before anything is signed, so it always
+ * means no funds moved — the message says so, because a bidder who reads "failed" after
+ * approving a wallet dialog will otherwise assume the opposite.
+ */
+export class VaultWriteError extends Error {
+  constructor() {
+    super(
+      "This browser would not store your claim secret, so the bid was not sent — "
+      + "nothing was signed and no funds moved. Private browsing, a full store, or "
+      + "blocked site data will do this. Allow site data in a normal window and try "
+      + "again.",
+    );
+    this.name = "VaultWriteError";
+  }
+}
+
+/**
+ * Whether this browser will actually keep a claim secret — asked before the bidder fills
+ * anything in, so the answer arrives as a disabled button with a reason rather than a
+ * failure after they have chosen a level.
+ *
+ * Probes with a payload the size of the real write, for the reason in `write` above.
+ */
+export function vaultWritable(): boolean {
+  if (typeof window === "undefined") return true; // SSR: do not warn before we can know
+  const probeKey = `${KEY}.probe`;
+  const filler = "0".repeat(76); // a felt as decimal, near enough
+  const payload = JSON.stringify([...read(), {
+    auctionId: filler, index: 0, level: 0, claimSecret: filler, seed: filler,
+    claimCommitment: filler, upAnchor: filler, downAnchor: filler,
+  }]);
+  try {
+    window.localStorage.setItem(probeKey, payload);
+    const ok = window.localStorage.getItem(probeKey) === payload;
+    window.localStorage.removeItem(probeKey);
+    return ok;
+  } catch {
+    return false;
+  }
+}
 
 export const allBids = read;
 
@@ -58,7 +115,12 @@ export function saveBid(auctionId: bigint, bid: Omit<PrivateBid, "index">, index
     downAnchor: bid.downAnchor.toString(),
     txHash,
   };
-  write([...read().filter((b) => !(b.auctionId === entry.auctionId && b.index === index)), entry]);
+  /* Throws rather than returning, so a caller cannot proceed to a wallet on a secret
+     that is not stored. The bid path calls this *before* the send precisely so this
+     failure costs nothing but the attempt. */
+  if (!write([...read().filter((b) => !(b.auctionId === entry.auctionId && b.index === index)), entry])) {
+    throw new VaultWriteError();
+  }
   return entry;
 }
 
@@ -117,10 +179,35 @@ export const toPrivateBid = (s: StoredBid): PrivateBid => ({
 /** A backup a bidder can paste somewhere safe. Treat it like a private key. */
 export const exportBids = () => JSON.stringify(read(), null, 2);
 
+/**
+ * One bid as an importable backup — the same shape `importBids` accepts, so a file saved
+ * from the bid panel restores through the ordinary import.
+ *
+ * The claim secret alone is half a backup. `claim_lot` and `redeem_forfeit` take only the
+ * secret, but `reveal` takes the seed and the level, and a bid that cannot reveal cannot
+ * win the lot — it can only be forfeited. So a panel that says "save this or lose it" has
+ * to hand over the whole entry, not the one field that fits on a line.
+ */
+export const backupOf = (bid: StoredBid) => JSON.stringify([bid], null, 2);
+
+/**
+ * Restores bids from a backup, *merging* rather than replacing.
+ *
+ * This used to write the parsed array wholesale, which made importing a single-bid backup
+ * — exactly what the bid panel now hands out — silently destroy every other secret in the
+ * browser. Restoring one bid must never be a way to lose three.
+ *
+ * Merge is by `auctionId:index`, with the imported copy winning: a backup is the record
+ * the bidder deliberately kept, and the entry it collides with is the same bid. The cost
+ * is that an import can never remove a stale entry, which is cosmetic. Losing a seed is
+ * not — the same trade the bid path makes.
+ */
 export function importBids(json: string) {
   const parsed = JSON.parse(json) as StoredBid[];
   if (!Array.isArray(parsed)) throw new Error("expected a list of stored bids");
-  write(parsed);
+  const merged = new Map(read().map((b) => [bidKey(b), b] as const));
+  for (const b of parsed) merged.set(bidKey(b), b);
+  if (!write([...merged.values()])) throw new VaultWriteError();
 }
 
 /* ── export state ──────────────────────────────────────────────────────────── */
