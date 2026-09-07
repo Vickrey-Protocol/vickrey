@@ -322,6 +322,19 @@ These are not style preferences. Each one is here because skipping it cost somet
     And when you find a duplicate, do not just fix the wrong one. Delete it and import the
     right one, or the next person adds a third.
 
+19. **Never run `next build` in a tree that has a live `next dev`, and never start
+    `next dev` in a tree something else is building.** Both write `web/.next`. A dev
+    server owns that directory and rewrites it on every change it notices — including
+    a production build landing in it — so the build's `BUILD_ID` and chunks vanish
+    under the server that is serving them, and the dev server serves half of somebody
+    else's output. What that looked like from the outside was a hero animation that
+    "broke on the branch": the branch was fine; two processes were writing one
+    directory. It cost an afternoon of measurement to find a cause that was not in
+    the code at all. Build and serve production from a `git worktree` (its own
+    `.next`; symlink `node_modules`), or stop the dev server first. The screenshot
+    harness now refuses an error page rather than photographing it, which is how the
+    emptied directory was finally noticed.
+
 ## Before you push
 
 ```shell
