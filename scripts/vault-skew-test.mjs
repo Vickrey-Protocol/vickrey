@@ -102,7 +102,9 @@ const wA = await A.evaluate(() => window.__w), wB = await B.evaluate(() => windo
 console.log(`\ntab A (old) writes: ${wA.map((w) => `${w.entries}@+${Math.round((w.at - t0) / 1000)}s`).join("  ") || "none"}`);
 console.log(`tab B (new) writes: ${wB.map((w) => `${w.entries}@+${Math.round((w.at - t0) / 1000)}s`).join("  ") || "none"}`);
 
-const drops = wA.filter((w) => w.entries === 0).length, restores = wB.filter((w) => w.entries === 1).length;
+/* The seed is tab B's first write; only writes after it are restores. */
+const drops = wA.filter((w) => w.entries === 0).length;
+const restores = wB.filter((w) => w.entries === 1 && w.at > t0 + 2000).length;
 const pass = final === 1 && restores >= 1;
 console.log(`\nold tab dropped ${drops}×, new tab restored ${restores}×, entry present at end: ${final === 1}`);
 console.log(`\n${pass ? "PASS" : "FAIL"} — ${pass
