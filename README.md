@@ -146,37 +146,62 @@ lost is **settlement**: the *seed* is never displayed, it exists only in the vau
 without it no bidder can produce the witnesses `settle` verifies. An auction bid through
 this app therefore cannot currently reach a proved clearing price.
 
-**The cause is now known: a search bounded by a stale count, read as a bid that does not
-exist.** A stored bid's index is a guess taken from a polled `bidCount`. The dashboard
-reconciler checked that guess by searching bid indices `0..count-1` for the commitment —
-bounding the search with that same polled count. Immediately after a bid the poll is
+**What deleted them: the dashboard reconciler, on a 20-second poll, in every tab that
+had the dashboard open.** A stored bid's index is a guess taken from a polled `bidCount`.
+The reconciler checked that guess by searching bid indices `0..count-1` for the commitment
+— bounding the search with that same polled count. Immediately after a bid the poll is
 short by exactly the bid just placed, so the stored index *equals* the stale count: the
 direct read is skipped, the search stops one index before the bid it is looking for, and
 the `null` it returns means *the range excluded it*, not *no bid carries this
-commitment*. The reconciler read that as a negative and deleted the entry. It fired when
-the bidder opened the dashboard to look at the bid they had just made.
+commitment*. The reconciler read that as a negative and deleted the entry.
 
-That is the third hypothesis below, and its elimination was wrong: `useDashData` is
-indeed not used by the auction page, which is true and beside the point — the reconciler
-only ever needed to run on the dashboard, which is where a bidder goes next.
+An earlier version of this disclosure said it fired "when the bidder opened the dashboard
+to look at the bid they had just made." That was wrong in the way that mattered. It fired
+in every tab that *already had* the dashboard open, on `useDashData`'s 20-second poll.
+**Four Vickrey tabs were open during the mainnet bids** — `/auction/1`, `/auction/2`,
+`/app` and `/app/bids` — and each seed was written by one tab and deleted by another
+within twenty seconds, which is why six went in twenty-second intervals while the tab
+doing the bidding raised no error.
 
-**The fix is deployed, and the defect was reproduced before it was.** `npm run
-reconcile-probe` seeds one vault entry, loads the dashboard against a real chain, and
-reports whether it survived. Two cases, chosen so that only a correct build separates
-them — an entry at an index the search *cannot reach*, which must be kept, and one at an
-index it *does* cover and genuinely does not find, which must still be dropped:
+**The reconciler fix was necessary and not sufficient.** It shipped on 8 Sep at
+04:30 UTC. That morning a public-rail bid on auction #5 lost its seed again. A storage
+monitor caught it: a `storage` event roughly 25 seconds after every write — the 20-second
+poll plus the RPC round-trips — from *another tab*. Two fresh tabs on the fixed build were
+tested side by side and do not clobber each other; the tab doing the deleting was one
+opened *before* the deploy, still running the old bundle. Nothing a deploy ships can reach
+a tab that has already loaded old JavaScript.
 
-| case | before the fix | after |
+**What is done about it now**, in `web/lib/vault.ts` and `web/lib/vaultSync.ts`:
+
+- **The store refuses to shrink without proof.** Every write goes through one function,
+  and a write may not remove a bid unless it names that bid and carries a positive
+  on-chain answer. Anything else that would vanish is put back into the write. No caller,
+  present or future, can silently reduce the set. Identity is the commitment, not the
+  index, so a reindex is an edit and a second attempt at the same index keeps the first.
+- **Current tabs undo a stale tab's wipe.** A `storage` event carries the value before and
+  after. A shrink that no tab announced proof for on the BroadcastChannel is restored
+  within milliseconds. The current bundle announces every proven drop before it writes;
+  the old bundle never announces, so its deletions are undone and a real cleanup is left
+  alone.
+- **Version skew is named, in the right tab.** Each build carries an ordered id. The tab
+  that hears a newer one knows it is old and offers a reload; the tab that hears an older
+  one — or that has just had to restore something — says plainly that another tab is on
+  an older version and will keep deleting saved bids every 20 seconds until it is closed
+  or reloaded.
+
+**Both defects were reproduced before they were fixed, and the tests fail on the builds
+before each fix.** `npm run reconcile-probe` seeds one vault entry, loads the dashboard
+against a real chain, and reports whether it survived:
+
+| case | before the reconciler fix | after |
 |---|---|---|
 | index 3, search covers 0–2 — unreachable | **deleted** | **kept** |
 | index 1, search covers 0–2 — genuinely absent | dropped | dropped |
 
-The first row is the bug, observed rather than argued. The second is the control: a build
-that kept both rows would not be fixed, only inert.
-
-The fix reads the search bound from the chain, drops a bid only on a search that actually
-covered its index, reads back every `localStorage` write before anything is signed, and
-hands the bidder the whole entry as a backup rather than the claim secret alone.
+`node scripts/vault-skew-test.mjs` builds the pre-fix bundle and the current one, serves
+them on one port in turn, opens a tab against each, and seeds a bid. The old tab deletes it
+on its poll; the current tab puts it back and says why. Against the build before the
+cross-tab fix it fails, as it must — a test that passes on both proves nothing.
 
 For the record, the three hypotheses eliminated on mainnet before the cause was found,
 in order:
@@ -191,7 +216,10 @@ in order:
 - *The dashboard reconciler.* It can drop an entry the chain does not confirm, but it
   lives in `useDashData`, which the auction page does not use.
 
-The first two were correctly eliminated. The third was not.
+The first two were correctly eliminated. The third was not — and it was eliminated for
+the wrong reason twice: first because the auction page does not use it, then because a
+single fresh tab does not trigger it. The reconciler did not need to run in the tab that
+bid. It needed to be running in any other tab at all.
 
 **Cost to us:** 1.44 STRK of escrow stranded across mainnet auctions #1 and #2, plus
 0.24 on #3. Recoverable via `abandon` where the claim secret was saved outside the

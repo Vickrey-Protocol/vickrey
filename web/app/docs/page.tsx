@@ -62,20 +62,19 @@ export default function Page() {
           {/* Above everything else in the reference, because a reader who is about to bid
               needs it before they read how bidding works. */}
           <div className="banner" style={{ borderColor: "var(--accent-edge)" }}>
-            <b>Known defect, 7 Sep 2026 — bidding cannot currently be settled.</b>{" "}
-            The claim secret a bid generates does not reliably persist in the browser.
-            The bid transaction succeeds and your escrow stays recoverable if you save
-            the secret the app shows you when it shows it — but the <em>seed</em> is
-            never displayed, lives only in that store, and without it no bidder can
-            produce the witnesses settlement verifies. So an auction bid through this
-            app cannot currently reach a proved clearing price. The cause is known: the
-            dashboard&rsquo;s reconciler searched for a bid using a <em>polled</em> bid
-            count, which just after a bid is short by exactly that bid — so the search
-            stopped one index before it and the &ldquo;not found&rdquo; was about the
-            bound, not the chain. That is fixed and deployed: the deletion was
-            reproduced against a real chain, and the same probe now shows the entry
-            kept — while a bid the search genuinely covers is still cleaned up. The
-            full account, including what it cost us, is in{" "}
+            <b>Fixed defect, 7&ndash;8 Sep 2026 &mdash; saved bids were being deleted by other
+            tabs.</b>{" "}
+            The claim secret and seed a bid generates are stored in this browser and nowhere
+            else. The dashboard&rsquo;s reconciler checked each stored bid against the chain
+            with a search bounded by a <em>polled</em> bid count, which just after a bid is
+            short by exactly that bid &mdash; so the search stopped one index before it and
+            read &ldquo;not found&rdquo; as proof. It ran every 20 seconds in every tab with
+            the dashboard open. Four tabs were open during the mainnet bids; six seeds went
+            in twenty-second intervals. Fixing the reconciler was not enough: a tab opened
+            before the deploy kept running the old code. So the store now refuses to remove a
+            bid without proof, current tabs restore anything an older tab deletes, and the app
+            names an older tab and asks for it to be reloaded. If you see that notice, do
+            what it says. The full account, including what it cost us, is in{" "}
             <a href={`${REPO}#disclosure--7-sep-2026-the-claim-secret-does-not-reliably-persist`}
                target="_blank" rel="noreferrer">the README disclosure</a>.
           </div>
