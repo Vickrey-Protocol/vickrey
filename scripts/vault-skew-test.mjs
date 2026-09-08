@@ -27,7 +27,7 @@ const INDEX = Number(process.env.SKEW_INDEX ?? 3); // == bidCount: unreachable b
 const KEY = "vickrey.bids.v1";
 const [oldRef = "33cda34", newRef = "HEAD"] = process.argv.slice(2);
 
-const sh = (cmd, opts = {}) => execSync(cmd, { stdio: "pipe", encoding: "utf8", ...opts }).trim();
+const sh = (cmd, opts = {}) => (execSync(cmd, { stdio: "pipe", encoding: "utf8", ...opts }) ?? "").trim();
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const stamp = () => new Date().toISOString().slice(11, 19);
 
