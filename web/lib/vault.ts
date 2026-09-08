@@ -10,6 +10,9 @@ import type { PrivateBid } from "@vickrey/client";
  * bid could also read it.
  */
 const KEY = "vickrey.bids.v1";
+export const VAULT_KEY = KEY;
+/** The BroadcastChannel tabs use to say "I removed this bid, and I had proof". */
+export const VAULT_CHANNEL = "vickrey.vault.v1";
 
 export interface StoredBid {
   auctionId: string;
@@ -45,9 +48,44 @@ const read = (): StoredBid[] => {
  * refuses five hundred bytes. So the actual payload is written and read back, and the
  * caller is told the truth about the write it just asked for.
  */
-const write = (bids: StoredBid[]): boolean => {
+/**
+ * A stored bid's identity is its commitment, not its index. The index is a guess that the
+ * chain corrects; the commitment is a hash of the secret and never changes. Every rule
+ * about "the same bid" below uses this, so a reindex is an edit and not a delete.
+ */
+export const identityOf = (b: StoredBid) => `${b.auctionId}:${b.claimCommitment}`;
+
+export interface WriteOpts {
+  /**
+   * Identities this write is permitted to remove. Each must be backed by a positive
+   * on-chain answer — a search that covered the bid's index and found no such commitment.
+   * Anything else that would vanish is put back.
+   */
+  remove?: string[];
+}
+
+/**
+ * The only way anything reaches the store. It enforces one invariant on every caller,
+ * present or future: **a write may not shrink the set without proof.**
+ *
+ * Six mainnet claim secrets were deleted by a reconciler that believed a "not found" it
+ * had no right to believe. Fixing that reconciler was necessary and not sufficient — a tab
+ * still running the old bundle kept deleting on its 20-second poll for hours after the fix
+ * shipped, because the store trusted whatever it was handed. So the store no longer does.
+ * Any entry that a write would drop, and that the caller has not named in `remove` with a
+ * reason, is restored into the write. A caller that wants to delete has to say so, and
+ * has to have earned it.
+ */
+export const writeStore = (bids: StoredBid[], opts: WriteOpts = {}): boolean => {
   if (typeof window === "undefined") return false;
-  const payload = JSON.stringify(bids);
+  const before = read();
+  const kept = new Set(bids.map(identityOf));
+  const allowed = new Set(opts.remove ?? []);
+  const restored = before.filter((b) => !kept.has(identityOf(b)) && !allowed.has(identityOf(b)));
+  if (restored.length) {
+    console.warn(`vault: a write tried to drop ${restored.length} bid(s) without proof; kept them`);
+  }
+  const payload = JSON.stringify(restored.length ? [...bids, ...restored] : bids);
   try {
     window.localStorage.setItem(KEY, payload);
     return window.localStorage.getItem(KEY) === payload;
@@ -55,6 +93,7 @@ const write = (bids: StoredBid[]): boolean => {
     return false;
   }
 };
+const write = writeStore;
 
 /**
  * The store would not keep a claim secret. Thrown before anything is signed, so it always
@@ -118,7 +157,11 @@ export function saveBid(auctionId: bigint, bid: Omit<PrivateBid, "index">, index
   /* Throws rather than returning, so a caller cannot proceed to a wallet on a secret
      that is not stored. The bid path calls this *before* the send precisely so this
      failure costs nothing but the attempt. */
-  if (!write([...read().filter((b) => !(b.auctionId === entry.auctionId && b.index === index)), entry])) {
+  /* Replaces only the *same* bid (same commitment). An earlier attempt at the same index
+     with a different commitment is a different bid, and it may have landed — it stays,
+     and the reconciler sorts the indices out against the chain. */
+  const same = (b: StoredBid) => identityOf(b) === identityOf(entry);
+  if (!write([...read().filter((b) => !same(b)), entry])) {
     throw new VaultWriteError();
   }
   return entry;
@@ -139,7 +182,45 @@ export function saveBid(auctionId: bigint, bid: Omit<PrivateBid, "index">, index
  * removed on a guess is a secret destroyed.
  */
 export function dropBid(auctionId: bigint, index: number) {
-  write(read().filter((b) => !(b.auctionId === auctionId.toString() && b.index === index)));
+  const victims = read().filter((b) => b.auctionId === auctionId.toString() && b.index === index);
+  if (!victims.length) return;
+  const ids = victims.map(identityOf);
+  /* Announced before it is written, so a tab that sees the shrink can tell a proven
+     removal from a stale tab's wipe — and only undoes the latter. */
+  announceRemoval(ids);
+  write(read().filter((b) => !ids.includes(identityOf(b))), { remove: ids });
+}
+
+/**
+ * Puts bids back that another tab removed without announcing proof. Never shrinks, so
+ * the guard has nothing to object to.
+ */
+export function restoreEntries(lost: StoredBid[]) {
+  const have = new Set(read().map(identityOf));
+  const missing = lost.filter((b) => !have.has(identityOf(b)));
+  if (missing.length) write([...read(), ...missing]);
+  return missing.length;
+}
+
+let channel: BroadcastChannel | null | undefined;
+const vaultChannel = () => {
+  if (channel !== undefined) return channel;
+  try { channel = typeof BroadcastChannel === "undefined" ? null : new BroadcastChannel(VAULT_CHANNEL); }
+  catch { channel = null; }
+  /* Node's BroadcastChannel holds the event loop open; browsers have no unref. */
+  (channel as unknown as { unref?: () => void } | null)?.unref?.();
+  return channel;
+};
+export function announceRemoval(ids: string[]) {
+  vaultChannel()?.postMessage({ type: "removed", ids, at: Date.now() });
+}
+
+/** Runs `cb` whenever another tab changes the vault. Returns the unsubscribe. */
+export function onVaultChange(cb: () => void): () => void {
+  if (typeof window === "undefined") return () => {};
+  const h = (e: StorageEvent) => { if (e.key === KEY) cb(); };
+  window.addEventListener("storage", h);
+  return () => window.removeEventListener("storage", h);
 }
 
 /**
@@ -197,7 +278,7 @@ export const backupOf = (bid: StoredBid) => JSON.stringify([bid], null, 2);
  * — exactly what the bid panel now hands out — silently destroy every other secret in the
  * browser. Restoring one bid must never be a way to lose three.
  *
- * Merge is by `auctionId:index`, with the imported copy winning: a backup is the record
+ * Merge is by identity (commitment), with the imported copy winning: a backup is the record
  * the bidder deliberately kept, and the entry it collides with is the same bid. The cost
  * is that an import can never remove a stale entry, which is cosmetic. Losing a seed is
  * not — the same trade the bid path makes.
@@ -205,8 +286,8 @@ export const backupOf = (bid: StoredBid) => JSON.stringify([bid], null, 2);
 export function importBids(json: string) {
   const parsed = JSON.parse(json) as StoredBid[];
   if (!Array.isArray(parsed)) throw new Error("expected a list of stored bids");
-  const merged = new Map(read().map((b) => [bidKey(b), b] as const));
-  for (const b of parsed) merged.set(bidKey(b), b);
+  const merged = new Map(read().map((b) => [identityOf(b), b] as const));
+  for (const b of parsed) merged.set(identityOf(b), b);
   if (!write([...merged.values()])) throw new VaultWriteError();
 }
 

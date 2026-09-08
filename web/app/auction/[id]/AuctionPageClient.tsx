@@ -5,7 +5,7 @@ import Link from "next/link";
 import type { PublicBid } from "@vickrey/client";
 import { fromWire, readAuction, readBids, type AuctionView, type WireAuction } from "@/lib/chain";
 import { config } from "@/lib/config";
-import { bidsFor, type StoredBid } from "@/lib/vault";
+import { bidsFor, onVaultChange, type StoredBid } from "@/lib/vault";
 import { PublicShell } from "@/components/PublicShell";
 import { AuctionDetail } from "@/components/AuctionDetail";
 import { useNow, useWallet } from "@/components/WalletProvider";
@@ -50,6 +50,7 @@ export default function AuctionPageClient({
   useEffect(() => { void refresh(); const t = setInterval(() => void refresh(), 15_000); return () => clearInterval(t); }, [refresh]);
   // Claim secrets are per-browser, so this can only run client-side.
   useEffect(() => { setMine(bidsFor(BigInt(id))); }, [id, auction?.bidCount]);
+  useEffect(() => onVaultChange(() => setMine(bidsFor(BigInt(id)))), [id]);
 
   return (
     <PublicShell>

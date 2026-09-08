@@ -12,12 +12,15 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  VaultWriteError, allBids, dropBid, exportBids, importBids, reindexBid, saveBid,
+  VaultWriteError, allBids, dropBid, exportBids, identityOf, importBids, reindexBid,
+  restoreEntries, saveBid, writeStore,
 } from "@/lib/vault";
 
 const KEY = "vickrey.bids.v1";
+/* Distinct commitments: the store's identity is the commitment, so two fixtures that
+   shared one would be "the same bid" and the second would replace the first. */
 const bid = (level: number) => ({
-  level, claimSecret: 11n, seed: 22n, claimCommitment: 33n, upAnchor: 44n, downAnchor: 55n,
+  level, claimSecret: 11n, seed: 22n, claimCommitment: 1000n + BigInt(level), upAnchor: 44n, downAnchor: 55n,
 });
 
 beforeEach(() => window.localStorage.removeItem(KEY));
@@ -128,5 +131,66 @@ describe("restoring a backup", () => {
 
   it("still rejects something that is not a list of bids", () => {
     expect(() => importBids('{"nope":true}')).toThrow(/expected a list/);
+  });
+});
+
+describe("a write cannot shrink the set without proof", () => {
+  /*
+    The reconciler that deleted six mainnet claim secrets was fixed, and a tab still
+    running the old bundle kept deleting for hours afterwards, because the store trusted
+    whatever it was handed. The invariant now lives in the store: no caller, present or
+    future, can silently reduce the set. Removal must be named, per bid, with proof.
+  */
+  it("restores anything a bare write tried to drop", () => {
+    saveBid(8n, bid(1), 0);
+    saveBid(8n, bid(2), 1);
+    const [a] = allBids();
+    writeStore([a!]);                       // a caller that "forgot" the second bid
+    expect(allBids().map((b) => b.level).sort()).toEqual([1, 2]);
+  });
+
+  it("removes exactly what is named, when it is named", () => {
+    saveBid(8n, bid(1), 0);
+    saveBid(8n, bid(2), 1);
+    const [a, b] = allBids();
+    writeStore([a!], { remove: [identityOf(b!)] });
+    expect(allBids().map((b) => b.level)).toEqual([1]);
+  });
+
+  it("cannot be emptied by a write of []", () => {
+    saveBid(8n, bid(1), 0);
+    saveBid(9n, bid(2), 0);
+    writeStore([]);
+    expect(allBids()).toHaveLength(2);
+  });
+
+  it("dropBid carries its own proof and still works", () => {
+    saveBid(8n, bid(1), 0);
+    saveBid(8n, bid(2), 1);
+    dropBid(8n, 1);
+    expect(allBids().map((b) => b.level)).toEqual([1]);
+  });
+});
+
+describe("identity is the commitment, not the index", () => {
+  it("a reindex is an edit, never a delete", () => {
+    saveBid(8n, bid(1), 0);
+    reindexBid(8n, 0, 5);
+    expect(allBids()).toHaveLength(1);
+    expect(allBids()[0]!.index).toBe(5);
+  });
+
+  it("a second attempt at the same index keeps the first — it may have landed", () => {
+    saveBid(8n, bid(1), 0);
+    saveBid(8n, bid(2), 0);
+    expect(allBids()).toHaveLength(2);
+  });
+
+  it("restoreEntries adds only what is missing", () => {
+    saveBid(8n, bid(1), 0);
+    const lost = { auctionId: "8", index: 1, level: 2, claimSecret: "1", seed: "2",
+      claimCommitment: "1002", upAnchor: "4", downAnchor: "5" };
+    expect(restoreEntries([allBids()[0]!, lost])).toBe(1);
+    expect(allBids()).toHaveLength(2);
   });
 });

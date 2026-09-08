@@ -19,6 +19,7 @@ export function GET() {
       commit:
         process.env.VERCEL_GIT_COMMIT_SHA ?? process.env.NEXT_PUBLIC_COMMIT ?? "unknown",
       ref: process.env.VERCEL_GIT_COMMIT_REF ?? null,
+      buildId: process.env.NEXT_PUBLIC_BUILD_ID ?? null,
       builtAt: process.env.NEXT_PUBLIC_BUILT_AT ?? null,
       network: process.env.NEXT_PUBLIC_NETWORK ?? null,
       auction: process.env.NEXT_PUBLIC_AUCTION_ADDRESS ?? null,

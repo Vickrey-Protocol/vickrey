@@ -6,6 +6,7 @@ import { LpFooter } from "@/components/landing/Footer";
 import { initMotion, onReplayKey, replayMotion } from "@/lib/motion";
 import { watchBackdrop, watchGlow, watchScroll } from "@/lib/chrome";
 import { watchReveals } from "@/lib/reveal";
+import { StaleTabNotice } from "@/components/StaleTabNotice";
 import "@/app/landing.css";
 
 /**
@@ -34,6 +35,7 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
       <Nav />
       {/* The nav floats over the top of the page, so the page starts below it. */}
       <main className="lp-main tw:relative tw:mx-auto tw:max-w-7xl tw:px-4 tw:pt-24 tw:pb-16 tw:lg:pt-32">
+        <StaleTabNotice />
         {children}
       </main>
       <LpFooter />

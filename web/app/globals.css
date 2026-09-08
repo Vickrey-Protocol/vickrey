@@ -1991,3 +1991,7 @@ select:hover { background-color: rgba(0, 0, 0, .32); }
   .tour-dots button { min-block-size: 20px; min-inline-size: 20px; border-radius: 999px; }
   .tour-dots button.on { inline-size: 2.2rem; }
 }
+
+/* Cross-tab version-skew warning. Absent in the ordinary case; loud when present. */
+.stale-tab { border-color: var(--accent-edge, #E2513C); margin: 0 0 1rem; }
+.stale-tab button { margin-inline-start: .5rem; }

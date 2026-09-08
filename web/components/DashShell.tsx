@@ -9,6 +9,7 @@ import { Notifications } from "@/components/Notifications";
 import { NavSheet } from "@/components/NavSheet";
 import { Wordmark } from "@/components/Wordmark";
 import { Tour } from "@/components/Tour";
+import { StaleTabNotice } from "@/components/StaleTabNotice";
 import { ModeToggle } from "@/components/landing/ModeToggle";
 import "@/app/dashboard.css";
 import {
@@ -49,6 +50,7 @@ export function DashShell({
   if (!connection && reconnecting) {
     return (
       <main className="dash-gate">
+        <StaleTabNotice />
         <div className="backdrop" aria-hidden="true" />
         <div className="panel" style={{ maxWidth: "52ch", margin: "5rem auto" }}>
           <p className="eyebrow">Dashboard</p>
@@ -63,6 +65,7 @@ export function DashShell({
   if (!connection) {
     return (
       <main className="dash-gate">
+        <StaleTabNotice />
         <div className="backdrop" aria-hidden="true" />
         <div className="panel" style={{ maxWidth: "52ch", margin: "5rem auto" }}>
           <p className="eyebrow">Dashboard</p>
@@ -172,7 +175,7 @@ export function DashShell({
             <WalletMenu />
           </div>
         </header>
-        <div className="dash-body">{children}</div>
+        <div className="dash-body"><StaleTabNotice />{children}</div>
       </div>
 
       {/* Only where there is a dashboard to tour, and only for a connected wallet —

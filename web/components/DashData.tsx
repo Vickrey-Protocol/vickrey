@@ -7,7 +7,8 @@ import {
 } from "@/lib/chain";
 import { isDeployed } from "@/lib/config";
 import { reconcile } from "@/lib/reconcile";
-import { allBids, dropBid, reindexBid, type StoredBid } from "@/lib/vault";
+import { allBids, dropBid, onVaultChange, reindexBid, type StoredBid } from "@/lib/vault";
+import { startVaultSync } from "@/lib/vaultSync";
 import { sameAddress } from "@/lib/wallet";
 import { actionsFor, type DueAction } from "@/lib/actions";
 import { useWallet } from "@/components/WalletProvider";
@@ -74,6 +75,9 @@ export function useDashData(): DashData {
   }, [tick]);
 
   useEffect(() => { setMine(allBids()); setVaultRead(true); }, [tick, auctions.length]);
+  /* Another tab writing the vault is a change to `mine` here too — and the sync that
+     undoes an old tab's wipe has to be running wherever the reconciler runs. */
+  useEffect(() => { startVaultSync(); return onVaultChange(() => setMine(allBids())); }, []);
 
   /**
    * Reconcile this browser's vault against the chain, once the auctions are in.
