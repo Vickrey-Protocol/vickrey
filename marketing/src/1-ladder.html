@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Clip 1 — the losing bids</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=block" rel="stylesheet">
+<link rel="stylesheet" href="clip.css">
+<!--
+  Real data: mainnet auction #1 — ladder 0.03 to 0.24 STRK in 8 levels, 3 bids,
+  no amount disclosed (read from vickrey.0xo.in/auction/1, 24 Sep 2026).
+  Every rung stays hatched: which rungs hold the bids is exactly what nobody knows.
+-->
+<style>
+  .content { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 72px; }
+  .ladder { display: grid; grid-template-columns: 72px 250px 400px; column-gap: 24px; }
+  .prices { display: grid; grid-template-rows: repeat(8, 1fr); gap: 8px; text-align: right;
+    font-family: "Geist Mono", monospace; font-size: 20px; color: var(--muted); }
+  .prices span { display: flex; align-items: center; justify-content: flex-end; }
+  .rungs { display: grid; grid-template-rows: repeat(8, 76px); gap: 8px; position: relative; }
+  .rung { background: var(--hatch), #fff; border: 1.5px solid var(--line-2); border-radius: 6px;
+    transform-origin: left center; animation: draw .5s var(--ease) var(--at) both; }
+  @keyframes draw { from { transform: scaleX(0); opacity: 0; } to { transform: none; opacity: 1; } }
+  .brace { position: relative; }
+  .brace::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--ink);
+    border-radius: 2px; transform-origin: top; animation: grow .5s var(--ease) 2.05s both; }
+  @keyframes grow { from { transform: scaleY(0); } to { transform: none; } }
+  .tag { position: absolute; left: 28px; top: 50%; translate: 0 -50%; white-space: nowrap; }
+  .tag b { display: block; font-size: 50px; font-weight: 600; letter-spacing: -.02em; line-height: 1.05; }
+  .tag b em { font-style: normal; color: var(--seal); }
+  .tag .caption { margin-top: 14px; }
+  @media (max-aspect-ratio: 5/4) {
+    .content { grid-template-columns: 1fr; grid-template-rows: auto 1fr; align-items: start; gap: 44px; padding-top: 150px; }
+    .ladder { grid-template-columns: 64px 250px 1fr; }
+    .rungs { grid-template-rows: repeat(8, 58px); gap: 7px; }
+    .prices { gap: 7px; font-size: 18px; }
+    .tag b { font-size: 46px; }
+  }
+</style>
+</head>
+<body>
+<img class="mark" src="mark.png" alt="">
+<div class="content">
+  <h1 class="head in" style="--at:.3s">What if no one ever saw the losing bids?</h1>
+
+  <div class="ladder">
+    <div class="prices fin" style="--at:1.0s">
+      <span>0.24</span><span>0.21</span><span>0.18</span><span>0.15</span>
+      <span>0.12</span><span>0.09</span><span>0.06</span><span>0.03</span>
+    </div>
+    <div class="rungs">
+      <!-- drawn bottom-up -->
+      <div class="rung" style="--at:1.63s"></div><div class="rung" style="--at:1.54s"></div>
+      <div class="rung" style="--at:1.45s"></div><div class="rung" style="--at:1.36s"></div>
+      <div class="rung" style="--at:1.27s"></div><div class="rung" style="--at:1.18s"></div>
+      <div class="rung" style="--at:1.09s"></div><div class="rung" style="--at:1.0s"></div>
+    </div>
+    <div class="brace">
+      <div class="tag in" style="--at:2.45s">
+        <b>3 bids</b>
+        <b><em>0 amounts</em> disclosed</b>
+        <div class="caption">Starknet mainnet · auction #1</div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="end"><div class="lockup"><img src="mark.png" alt=""><span>Vickrey</span></div></div>
+<script src="clip.js"></script>
+</body>
+</html>

@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Clip 3 — the whole public record</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=block" rel="stylesheet">
+<link rel="stylesheet" href="clip.css">
+<!--
+  Real data: the public bid book of mainnet auction #1, copied from the table at
+  vickrey.0xo.in/auction/1 ("The whole public record"), read 24 Sep 2026. Values are
+  truncated exactly as the site truncates them.
+-->
+<style>
+  .content { display: flex; flex-direction: column; justify-content: center; gap: 64px; }
+  table { width: 100%; border-collapse: separate; border-spacing: 0; font-family: "Geist Mono", monospace;
+    background: #fff; border: 1.5px solid var(--line); border-radius: 20px; overflow: hidden; }
+  th { text-align: left; font-size: 18px; font-weight: 500; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--muted); padding: 26px 28px 18px; border-bottom: 1.5px solid var(--line); }
+  td { font-size: 28px; padding: 24px 28px; border-bottom: 1.5px solid var(--line); white-space: nowrap; }
+  tr:last-child td { border-bottom: 0; }
+  tbody tr { animation: slide .55s var(--ease) var(--at) both; }
+  @keyframes slide { from { opacity: 0; transform: translateX(-60px); } to { opacity: 1; transform: none; } }
+  td.amt { color: var(--seal); font-style: italic; position: relative; }
+  td.amt span { display: inline-block; animation: fade .35s ease var(--at) both; }
+  td.amt::after { content: ""; position: absolute; left: 28px; right: 28px; bottom: 16px; height: 3px;
+    background: var(--ember); border-radius: 2px; transform-origin: left; animation: grow-x .4s var(--ease) var(--at) both; }
+  @keyframes grow-x { from { transform: scaleX(0); } to { transform: none; } }
+  .meta { display: flex; justify-content: space-between; align-items: baseline; }
+  @media (max-aspect-ratio: 5/4) {
+    .content { justify-content: flex-start; padding-top: 150px; gap: 52px; }
+    th { font-size: 14px; padding: 20px 14px 14px; letter-spacing: .06em; }
+    td { font-size: 19px; padding: 20px 14px; }
+    td.amt::after { left: 14px; right: 14px; bottom: 12px; }
+    .meta { flex-direction: column; gap: 8px; }
+  }
+</style>
+</head>
+<body>
+<img class="mark" src="mark.png" alt="">
+<div class="content">
+  <h1 class="head in" style="--at:.3s">Everything the chain knows about 3 bids</h1>
+
+  <div>
+    <table class="fin" style="--at:.9s">
+      <thead><tr><th>#</th><th>Claim handle</th><th>Ascending</th><th>Descending</th><th>Amount</th></tr></thead>
+      <tbody>
+        <tr style="--at:1.1s"><td>0</td><td>0x3eb0a42c025b…</td><td>0x639e9ce4ed53…</td><td>0x7f617e70b360…</td><td class="amt" style="--at:2.3s"><span>not disclosed</span></td></tr>
+        <tr style="--at:1.3s"><td>1</td><td>0x132a62e408eb…</td><td>0x2e19cd439200…</td><td>0x6572b06433ca…</td><td class="amt" style="--at:2.65s"><span>not disclosed</span></td></tr>
+        <tr style="--at:1.5s"><td>2</td><td>0x730556c54f9f…</td><td>0x3dad4ef797b1…</td><td>0x689b296fd36b…</td><td class="amt" style="--at:3.0s"><span>not disclosed</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="meta">
+    <span class="caption fin" style="--at:1.8s">Starknet mainnet · auction #1 · the whole public record</span>
+    <span class="caption fin" style="--at:3.4s">No address. No amount.</span>
+  </div>
+</div>
+<div class="end"><div class="lockup"><img src="mark.png" alt=""><span>Vickrey</span></div></div>
+<script src="clip.js"></script>
+</body>
+</html>

@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>X header banner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=block" rel="stylesheet">
+<!--
+  1500×500 X header. X lays its profile picture over the bottom-left on desktop and
+  crops the sides on mobile, so everything that matters sits centre-right.
+  ?preview draws both over the banner. The geometry is approximate: X renders the header
+  at 600×200 on desktop with a ~134 px avatar about 16 px from the left, half over the
+  header's bottom edge — ×2.5 here. Recheck on the live profile after upload.
+-->
+<style>
+  :root { --ink: #0a0a0a; --muted: #737373; --line-2: #d4d4d4; --seal: #E2513C; --ember: #F2913F;
+    --hatch: repeating-linear-gradient(-45deg, rgba(0,0,0,.11) 0 1.5px, transparent 1.5px 10px); }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { width: 1500px; height: 500px; overflow: hidden; background: #fff; color: var(--ink); }
+  body { position: relative; font-family: Geist, ui-sans-serif, system-ui, sans-serif; -webkit-font-smoothing: antialiased;
+    background-image: radial-gradient(circle, #e7e7e7 1.4px, transparent 1.7px); background-size: 40px 40px; background-position: 20px 20px; }
+  .block { position: absolute; left: 540px; top: 50%; translate: 0 -54%; }
+  .lockup { display: flex; align-items: center; gap: 18px; margin-bottom: 30px; }
+  .lockup img { width: 64px; height: 64px; }
+  .lockup span { font-size: 60px; letter-spacing: -.03em; }
+  .tag { font-size: 44px; font-weight: 600; letter-spacing: -.028em; line-height: 1.12; }
+  .tag em { font-style: normal; color: var(--seal); }
+  /* the ladder, as a quiet motif beside the text — above and clear of the avatar circle */
+  .ladder { position: absolute; left: 392px; top: 50%; translate: 0 -50%; display: grid; gap: 5px; }
+  .ladder div { width: 104px; height: 26px; border: 1.2px solid var(--line-2); border-radius: 5px; background: var(--hatch), #fff; }
+  /* preview overlays */
+  .ov { display: none; }
+  .preview .ov { display: block; }
+  .avatar { position: absolute; left: 40px; top: 333px; width: 334px; height: 334px; border-radius: 50%;
+    background: rgba(10,10,10,.55); border: 10px solid #fff; }
+  .crop { position: absolute; top: 0; bottom: 0; width: 150px; background: rgba(226,81,60,.12);
+    border-inline: 2px dashed rgba(226,81,60,.55); }
+  .crop.l { left: 0; border-left: 0; } .crop.r { right: 0; border-right: 0; }
+  .note { position: absolute; font-family: "Geist Mono", monospace; font-size: 15px; color: #fff; }
+  .note.a { left: 118px; top: 430px; }
+  .note.c { right: 10px; top: 10px; color: var(--seal); font-size: 13px; text-align: right; }
+</style>
+</head>
+<body>
+  <div class="ladder" aria-hidden="true"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div>
+  <div class="block">
+    <div class="lockup"><img src="mark.png" alt=""><span>Vickrey</span></div>
+    <p class="tag">Sealed-bid auctions on Starknet.<br><em>The losing bids are never published.</em></p>
+  </div>
+
+  <div class="ov crop l"></div><div class="ov crop r"></div>
+  <div class="ov avatar"></div>
+  <div class="ov note a">profile picture (desktop)</div>
+  <div class="ov note c">shaded sides: may crop on mobile<br>(approximate)</div>
+<script>
+  if (new URLSearchParams(location.search).has("preview")) document.body.classList.add("preview");
+  document.fonts.ready.then(() => { document.documentElement.dataset.ready = "1"; });
+</script>
+</body>
+</html>

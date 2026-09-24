@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Clip 4 — pool fee vs bid collateral</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=block" rel="stylesheet">
+<link rel="stylesheet" href="clip.css">
+<!--
+  Every number is measured on Starknet mainnet, 7 Sep 2026 (docs/mainnet.md,
+  strk20.json → mainnet_run.pool_economics):
+    pool fee    6 STRK per operation, read live from get_fee_amount
+    collateral  0.24 STRK per bid, uniform
+    ratio       6 / 0.24 = 25×
+  The fee bar grows from zero rather than from the collateral's length: starting level
+  would say, for a moment, that 6 STRK is the same as 0.24. No number counts through a
+  value nobody measured.
+-->
+<style>
+  .content { display: flex; flex-direction: column; justify-content: center; gap: 56px; }
+  .rows { display: grid; gap: 44px; }
+  .row { display: grid; grid-template-columns: 360px 1fr; align-items: center; gap: 40px; }
+  .label { font-size: 30px; color: var(--muted); }
+  .label b { display: block; color: var(--ink); font-weight: 600; font-size: 64px; letter-spacing: -.025em; line-height: 1.05; }
+  .track { position: relative; height: 88px; }
+  .bar { position: absolute; inset: 0 auto 0 0; border-radius: 14px; }
+  .bid .bar { width: 4%; background: var(--ink); animation: pop .35s var(--ease) 1.0s both; }
+  .fee .bar { width: 100%; background: linear-gradient(90deg, var(--ember), var(--seal));
+    transform-origin: left; animation: grow-x 1.8s cubic-bezier(.45, 0, .2, 1) 1.2s both; }
+  @keyframes grow-x { from { transform: scaleX(0); } to { transform: none; } }
+  .ratio { position: absolute; right: 32px; top: 50%; translate: 0 -50%; color: #fff;
+    font-size: 60px; font-weight: 600; letter-spacing: -.02em; }
+  .line { font-size: 72px; font-weight: 600; letter-spacing: -.03em; }
+  .line em { font-style: normal; color: var(--seal); }
+  @media (max-aspect-ratio: 5/4) {
+    .content { justify-content: flex-start; padding-top: 150px; gap: 52px; }
+    .row { grid-template-columns: 1fr; gap: 16px; }
+    .label b { font-size: 56px; }
+    .track { height: 76px; }
+    .line { font-size: 62px; }
+  }
+</style>
+</head>
+<body>
+<img class="mark" src="mark.png" alt="">
+<div class="content">
+  <div class="eyebrow fin" style="--at:.3s">Measured on Starknet mainnet · 7 Sep 2026</div>
+  <div class="rows">
+    <div class="row bid in" style="--at:.5s">
+      <div class="label">Bid collateral<b>0.24 STRK</b></div>
+      <div class="track"><div class="bar"></div></div>
+    </div>
+    <div class="row fee in" style="--at:.7s">
+      <div class="label">Pool fee<b>6 STRK</b></div>
+      <div class="track"><div class="bar"><span class="ratio pop" style="--at:3.05s">25×</span></div></div>
+    </div>
+  </div>
+  <p class="line in" style="--at:3.6s">Shield once. <em>Bid many times.</em></p>
+</div>
+<div class="end"><div class="lockup"><img src="mark.png" alt=""><span>Vickrey</span></div></div>
+<script src="clip.js"></script>
+</body>
+</html>

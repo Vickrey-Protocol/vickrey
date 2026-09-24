@@ -23,3 +23,6 @@ hashes.json
 # Private drafts (grant applications and the like). They hold personal details and
 # never belong in the public repo.
 internal/
+
+# Rendered launch clips: large binaries, regenerated from marketing/src and the live site.
+marketing/clips/

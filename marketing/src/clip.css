@@ -1,0 +1,56 @@
+/*
+  Shared frame for the launch clips. Every clip is 6 s and loops on a blank frame:
+    0.0–0.3   blank (the loop seam)
+    0.3–4.9   the one point, in large type, with its motion
+    4.9–5.3   content out, end card in (mark + wordmark)
+    5.6–6.0   end card out, back to blank
+  Colours and type are the live site's light theme (vickrey.0xo.in, read 24 Sep 2026).
+  Wide is 1920×1080; the square layout (1080×1080) switches on aspect ratio.
+*/
+:root {
+  --ink: #0a0a0a; --muted: #737373; --faint: #a3a3a3; --line: #e5e5e5; --line-2: #d4d4d4;
+  --seal: #E2513C; --ember: #F2913F; --bg: #ffffff;
+  --hatch: repeating-linear-gradient(-45deg, rgba(0,0,0,.13) 0 2px, transparent 2px 13px);
+  --ease: cubic-bezier(.2, .7, .2, 1);
+  --pad-x: 120px; --pad-y: 96px; --head: 92px;
+}
+@media (max-aspect-ratio: 5/4) { :root { --pad-x: 72px; --pad-y: 72px; --head: 76px; } }
+
+* { box-sizing: border-box; margin: 0; }
+html, body { width: 100vw; height: 100vh; overflow: hidden; background: var(--bg); color: var(--ink); }
+body {
+  font-family: Geist, ui-sans-serif, system-ui, sans-serif;
+  background-image: radial-gradient(circle, #e7e7e7 1.6px, transparent 1.9px);
+  background-size: 48px 48px; background-position: 24px 24px;
+  -webkit-font-smoothing: antialiased;
+}
+.mono { font-family: "Geist Mono", ui-monospace, monospace; }
+
+/* ── the frame ── */
+.content { position: absolute; inset: 0; padding: var(--pad-y) var(--pad-x);
+  animation: out .4s ease 4.9s both; }
+.mark { position: absolute; top: 56px; left: 64px; width: 52px; height: 52px;
+  animation: fade .4s ease .3s both, out .4s ease 4.9s both; }   /* gone before the end card: one mark, not two */
+.head { font-size: var(--head); font-weight: 600; line-height: 1.02; letter-spacing: -.035em; text-wrap: balance; }
+.eyebrow { font-family: "Geist Mono", monospace; font-size: 20px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--muted); }
+.caption { font-family: "Geist Mono", monospace; font-size: 20px; letter-spacing: .06em; color: var(--muted); }
+
+/* ── end card ── */
+.end { position: absolute; inset: 0; display: grid; place-items: center; opacity: 0;
+  animation: fade .4s ease 4.95s both, out .4s ease 5.6s both; }
+.lockup { display: flex; align-items: center; gap: 36px; }
+.lockup img { width: 136px; height: 136px; }
+.lockup span { font-size: 132px; font-weight: 400; letter-spacing: -.03em; }
+@media (max-aspect-ratio: 5/4) { .lockup img { width: 112px; height: 112px; } .lockup span { font-size: 108px; } }
+
+/* ── motion vocabulary ── */
+.in  { animation: in-up .6s var(--ease) var(--at, 0s) both; }
+.pop { animation: pop .35s var(--ease) var(--at, 0s) both; }
+.fin { animation: fade .5s ease var(--at, 0s) both; }
+@keyframes in-up { from { opacity: 0; transform: translateY(28px); } to { opacity: 1; transform: none; } }
+@keyframes pop   { from { opacity: 0; transform: scale(.4); } to { opacity: 1; transform: none; } }
+@keyframes fade  { from { opacity: 0; } to { opacity: 1; } }
+/* `out` has no `from`: a second animation filling backwards must not force opacity 1
+   before it starts — it takes whatever the animation before it left. */
+@keyframes out   { to { opacity: 0; } }

@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Clip 5 — found, fixed, published</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=block" rel="stylesheet">
+<link rel="stylesheet" href="clip.css">
+<!--
+  The saved-bid entry carries no auction number, index or level on purpose: the bids
+  actually lost on 7 Sep were never restored (the restore came later), so naming one
+  here and showing it come back would be false. The notice text is the app's own
+  (web/components/StaleTabNotice.tsx), as it rendered in the vault-skew test, 24 Sep 2026.
+-->
+<style>
+  .content { display: grid; grid-template-columns: 1fr 820px; align-items: center; gap: 88px; }
+  .left { display: flex; flex-direction: column; gap: 56px; }
+  .fff { display: flex; gap: 22px; font-size: 64px; font-weight: 600; letter-spacing: -.03em; }
+  .fff span:last-child { color: var(--seal); }
+  .panel { background: #fff; border: 1.5px solid var(--line); border-radius: 24px; padding: 34px 36px;
+    display: flex; flex-direction: column; gap: 22px; min-height: 470px; }
+  .notice { border: 1.5px solid var(--line-2); border-radius: 14px; padding: 22px 24px; font-size: 22px; line-height: 1.45;
+    background: #fff; box-shadow: 0 10px 30px -18px rgba(0,0,0,.25); animation: drop .5s var(--ease) 1.95s both; }
+  .notice b { font-weight: 600; }
+  @keyframes drop { from { opacity: 0; transform: translateY(-24px); } to { opacity: 1; transform: none; } }
+  .entry { border: 1.5px solid var(--line-2); border-radius: 14px; padding: 22px 24px; display: flex;
+    justify-content: space-between; align-items: center; background: #fff; }
+  .entry .what { font-size: 28px; font-weight: 600; }
+  .entry .secret { font-family: "Geist Mono", monospace; font-size: 20px; color: var(--muted); margin-top: 6px; }
+  .entry .tag { font-family: "Geist Mono", monospace; font-size: 17px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--seal); border: 1.5px solid var(--seal); border-radius: 999px; padding: 6px 14px; }
+  /* one entry, three states: saved → gone → restored */
+  .slot { position: relative; height: 118px; }
+  .slot .entry { position: absolute; inset: 0; }
+  .saved    { animation: fade .4s ease .7s both, gone .45s ease 1.35s both; }
+  .restored { animation: back .55s var(--ease) 2.55s both; }
+  @keyframes gone { to { opacity: 0; transform: translateX(80px); filter: blur(2px); } }
+  @keyframes back { from { opacity: 0; transform: translateX(-80px); } to { opacity: 1; transform: none; } }
+  .empty { position: absolute; inset: 0; border: 2px dashed var(--line-2); border-radius: 14px; display: grid; place-items: center;
+    font-family: "Geist Mono", monospace; font-size: 19px; color: var(--faint); animation: fade .3s ease 1.6s both, out .2s ease 2.55s both; }
+  @media (max-aspect-ratio: 5/4) {
+    .content { grid-template-columns: 1fr; align-items: start; padding-top: 150px; gap: 40px; }
+    .left { gap: 0; }
+    .fff { position: absolute; left: var(--pad-x); bottom: 76px; font-size: 56px; }
+    .panel { min-height: 0; padding: 28px; }
+    .notice { font-size: 19px; }
+  }
+</style>
+</head>
+<body>
+<img class="mark" src="mark.png" alt="">
+<div class="content">
+  <div class="left">
+    <h1 class="head in" style="--at:.3s">Our app was deleting bidders' secrets</h1>
+    <div class="fff">
+      <span class="in" style="--at:3.4s">Found.</span>
+      <span class="in" style="--at:3.7s">Fixed.</span>
+      <span class="in" style="--at:4.0s">Published.</span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="eyebrow fin" style="--at:.6s">Saved in this browser</div>
+    <div class="notice">
+      <b>Another tab is running an older version of Vickrey and has been deleting saved bids.</b>
+      They were restored here (1 so far).
+    </div>
+    <div class="slot">
+      <div class="empty">deleted by another tab</div>
+      <div class="entry saved">
+        <div><div class="what">Saved bid</div><div class="secret">claim secret ●●●●●●●● · seed ●●●●●●●●</div></div>
+      </div>
+      <div class="entry restored">
+        <div><div class="what">Saved bid</div><div class="secret">claim secret ●●●●●●●● · seed ●●●●●●●●</div></div>
+        <span class="tag">restored</span>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="end"><div class="lockup"><img src="mark.png" alt=""><span>Vickrey</span></div></div>
+<script src="clip.js"></script>
+</body>
+</html>
