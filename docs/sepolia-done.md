@@ -249,6 +249,53 @@ not by pretending otherwise. Mitigations then:
 
 ---
 
+## 9. Private rail blocked on Sepolia — 23–24 Sep 2026
+
+**Status: blocked. Cause not established.** Private-rail testing on Sepolia stops until the
+wallets can shield again. The Sepolia run finishes on the **public rail**, which is what
+still needs a human in a browser: create through `/app/create`, seal, settle, finalize,
+claim, and the seed surviving in the vault. The private rail is proven on **mainnet**, where
+it ran on 7 Sep.
+
+**Observed.** Both wallets fail to shield on Sepolia with the same "submitted but couldn't
+be confirmed" message, and Xverse also fails a private bid. Pool reads pass in both. Nothing
+reached the chain: the Xverse account `0x0009e159…52a3` is still at nonce 2 and 1976.5434
+public STRK, with no reverted transaction.
+
+| | Sepolia | Mainnet |
+|---|---|---|
+| pool `get_version` | **3288625** | **3288624** |
+| pool class | `0x6d163f2b27df…` | `0x67dddd89d80f…` |
+| class last changed | **10 Sep 12:23:18 UTC**, tx `0xfcc043fae32a543bfa8ac1207315b503256281f6b5e6bf6cbc268b61e20099` (from `0x7e2bbd7ccc1e…`) | 9 Jul 10:00:52 UTC |
+| writes since | 88 shields; the last on **22 Sep 11:15** | 33/33 recent tx succeeded (23 Sep) |
+
+**The upgrade is not shown to be the cause, and the evidence leans against it:**
+
+- The pool ABI is **identical** before and after the 10 Sep upgrade: `compile_actions`,
+  `ClientAction`, `WithdrawInput`, `InvokeExternalInput`, `CreateOpenNoteInput`, fees.
+- The upgraded pool took **88 shields** between 10 and 22 Sep, and did **two private
+  spends on 23 Sep at 08:29 and 10:29 UTC**, while both wallets were failing
+  (`0x3b667e3c6d0fb71cf781aaa95fcc0689620a6f9b0341ca4a3aae5c33a8edbb3`,
+  `0x50864256bdaa58601d4e96721cac5ddfb83cd6fc066c53b63ad3e78480c7292`).
+- Our encoding still reaches `NEGATIVE_INTERMEDIATE_BALANCE` against 3288625 in
+  `compile_actions`, with every shape control still failing on shape.
+- The relayer that carried our working 31 Aug bid is funded (1696 STRK) and made two pool
+  writes after the upgrade, the last on 15 Sep.
+
+Two wallets failing at the same step before anything reaches the chain points to
+something they **share off-chain** — a proving or relay service — more than to the pool
+contract. That is unverified. Xverse's move from wallet API 0.10.3 to 0.10.4 is a
+candidate for Xverse alone, not for Ready X.
+
+**Mainnet is unaffected as far as can be measured:** 3288624, class unchanged since 9 Jul,
+and a private-bid dry-run against it reaches `NEGATIVE_INTERMEDIATE_BALANCE` (23 Sep, 16:50 UTC).
+No mainnet shield or private bid has been attempted since 7 Sep, so that is a shape check,
+not a live one.
+
+**Version numbers do not identify pool code across networks.** Mainnet and pre-upgrade
+Sepolia both reported 3288624 with different ABIs (open-note screening). Compare class
+hashes; `scripts/pool-status.mjs` now prints both.
+
 ## Expected freeze date
 
 **Thursday 27 August.** I expect Wednesday 26; Thursday is the date I will commit to,
