@@ -104,8 +104,19 @@ if (!isDeployed) {
 
 const fee = BigInt((await call("get_fee_amount"))[0]);
 const paused = BigInt((await call("is_paused"))[0]);
+/*
+  Version AND class hash, both. An earlier "the pool is unchanged" compared address, fee
+  and paused — and missed a Sepolia upgrade on 10 Sep 2026 (3288624 → 3288625) entirely.
+  The version number alone is not an identity either: mainnet and pre-upgrade Sepolia both
+  answered 3288624 while running different code (their ABIs differ in open-note
+  screening). The class hash is what actually says which code is behind the address.
+*/
+const version = BigInt((await call("get_version"))[0]);
+const poolClass = await p.getClassHashAt(cfg.pool);
 console.log(`  pool fee        ${strk(fee)} STRK per operation`);
 console.log(`  pool paused     ${paused ? "YES — nothing will work" : "no"}`);
+console.log(`  pool version    ${version}`);
+console.log(`  pool class      ${poolClass}`);
 
 /* The registration question. Zero means the pool has never seen this address, which is
    precisely what NOT_REGISTERED reports. */
