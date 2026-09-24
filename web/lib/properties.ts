@@ -45,8 +45,8 @@ export const PROPERTIES: Property[] = [
     how: "The contract verifies N+1 hash-preimage witnesses: the winner at or above the clearing level, the runner-up exactly at it, everyone else at or below. A false outcome cannot produce them.",
   },
   {
-    n: 6, title: "Refusing to reveal cannot grief the auction",
+    n: 6, title: "A silent bidder is settled around, not waited for",
     hard: "In commit-reveal, a bidder who dislikes the result simply never reveals — and in a second-price auction one silent bidder moves the price the winner pays.",
-    how: "Settlement needs no cooperation from a bidder who stays silent: their bid is marked forfeited and the auction completes without them. Silence costs that bidder a delay rather than their escrow — they redeem it themselves afterwards with a late loser-side proof.",
+    how: "Settlement needs no cooperation from a bidder who stays silent: their bid is marked forfeited and the auction completes without them. What they get back depends on where the bid sat — at or below the clearing price, they redeem the escrow afterwards with a late loser-side proof built from their seed; above it, redeem_forfeit cannot return it.",
   },
 ];
