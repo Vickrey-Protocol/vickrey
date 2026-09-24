@@ -20,11 +20,10 @@ could open it. The losing bids are never published — not on chain, not in the 
 anywhere except the bidders' own devices. Neither is the winner's.
 
 > [!WARNING]
-> **Do not place a bid expecting to settle it.** As of 7 Sep 2026 the claim secret a
-> bid generates does not reliably persist in the browser, so an auction you bid in
-> **cannot currently be settled**. The bid transaction itself succeeds and your escrow
-> stays recoverable — but only if you save the secret the app shows you at the moment
-> it is shown. The cause is not yet known.
+> **Settlement has not yet run end to end on mainnet.** The bids placed on 7 Sep lost
+> the seed that settlement needs, so those auctions can never settle. The cause has been
+> found, and the browser store now refuses to drop a bid without proof from the chain. A full seal → settle → finalize → claim with a human in the browser has not
+> yet been done on mainnet. Save the claim secret the app shows you when it shows it.
 > [Full disclosure below](#disclosure--7-sep-2026-the-claim-secret-does-not-reliably-persist).
 
 **To try it: connect a wallet, pick a level, sign.** That is the public rail and it
@@ -32,8 +31,8 @@ needs no shielded balance and no set-up. Your bid is sealed either way — the p
 rail additionally hides your address, and costs a pool fee and a shield you make inside
 your own wallet. [Both rails, and which one you want](#two-rails-and-which-one-you-will-actually-use).
 
-**Submissions close 7 Sep 2026, 23:59 UTC.** Whatever this repository shows at that
-moment is the entry — there is no separate submission step.
+Built for the Starknet Private Sprint (RFP-08). Submissions closed 7 Sep 2026, 23:59 UTC;
+work has continued in this repository since.
 
 ## Trust statement
 
@@ -51,26 +50,25 @@ The long form, including everything this does *not* protect against, is in
 
 ## Status — read this before believing anything above
 
-**Nothing is on mainnet yet, and mainnet is the deliverable.** There is a full Sepolia
-rehearsal — contracts deployed and a complete ten-transaction auction run, see
-[docs/deployments.md](docs/deployments.md) — and the site is hosted at
-**https://vickrey.0xo.in**, currently pointed at that rehearsal. The mainnet
-fields in [strk20.json](strk20.json) stay empty until they are real.
+**Live on Starknet mainnet since 7 Sep 2026.** Both contracts are deployed from the
+frozen build, and three private-rail bids have gone through the STRK20 pool into them.
+**Settlement has not yet run on mainnet**, and neither contract has been audited. The site at
+**https://vickrey.0xo.in** points at mainnet.
 
 Mainnet cost is measured rather than estimated: [docs/mainnet.md](docs/mainnet.md).
 
 | Piece | State |
 |---|---|
-| Auction contract | Written, 51 tests passing, **not deployed, not audited** |
-| Anonymizer helper | Written, 7 tests passing, **not deployed, not audited** |
-| Client library | Written, 32 tests passing, hash-conformant with Cairo, action shapes type-checked against the wallet's own types |
+| Auction contract | **Deployed on mainnet** `0x02d893ac…6831`. 71 tests passing. **Not audited** |
+| Anonymizer helper | **Deployed on mainnet** `0x04628cab…64ff`. 9 tests passing. **Not audited** |
+| Client library | 59 tests passing, hash-conformant with Cairo, action shapes type-checked against the wallet's own types |
 | Web app | Reads and writes the contracts. **Design under review — the current UI is a working prototype, not the shipped design** |
-| Sepolia rehearsal | **Done.** Contracts deployed, one complete auction, 10 transactions |
-| Hosted demo | **Done**, pointed at Sepolia. Mainnet is three env vars away |
-| Mainnet deployment | Not done — needs ~40 STRK, itemised in [docs/mainnet.md](docs/mainnet.md) |
-| Mainnet run with ≥5 bidders | Not done |
-| A wallet-signed bid through the pool | Not done — the one step needing a human |
-| Demo video | Not made |
+| Private-rail bids through the pool | **Done on mainnet**: three bids into auction #1 on 7 Sep, from a browser wallet |
+| Sepolia lifecycles | **Done**, driven by scripts: create, bid, seal, settle, finalize, claim, including a 6-decimal token |
+| Settlement on mainnet | **Not done.** The 7 Sep auctions can never settle — their seeds were destroyed ([disclosure](#disclosure--7-sep-2026-the-claim-secret-does-not-reliably-persist)). A fresh auction needs a full run with a human in the browser |
+| Full lifecycle by a human in the browser | **Not done** on either network. In progress on Sepolia on the public rail |
+| Private rail on Sepolia | **Blocked since 23 Sep**: Xverse and Ready X both fail to shield there. The mainnet pool is unchanged. See [docs/sepolia-done.md §9](docs/sepolia-done.md) |
+| Demo video | [Done](https://www.youtube.com/watch?v=VngKo7Ud1r0) |
 | Visual direction | Second pass under review — the shipped UI is the previous direction |
 
 Two dependency advisories are open and deliberately not chased: `postcss` and `sharp`
@@ -112,7 +110,7 @@ for mainnet, which is why it is read and never hardcoded.
 
 ### Done on mainnet, 7 Sep 2026
 
-- **A browser wallet assembled, proved and submitted three of these.** Auction #2,
+- **A browser wallet assembled, proved and submitted three of these.** Auction #1,
   three private-rail bids, each verified against the §6c predicate:
   `0x57ba561f…`, `0x3b113126…`, `0x58742bf9…`.
 - The helper has run. It is deployed at `0x04628cab…` and each of those three

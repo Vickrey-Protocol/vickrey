@@ -19,3 +19,7 @@ deployments.*.json
 # sealed. hashes.json is scratch; the runs worth keeping are copied into docs/.
 bids.json
 hashes.json
+
+# Private drafts (grant applications and the like). They hold personal details and
+# never belong in the public repo.
+internal/
