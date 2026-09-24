@@ -49,10 +49,10 @@ const QA: Array<{ q: string; a: React.ReactNode }> = [
     q: "What happens if a bidder goes silent?",
     a: (
       <>
-        Settlement still completes. A bid nobody can prove is marked forfeit and left out
-        of the ranking, and its escrow stays claimable by its owner whenever they come
-        back. If leaving it out changed the outcome, that bidder can prove so during the
-        dispute window and void the settlement.
+        Settlement still completes: a silent bidder is settled around, not waited for. A
+        bid nobody can prove is marked forfeit and left out of the ranking. If it was at or
+        below the clearing price, its owner can reclaim the escrow after the auction
+        finalizes; above it, the escrow cannot be redeemed.
       </>
     ),
   },

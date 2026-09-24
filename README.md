@@ -286,8 +286,8 @@ true at the next auction. A bidder who dislikes the result can also simply withh
 reveal, which in a second-price auction changes what the winner pays.
 
 Here the auction ends and one number is published: the clearing price, because it *is*
-the price. Every other bid is still two hashes, the winner's included. Silence forfeits
-collateral and settlement proceeds without it.
+the price. Every other bid is still two hashes, the winner's included. A silent bidder is
+settled around, not waited for.
 
 One corollary, stated because it cuts against us if left unsaid. In commit–reveal the
 question *"can the auctioneer exclude a rival's bid?"* largely dissolves — by settlement
@@ -529,19 +529,20 @@ secret" at once. The winner pays the clearing price out of it and the surplus re
 as a private note; losers refund in full, privately. The cost is capital efficiency —
 you lock the cap, not your bid — and that is an honest trade, not a hidden one.
 
-### Nobody can be griefed, and nobody can be excluded
+### A silent bidder is settled around, not waited for
 
 Bidders transmit their seed to the auctioneer **only after observing the `Sealed`
 event**. The auctioneer cannot decrypt early because it has not been sent anything.
 
 A bidder who then goes quiet leaves a bid the auctioneer cannot disposition, so it is
-marked `Forfeit`: excluded from the ranking, escrow retained but **redeemable by its
-owner forever** with a loser-side proof they can generate whenever they come back.
-Settlement always completes.
+marked `Forfeit` and excluded from the ranking. Settlement always completes. What the
+bidder gets back depends on where their bid sat: **at or below the clearing price**,
+`redeem_forfeit` returns the escrow after finalization, from a loser-side proof built
+from the bid's seed; **above it**, `redeem_forfeit` cannot return it.
 
 That mechanism could be abused to exclude an honest high bid, so settlement moves no
-money. It opens a **dispute window**. A forfeited bidder who proves `ℓ ≥ ℓ*+1` voids
-the settlement and takes the auctioneer's bond. `finalize` releases funds only after
+money. It opens a **dispute window**. A bidder who proves `ℓ ≥ ℓ*+1` voids the
+settlement and takes the auctioneer's bond. `finalize` releases funds only after
 the window closes clean.
 
 > **What the bond covers, and a correction.** The bond answers for a dishonest

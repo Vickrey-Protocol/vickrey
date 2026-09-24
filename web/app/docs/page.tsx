@@ -108,9 +108,9 @@ export default function Page() {
               silent bidder changes what the winner pays.
             </p>
             <p className="lede">
-              <b>Vickrey never opens a bid.</b> Collateral is escrowed up front, so silence
-              costs money, and the winner and the price are proved with hash chains instead
-              of disclosure. The losing bids are not withheld — they are never on the chain
+              <b>Vickrey never opens a bid.</b> Collateral is escrowed up front, and a silent
+              bidder is settled around, not waited for. The winner and the price are proved
+              with hash chains instead of disclosure. The losing bids are not withheld — they are never on the chain
               at all.
             </p>
 
@@ -141,8 +141,8 @@ export default function Page() {
                   <li>One number is published: the clearing price, because it is the price</li>
                   <li>Every other bid is still two hashes — including the winner&rsquo;s
                     own</li>
-                  <li>Silence marks a bid forfeited and settlement proceeds regardless
-                    &mdash; that escrow is redeemable later, not lost</li>
+                  <li>Silence marks a bid forfeited and settlement proceeds without it.
+                    What the bidder gets back depends on where the bid sat</li>
                 </ul>
               </div>
             </div>
@@ -281,22 +281,23 @@ down_anchor = step^(P−1−ℓ)    a depth-(P−1−t) preimage proves  ℓ ≤
               does not reveal how much was unspent.
             </p>
 
-            <h3>Staying silent cannot grief the auction</h3>
+            <h3>A silent bidder is settled around, not waited for</h3>
             <p>
               In commit–reveal, a bidder who dislikes the result simply never reveals. In a
               second-price auction that is not a small problem: the runner-up going quiet
               changes what the winner pays. So non-reveal is an attack, and it is free.
             </p>
             <p>
-              Here it costs the collateral. A bidder who never sends their seed is marked
-              <b> forfeited</b> — the auctioneer proves it with the loser-side witness — and
+              Here a bidder who never sends their seed is marked <b>forfeited</b> and
               settlement proceeds without them. The auction does not wait, does not stall,
-              and does not need their cooperation. Their escrow is not returned.
+              and does not need their cooperation.
             </p>
             <p className="note">
-              A bidder who forfeited but was genuinely above the clearing price can still
-              redeem later by presenting the proof they withheld — so the penalty falls on
-              obstruction, not on a lost connection.
+              What the bidder gets back depends on where their bid sat. <b>At or below the
+              clearing price</b>, they can build the loser-side proof from their seed after the
+              auction finalizes, and <code>redeem_forfeit</code> returns the escrow in full:
+              going quiet cost them a delay. <b>Above the clearing price</b>,{" "}
+              <code>redeem_forfeit</code> cannot return it.
             </p>
 
             <h3>Forfeited escrow stays in the contract, deliberately</h3>
@@ -321,12 +322,11 @@ down_anchor = step^(P−1−ℓ)    a depth-(P−1−t) preimage proves  ℓ ≤
             </p>
             <p>
               Stranding it removes the incentive completely: a forfeit pays nobody, so
-              there is nothing to gain by declaring one. The bidder who is actually harmed
-              — someone honest who went offline — is not the one stranded, because they
-              can produce the loser-side proof late and{" "}
-              <code>redeem_forfeit</code> returns their escrow in full. What is stranded
-              is only the escrow of a bid that was malformed on purpose, by the person who
-              malformed it.
+              there is nothing to gain by declaring one. Someone honest who went offline
+              with a bid at or below the clearing price is not stranded: they can produce
+              the loser-side proof late, and <code>redeem_forfeit</code> returns their
+              escrow in full. Which escrow does stay in the contract is set out under the
+              lot question below.
             </p>
             <p className="note">
               Four end-to-end tests cover this, and a conservation test asserts the
@@ -464,8 +464,8 @@ down_anchor = step^(P−1−ℓ)    a depth-(P−1−t) preimage proves  ℓ ≤
             <p>
               Two escrow cases end the same way: a bid whose anchors match no rung, which
               can never produce the witness <code>redeem_forfeit</code> requires; and a bid
-              that was forfeited while sitting <i>above</i> the clearing level, whose only
-              remedy was <code>dispute</code> and whose window has closed.
+              that was forfeited while sitting <i>above</i> the clearing level, which{" "}
+              <code>redeem_forfeit</code> cannot return once the auction is finalized.
             </p>
             <p className="note">
               One near-miss worth naming rather than hiding: an auction left <b>Open</b>{" "}
@@ -699,7 +699,9 @@ down_anchor = step^(P−1−ℓ)    a depth-(P−1−t) preimage proves  ℓ ≤
                 <span className="note"> Ends at the bid deadline.</span></li>
               <li><b>Sealed</b> — the set is frozen and stamped from the block. Bidders now
                 send seeds to the auctioneer.
-                <span className="note"> A seed not sent costs a delay, not the escrow.</span></li>
+                <span className="note"> A seed not sent marks the bid forfeited: at or below
+                the clearing price that costs a delay; above it, <code>redeem_forfeit</code>{" "}
+                cannot return the escrow.</span></li>
               <li><b>Settled</b> — the outcome is proved on-chain from N+1 witnesses.
                 <span className="note"> The dispute window opens here — the only time a
                 wrong outcome can be challenged.</span></li>
