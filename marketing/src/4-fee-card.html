@@ -12,6 +12,8 @@
     pool fee    6 STRK per operation, read live from get_fee_amount
     collateral  0.24 STRK per bid, uniform
     ratio       6 / 0.24 = 25×
+  The closing line says the fee is per operation: "shield once, bid many times" read as if
+  batching fixed the 25x, and it does not — every private bid still pays its own 6 STRK.
   The fee bar grows from zero rather than from the collateral's length: starting level
   would say, for a moment, that 6 STRK is the same as 0.24. No number counts through a
   value nobody measured.
@@ -55,7 +57,7 @@
       <div class="track"><div class="bar"><span class="ratio pop" style="--at:3.05s">25×</span></div></div>
     </div>
   </div>
-  <p class="line in" style="--at:3.6s">Shield once. <em>Bid many times.</em></p>
+  <p class="line in" style="--at:3.6s">Every private step costs 6 STRK. <em>Batch them.</em></p>
 </div>
 <div class="end"><div class="lockup"><img src="mark.png" alt=""><span>Vickrey</span></div></div>
 <script src="clip.js"></script>
