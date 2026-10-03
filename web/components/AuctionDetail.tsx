@@ -2,7 +2,9 @@
 
 
 import { AuctionKind, Status, type PublicBid } from "@vickrey/client";
-import type { AuctionView } from "@/lib/chain";
+import { readLotCollection, type AuctionView } from "@/lib/chain";
+import { lotLabel, type LotRail } from "@/lib/lotRail";
+import { useEffect, useState } from "react";
 import { countdown, formatUnits, kindLabel, priceAt, utcDate } from "@/lib/config";
 import type { StoredBid } from "@/lib/vault";
 import type { Connection } from "@/lib/wallet";
@@ -47,6 +49,19 @@ export function AuctionDetail({
      level the proofs pinned, and the ladder turns that into a figure. */
   const clearingPrice = settled ? priceAt(auction.terms, auction.clearingLevel) : null;
   const hasActions = Boolean(connection);
+
+  /* How the lot actually left: the pool or a public address. Read from the chain, never
+     assumed — the card used to say "privately" whichever rail was used. */
+  const [lotHow, setLotHow] = useState<LotRail | null | undefined>(undefined);
+  const lotClaimed = resolved && auction.lotClaimed;
+  useEffect(() => {
+    if (!lotClaimed) return;
+    let live = true;
+    readLotCollection(auction.terms.auctionId)
+      .then((r) => { if (live) setLotHow(r); })
+      .catch(() => { if (live) setLotHow(null); });
+    return () => { live = false; };
+  }, [lotClaimed, auction.terms.auctionId]);
 
   return (
     <>
@@ -116,7 +131,7 @@ export function AuctionDetail({
             <div className="fact"><dt>The other {Math.max(auction.bidCount - 1, 0)}</dt>
               <dd className="undisclosed">never disclosed</dd></div>
             <div className="fact"><dt>Lot</dt>
-              <dd>{auction.lotClaimed ? "collected privately" : "awaiting collection"}</dd></div>
+              <dd>{lotLabel(auction.lotClaimed, lotHow)}</dd></div>
           </dl>
           <p className="note" style={{ marginTop: ".9rem" }}>
             There is nothing left to open. In a{" "}

@@ -698,6 +698,13 @@ export function DisputePanel({
 export const isForfeit = (st: BidState, status: Status) =>
   status === Status.Finalized && st.disposition === Disposition.Forfeit;
 
+/**
+ * A forfeited bid on a finalized auction can be redeemed only by proving it sat at or
+ * below the clearing price. Above it there is no such proof, so no call will succeed.
+ */
+export const unredeemable = (st: BidState, status: Status, level: number, clearingLevel: number) =>
+  isForfeit(st, status) && level > clearingLevel;
+
 export const collectOp = (st: BidState, status: Status): ClaimOperation =>
   isForfeit(st, status) ? AuctionOperation.RedeemForfeit : AuctionOperation.ClaimRefund;
 
@@ -977,6 +984,13 @@ export function ClaimPanel({
                 </div>
               ) : st.claimed ? (
                 <span className="note">Already collected.</span>
+              ) : unredeemable(st, auction.status, b.level, auction.clearingLevel) ? (
+                /* `redeem_forfeit` needs a proof the bid was at or below the clearing
+                   price. Above it there is none to give, so the button could only ever
+                   revert — on the screen where a revert reads as "the money is gone". */
+                <span className="note">
+                  Forfeited above the clearing price — this escrow cannot be redeemed.
+                </span>
               ) : (
                 <button className="primary"
                         onClick={() => run(collectOp(st, auction.status), b)}>
@@ -990,8 +1004,9 @@ export function ClaimPanel({
       {Object.values(state).some((s) => s?.disposition === Disposition.Forfeit) && (
         <p className="note" style={{ marginTop: ".8rem" }}>
           A bid marked <b>forfeited</b> is one the auctioneer settled without a seed from
-          you. Redeeming serves the loser-side proof yourself and returns the escrow in
-          full — late, not lost.
+          you. If it was at or below the clearing price, redeeming serves the loser-side
+          proof yourself and returns the escrow in full. If it was above, there is no
+          proof to serve, and the escrow stays in the contract.
         </p>
       )}
       {msg && <p className="ok mono">{msg}</p>}

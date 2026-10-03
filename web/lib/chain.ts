@@ -3,7 +3,7 @@
  * is configuration, not live state, so the server renders it into the HTML and the
  * instrument is on screen before any client fetch happens.
  */
-import { byteArray, RpcProvider, shortString } from "starknet";
+import { byteArray, hash, num, RpcProvider, shortString } from "starknet";
 import {
   type AuctionKind,
   type AuctionTerms,
@@ -14,6 +14,7 @@ import {
   type Status,
 } from "@vickrey/client";
 import { config } from "./config";
+import { lotRail, type LotRail } from "./lotRail";
 
 export const provider = () => new RpcProvider({ nodeUrl: config.rpcUrl });
 
@@ -332,3 +333,40 @@ export const fromWire = (w: WireAuction): AuctionView => ({
   bidRoot: BigInt(w.bidRoot),
   poolFee: w.poolFee === null ? null : BigInt(w.poolFee),
 });
+
+/**
+ * How the lot of a finished auction was collected: through the pool or to a public
+ * address. Found from the `LotClaimed` event's own transaction (see `lib/lotRail.ts`).
+ *
+ * The search starts at the seal block, which `get_state` records — a lot cannot be
+ * claimed before the auction is sealed — so it is a page or two, not the whole chain.
+ * Returns null when it cannot tell; the caller then says "collected" and nothing more.
+ */
+export async function readLotCollection(id: bigint): Promise<LotRail | null> {
+  if (!config.anonymizerAddress) return null;
+  const p = provider();
+  const st = await p.callContract({
+    contractAddress: config.auctionAddress, entrypoint: "get_state", calldata: [id.toString()],
+  });
+  const sealedAtBlock = Number(n(st[3]!));
+  let token: string | undefined;
+  for (let page = 0; page < 40; page++) {
+    const r = await p.getEvents({
+      address: config.auctionAddress,
+      keys: [[hash.getSelectorFromName("LotClaimed")], [num.toHex(id)]],
+      from_block: { block_number: sealedAtBlock },
+      to_block: "latest",
+      chunk_size: 100,
+      continuation_token: token,
+    });
+    const ev = r.events[0];
+    if (ev) {
+      const rcpt = await p.getTransactionReceipt(ev.transaction_hash);
+      const events = (rcpt as { events?: Array<{ from_address: string }> }).events ?? [];
+      return lotRail(events, config.anonymizerAddress);
+    }
+    token = r.continuation_token;
+    if (!token) return null;
+  }
+  return null;
+}

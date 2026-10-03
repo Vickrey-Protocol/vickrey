@@ -38,12 +38,13 @@ work has continued in this repository since.
 
 > **What is assured:** the winner and the clearing price are established by
 > hash-preimage proofs verified on-chain over a bid set the contract froze before any
-> bid could be opened, so the auctioneer cannot alter the outcome, exclude a bid, or
-> misreport the price without failing a proof or being slashed in the dispute window.
-> **What is not:** after sealing, the auctioneer learns every bid amount — it can
-> never publish them, prove a false outcome, or spend anyone's funds, but it knows
-> them; and the number of bids, their timing, and the uniform escrow amount are public
-> on-chain.
+> bid could be opened, so the auctioneer cannot misplace any bid it settles, or
+> misreport the price those bids set, without failing a proof. **What is not:** after
+> sealing, the auctioneer learns every bid amount — it can never publish them or spend
+> anyone's funds, but it knows them; it can settle without a bid by recording it as
+> forfeited, and on the current contracts the dispute window does not reliably
+> penalise that; and the number of bids, their timing, and the uniform escrow amount
+> are public on-chain.
 
 The long form, including everything this does *not* protect against, is in
 [TRUST.md](TRUST.md).
