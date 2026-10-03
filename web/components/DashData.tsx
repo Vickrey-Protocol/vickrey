@@ -156,7 +156,8 @@ export function useDashData(): DashData {
 
      Only for finished auctions this browser holds bids in, so it is a handful of reads. */
   useEffect(() => {
-    const done: Status[] = [Status.Finalized, Status.Cancelled];
+    /* Settled too: whether a dispute is offered depends on the bid's disposition. */
+    const done: Status[] = [Status.Settled, Status.Finalized, Status.Cancelled];
     const wanted = mine.filter((b) =>
       auctions.some((a) => a.terms.auctionId === BigInt(b.auctionId) && done.includes(a.status)));
     /* Nothing to fetch is an answer, not a pending state — otherwise the queue would

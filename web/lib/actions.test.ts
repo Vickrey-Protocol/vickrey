@@ -129,10 +129,16 @@ describe("nothing is offered before the chain will accept it", () => {
   });
 
   it("withdraws dispute once the window has closed, though the status has not moved", () => {
-    const settled = auction({ status: Status.Settled, disputeDeadline: SEALED_AT + 100 });
-    expect(kinds(settled, SEALED_AT)).toContain("dispute");
+    /* A bid the settlement left out: forfeited, above the price, not the winner. */
+    const settled = auction({
+      status: Status.Settled, disputeDeadline: SEALED_AT + 100, winnerIndex: 7,
+    });
+    const forfeit = new Map([["1:0", { index: 0, escrow: 10n, disposition: 4, claimed: false }]]);
+    const k = (now: number) =>
+      actionsFor([settled], [myBid()], ME, now, forfeit as never).map((x) => x.kind);
+    expect(k(SEALED_AT)).toContain("dispute");
     // Still `Settled` — nobody has finalized — but the call would now revert.
-    expect(kinds(settled, SEALED_AT + 100)).not.toContain("dispute");
+    expect(k(SEALED_AT + 100)).not.toContain("dispute");
   });
 
   it("gives the auctioneer's settle the deadline that abandon enforces", () => {
@@ -194,33 +200,73 @@ describe("permissionless steps are offered to whoever can take them", () => {
   });
 });
 
-describe("the winner is told about the surplus, not only the lot", () => {
-  /* `claim-refund` was guarded by `!won`, so a winner got "Claim your lot" and nothing
-     else. `finalize` has already taken the clearing price out of their escrow, so the
-     remainder is theirs and was sitting in the contract unmentioned — the exact failure
-     of a screen that reads as finished when it is half done. */
-  const finalized = () => auction({ status: Status.Finalized, winnerIndex: 0, lotClaimed: true });
+describe("the winner collects the lot and the surplus as one task", () => {
+  /* Both halves are released by one claim secret, which travels in calldata, so the
+     first of two separate claims published the key to the second. One task, one
+     transaction — and if half is already gone, the rest is urgent. */
   const key = "1:0";
+  const winner = (lotClaimed: boolean) =>
+    auction({ status: Status.Finalized, winnerIndex: 0, lotClaimed });
+  const state = (claimed: boolean) =>
+    new Map([[key, { index: 0, escrow: claimed ? 0n : 5n, disposition: 3, claimed }]]);
+  const run = (lotClaimed: boolean, claimed: boolean) =>
+    actionsFor([winner(lotClaimed)], [myBid()], ME, SEALED_AT, state(claimed) as never);
 
-  it("offers the surplus once the chain says it is unclaimed", () => {
-    const states = new Map([[key, { index: 0, escrow: 5n, disposition: 3, claimed: false }]]);
-    const kinds = actionsFor([finalized()], [myBid()], ME, SEALED_AT, states as never)
-      .map((x) => x.kind);
-    expect(kinds).toContain("claim-refund");
+  it("offers a single collection while both halves remain", () => {
+    const all = run(false, false);
+    expect(all.filter((x) => x.kind === "claim-lot" || x.kind === "claim-refund"))
+      .toHaveLength(1);
+    expect(all.find((x) => x.kind === "claim-lot")!.detail).toMatch(/one transaction/i);
   });
 
-  it("withdraws it once collected, rather than offering a call that would revert", () => {
-    const states = new Map([[key, { index: 0, escrow: 0n, disposition: 3, claimed: true }]]);
-    const kinds = actionsFor([finalized()], [myBid()], ME, SEALED_AT, states as never)
-      .map((x) => x.kind);
-    expect(kinds).not.toContain("claim-refund");
+  it("never offers the surplus as a claim of its own", () => {
+    expect(run(false, false).map((x) => x.kind)).not.toContain("claim-refund");
+    expect(run(true, false).map((x) => x.kind)).not.toContain("claim-refund");
   });
 
-  it("says the lot does not collect it", () => {
-    const states = new Map([[key, { index: 0, escrow: 5n, disposition: 3, claimed: false }]]);
-    const a = actionsFor([finalized()], [myBid()], ME, SEALED_AT, states as never)
-      .find((x) => x.kind === "claim-refund")!;
-    expect(a.consequence).toMatch(/claiming the lot does not collect this/i);
+  it("marks the remaining half urgent once one half has gone", () => {
+    for (const [lot, refund] of [[true, false], [false, true]] as const) {
+      const a = run(lot, refund).find((x) => x.kind === "claim-lot")!;
+      expect(a.title).toMatch(/rest now/i);
+      expect(a.blocking).toBe(true);
+      expect(a.consequence).toMatch(/anyone/i);
+    }
+  });
+
+  it("offers nothing once both are collected", () => {
+    expect(run(true, true).map((x) => x.kind)).not.toContain("claim-lot");
+  });
+});
+
+describe("dispute is offered only for a bid the settlement left out", () => {
+  const settled = (over: Partial<AuctionView> = {}) => auction({
+    status: Status.Settled, disputeDeadline: SEALED_AT + 100, clearingLevel: 1,
+    winnerIndex: 7, ...over,
+  });
+  const states = (disposition: number) =>
+    new Map([["1:0", { index: 0, escrow: 10n, disposition, claimed: false }]]);
+  const offered = (a: AuctionView, b: StoredBid, st: Map<string, unknown>) =>
+    actionsFor([a], [b], ME, SEALED_AT, st as never).some((x) => x.kind === "dispute");
+
+  it("offers it for a forfeited bid above the clearing price", () => {
+    expect(offered(settled(), myBid({ level: 3 }), states(4))).toBe(true);
+  });
+
+  it("never offers it to the winner, though the winner sits above the price", () => {
+    expect(offered(settled({ winnerIndex: 0 }), myBid({ level: 3 }), states(1))).toBe(false);
+    expect(offered(settled({ winnerIndex: 0 }), myBid({ level: 3 }), states(4))).toBe(false);
+  });
+
+  it("never offers it at or below the clearing price", () => {
+    expect(offered(settled({ clearingLevel: 3 }), myBid({ level: 3 }), states(4))).toBe(false);
+  });
+
+  it("never offers it for a bid the settlement accounted for", () => {
+    for (const d of [1, 2, 3]) expect(offered(settled(), myBid({ level: 3 }), states(d))).toBe(false);
+  });
+
+  it("does not offer it while the disposition is unread", () => {
+    expect(offered(settled(), myBid({ level: 3 }), new Map())).toBe(false);
   });
 });
 

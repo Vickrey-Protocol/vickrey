@@ -23,6 +23,9 @@ import {
   vaultWritable, type StoredBid,
 } from "@/lib/vault";
 import { railUsable, submitBlocked } from "@/lib/rails";
+import { canDispute, unreadCandidates } from "@/lib/dispute";
+import { receiptOutcome, shortRevert } from "@/lib/receipt";
+import { halfCollected, winnerCollectCalls } from "@/lib/winner";
 import type { Connection } from "@/lib/wallet";
 import { Ladder } from "./Ladder";
 import { useWallet } from "@/components/WalletProvider";
@@ -89,7 +92,9 @@ export function BidPanel({
   const [rail, setRail] = useState<Rail>("public");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [placed, setPlaced] = useState<StoredBid | null>(null);
+  /* `confirmed` is false when the receipt could not be read: the secret is shown either
+     way, because the bid may have landed, but the screen must not claim it did. */
+  const [placed, setPlaced] = useState<(StoredBid & { confirmed: boolean }) | null>(null);
   const [ack, setAck] = useState(false);
   /*
     Asked once, on mount, rather than at submit: a bidder who cannot store a secret should
@@ -170,20 +175,41 @@ export function BidPanel({
         pass on the dashboard corrects it later — so it never blocks showing the secret.
       */
       let index = guessed;
+      let confirmed = false;
+      let reverted: string | null = null;
+      setBusy("Waiting for the transaction to land…");
       try {
         const rcpt = await provider().waitForTransaction(transaction_hash);
-        const events = (rcpt as { events?: Array<{ from_address: string; keys: string[]; data: string[] }> }).events ?? [];
-        const mine = events.find((ev) =>
-          BigInt(ev.from_address) === BigInt(config.auctionAddress)
-          && ev.data?.[0] !== undefined
-          && BigInt(ev.data[0]) === bid.claimCommitment);
-        if (mine?.keys?.[2] !== undefined) {
-          index = Number(BigInt(mine.keys[2]));
-          reindexBid(auction.terms.auctionId, guessed, index);
+        /* Inclusion is not success. A REVERTED transaction resolves here too, and it
+           placed nothing — reading "resolved" as "placed" showed the secret screen for
+           a bid that never reached the auction. */
+        const outcome = receiptOutcome(rcpt);
+        if (outcome.kind === "reverted") {
+          reverted = outcome.reason;
+        } else if (outcome.kind === "succeeded") {
+          confirmed = true;
+          const events = (rcpt as { events?: Array<{ from_address: string; keys: string[]; data: string[] }> }).events ?? [];
+          const mine = events.find((ev) =>
+            BigInt(ev.from_address) === BigInt(config.auctionAddress)
+            && ev.data?.[0] !== undefined
+            && BigInt(ev.data[0]) === bid.claimCommitment);
+          if (mine?.keys?.[2] !== undefined) {
+            index = Number(BigInt(mine.keys[2]));
+            reindexBid(auction.terms.auctionId, guessed, index);
+          }
         }
       } catch { /* keep the guess; the dashboard reconciles against the chain */ }
 
-      setPlaced({ ...stored, index, txHash: transaction_hash });
+      if (reverted !== null) {
+        /* The vault entry stays, as it does for every failure: the reconciler drops it
+           only once the chain positively says no bid carries this commitment. */
+        return setError(
+          "The transaction reverted on chain, so no bid was placed and no escrow moved."
+          + (reverted ? ` Reason: ${shortRevert(reverted)}.` : "")
+          + ` Transaction ${transaction_hash}.`);
+      }
+
+      setPlaced({ ...stored, index, txHash: transaction_hash, confirmed });
       onPlaced();
     } catch (e) {
       /* A private-rail failure is the same pool read failing. Recording it stops the
@@ -283,6 +309,13 @@ export function BidPanel({
             Continue
           </button>
         </div>
+        {!placed.confirmed && (
+          <p className="note" style={{ marginTop: ".7rem" }}>
+            <b>Not confirmed yet.</b> The receipt for this transaction could not be read,
+            so this screen cannot say the bid landed. Keep the secret regardless — the
+            dashboard checks the chain and shows the bid once it is there.
+          </p>
+        )}
         {placed.txHash && (
           <p className="note mono" style={{ marginTop: ".7rem" }}>{placed.txHash}</p>
         )}
@@ -561,11 +594,49 @@ export function DisputePanel({
   const { ensureChain } = useWallet();
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  /* `undefined` = still reading, `null` = the read failed. */
+  const [states, setStates] = useState<Record<number, BidState | null | undefined>>({});
 
-  if (auction.status !== Status.Settled) return null;
-  const eligible = bids.filter((b) => b.level > auction.clearingLevel);
-  if (eligible.length === 0) return null;
+  const settled = auction.status === Status.Settled;
+  /* Only bids that could qualify are read: not the winner, above the line. Whether the
+     auctioneer actually left one out is its disposition, which only the chain knows. */
+  const candidates = settled
+    ? bids.filter((b) => b.index !== auction.winnerIndex && b.level > auction.clearingLevel)
+    : [];
+  const candidateKey = candidates.map((b) => b.index).join(",");
+
+  useEffect(() => {
+    if (!candidateKey) return;
+    let live = true;
+    void Promise.all(candidates.map(async (b) => {
+      try {
+        const st = await readBidState(BigInt(b.auctionId), b.index);
+        if (live) setStates((s) => ({ ...s, [b.index]: st }));
+      } catch {
+        if (live) setStates((s) => ({ ...s, [b.index]: null }));
+      }
+    }));
+    return () => { live = false; };
+  }, [candidateKey, auction.terms.auctionId]);
+
+  if (!settled) return null;
+  const eligible = candidates.filter((b) => canDispute(auction, b, states[b.index]));
+  const unread = unreadCandidates(auction, candidates, states);
+  if (eligible.length === 0 && unread.length === 0) return null;
   const left = countdown(auction.disputeDeadline, now);
+
+  if (eligible.length === 0) {
+    /* Neutral on purpose. Not knowing a disposition is a reason to read again, not a
+       reason to offer a call that may void a correct outcome. */
+    return (
+      <div className="panel">
+        <p className="note">
+          Could not read {unread.map((i) => `bid #${i}`).join(", ")} from the chain to
+          check how the settlement recorded it. Reload to try again.
+        </p>
+      </div>
+    );
+  }
 
   async function dispute(stored: StoredBid) {
     if (!connection) return setErr("Connect a wallet first.");
@@ -587,11 +658,11 @@ export function DisputePanel({
 
   return (
     <div className="panel accent">
-      <h3 style={{ fontSize: "var(--step-1)" }}>Your bid was above the clearing price</h3>
+      <h3 style={{ fontSize: "var(--step-1)" }}>The settlement left your bid out</h3>
       <p className="note">
-        The settlement did not account for it. Proving that voids the result and pays
-        you the auctioneer&apos;s bond. You do not reveal what you bid — only that it
-        was above this line. {left ? <>Window closes in <span className="countdown">{left}</span>.</> : "The window has closed."}
+        The auctioneer recorded this bid as forfeited, and it was above the clearing
+        price. Proving that voids the result and pays you the auctioneer&apos;s bond.
+        You do not reveal what you bid — only that it was above this line. {left ? <>Window closes in <span className="countdown">{left}</span>.</> : "The window has closed."}
       </p>
       <div className="stack" style={{ gap: ".5rem", marginTop: ".8rem" }}>
         {eligible.map((b) => (
@@ -676,6 +747,63 @@ export function ClaimPanel({
 
   if (!final || bids.length === 0) return null;
 
+  /* A hash is not a collection. Wait for the receipt and say which it was. */
+  async function confirm(transaction_hash: string) {
+    setMsg(`Sent ${transaction_hash} — waiting for it to land…`);
+    try {
+      const outcome = receiptOutcome(await provider().waitForTransaction(transaction_hash));
+      if (outcome.kind === "reverted") {
+        setMsg(null);
+        setErr("The transaction reverted on chain and collected nothing."
+          + (outcome.reason ? ` Reason: ${shortRevert(outcome.reason)}.` : "")
+          + ` Transaction ${transaction_hash}.`);
+        return;
+      }
+      setMsg(outcome.kind === "succeeded"
+        ? `Collected. Transaction ${transaction_hash}.`
+        : `Sent ${transaction_hash}. Its receipt could not be read yet — this screen updates once the chain shows it.`);
+    } catch {
+      setMsg(`Sent ${transaction_hash}. Its receipt could not be read yet — this screen updates once the chain shows it.`);
+    }
+  }
+
+  /**
+   * The winner's lot and surplus, in one transaction. See `lib/winner.ts`: the claim
+   * secret is in calldata, so collecting them separately published the key to whichever
+   * half was left. Public rail only — the private rail is one pool transaction per claim.
+   */
+  async function collectWinner(stored: StoredBid, refundClaimed: boolean) {
+    if (!connection) return setErr("Connect a wallet first.");
+    if (!(await ensureChain())) return;
+    setErr(null); setMsg(null);
+    try {
+      const bid = toPrivateBid(stored);
+      const calls = winnerCollectCalls({
+        auctionAddress: config.auctionAddress,
+        auctionId: auction.terms.auctionId,
+        index: bid.index,
+        claimSecret: bid.claimSecret,
+        recipient: connection.address,
+        lotClaimed: auction.lotClaimed,
+        refundClaimed,
+      });
+      if (calls.length === 0) return setMsg("Everything for this bid is already collected.");
+      /* A reverted transaction still publishes its calldata, secret included, with
+         nothing collected. Run each call as a read first, so one that would fail is
+         never sent. The two are independent, so each passing means both will. */
+      try {
+        for (const c of calls) await provider().callContract(c);
+      } catch (e) {
+        return setErr("This collection would fail on chain, so nothing was sent. "
+          + (e instanceof Error ? shortRevert(e.message) : ""));
+      }
+      const { transaction_hash } = await connection.account.execute(calls);
+      await confirm(transaction_hash);
+    } catch (e) {
+      setErr(errText(e));
+    }
+  }
+
   async function run(operation: ClaimOperation, stored: StoredBid) {
     if (!connection) return setErr("Connect a wallet first.");
     if (!railUsable(rail, canPrivate)) {
@@ -706,7 +834,7 @@ export function ClaimPanel({
                   calldata: CallData.compile([id, num.toHex(bid.index),
                     num.toHex(bid.claimSecret), connection.address]) };
         const { transaction_hash } = await connection.account.execute(call);
-        setMsg(transaction_hash);
+        await confirm(transaction_hash);
         return;
       }
 
@@ -723,7 +851,7 @@ export function ClaimPanel({
             : 0n,
       });
       const { transaction_hash } = await connection.account.strk20InvokeTransaction(actions);
-      setMsg(transaction_hash);
+      await confirm(transaction_hash);
     } catch (e) {
       if (rail === "private") noteStrk20Error(e);
       setErr(errText(e));
@@ -762,6 +890,14 @@ export function ClaimPanel({
               <span className="note">Bid #{b.index}</span>
               {st === undefined ? (
                 <span className="note">reading the chain…</span>
+              ) : st === null && won ? (
+                /* Unreadable, but this is the winning bid: never a lone claim, which would
+                   publish the secret with the other half still in the contract. The
+                   preflight inside refuses to send if the surplus was in fact taken. */
+                <button className="primary" disabled={rail !== "public"}
+                        onClick={() => collectWinner(b, false)}>
+                  Collect the lot and your surplus
+                </button>
               ) : st === null ? (
                 /* The read failed. Both buttons come back rather than none: an unreadable
                    chain is a reason to stop guessing, not a reason to lock the user out
@@ -776,43 +912,67 @@ export function ClaimPanel({
                   <span className="note">Could not read this bid, so both are offered.</span>
                 </>
               ) : won ? (
-                /* Two separate collections, and the lot is the one that looks like
-                   finishing. `finalize` already took the clearing price out of this
-                   escrow and paid the seller, so what is left is the winner's surplus —
-                   and a winner who claims the lot and leaves reads the screen as done.
-                   Both are listed, each with its own state. */
+                /* One collection, not two. `finalize` already took the clearing price out
+                   of this escrow, so the winner is owed the lot and the surplus — and both
+                   are released by the same claim secret, which travels in calldata. See
+                   `lib/winner.ts`. */
                 <div className="stack" style={{ gap: ".45rem", flex: 1 }}>
-                  <p className="note" style={{ margin: 0 }}>
-                    <b>You won.</b> Two things to collect, and the lot is not both of
-                    them. The clearing price already came out of your escrow when the
-                    auction was finalized.
-                  </p>
-                  <div className="row" style={{ gap: ".5rem", flexWrap: "wrap" }}>
-                    {auction.lotClaimed ? (
-                      <span className="note">1 · Lot — collected</span>
-                    ) : (
-                      <button className="primary"
-                              onClick={() => run(AuctionOperation.ClaimLot, b)}>
-                        1 · Claim the lot
-                      </button>
-                    )}
-                    {st.claimed ? (
-                      <span className="note">2 · Surplus — collected</span>
-                    ) : (
-                      <button className={auction.lotClaimed ? "primary" : ""}
-                              onClick={() => run(AuctionOperation.ClaimRefund, b)}>
-                        2 · Claim your surplus
+                  {auction.lotClaimed && st.claimed ? (
+                    <span className="note">Lot and surplus — both collected.</span>
+                  ) : halfCollected(auction.lotClaimed, st.claimed) ? (
+                    <>
+                      <p className="note" style={{ margin: 0 }}>
+                        <b>Collect the rest now.</b> Your{" "}
+                        {auction.lotClaimed ? "lot" : "surplus"} was collected in its own
+                        transaction, which put your claim secret on chain. Your{" "}
+                        {auction.lotClaimed ? "surplus" : "lot"} is still in the contract,
+                        and anyone who reads that secret can take it.
+                      </p>
+                      <div className="row" style={{ gap: ".5rem", flexWrap: "wrap" }}>
+                        {rail === "public" ? (
+                          <button className="primary" onClick={() => collectWinner(b, st.claimed)}>
+                            {auction.lotClaimed
+                              ? `Collect your surplus${st.escrow > 0n
+                                ? ` · ${formatUnits(st.escrow, auction.paymentDecimals)} ${auction.paymentSymbol}`
+                                : ""}`
+                              : "Collect the lot"}
+                          </button>
+                        ) : (
+                          <button className="primary"
+                                  onClick={() => run(auction.lotClaimed
+                                    ? AuctionOperation.ClaimRefund : AuctionOperation.ClaimLot, b)}>
+                            {auction.lotClaimed ? "Collect your surplus" : "Collect the lot"}
+                          </button>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <p className="note" style={{ margin: 0 }}>
+                        <b>You won.</b> The lot and your surplus come out together, in one
+                        transaction. The clearing price already came out of your escrow
+                        when the auction was finalized; the surplus is what is left
                         {st.escrow > 0n
-                          ? ` · ${formatUnits(st.escrow, auction.paymentDecimals)} ${auction.paymentSymbol}`
-                          : ""}
-                      </button>
-                    )}
-                  </div>
-                  {auction.lotClaimed && !st.claimed && (
-                    <p className="note" style={{ margin: 0 }}>
-                      The lot is yours. Your surplus is still in the contract — it needs
-                      this browser&rsquo;s claim secret, the same one the lot needed.
-                    </p>
+                          ? ` — ${formatUnits(st.escrow, auction.paymentDecimals)} ${auction.paymentSymbol}`
+                          : ""}.
+                      </p>
+                      <div className="row" style={{ gap: ".5rem", flexWrap: "wrap" }}>
+                        <button className="primary" disabled={rail !== "public"}
+                                onClick={() => collectWinner(b, false)}>
+                          Collect the lot and your surplus
+                        </button>
+                      </div>
+                      {rail !== "public" && (
+                        <p className="note" style={{ margin: 0 }}>
+                          A winning bid is collected on the public rail. Both halves are
+                          released by the same claim secret, and the private rail would
+                          need a separate pool transaction for each — the first would put
+                          the secret on chain while the second half was still there to
+                          take. The surplus is the cap minus the clearing price, the same
+                          for any winner, so it says nothing about what you bid.
+                        </p>
+                      )}
+                    </>
                   )}
                 </div>
               ) : st.claimed ? (

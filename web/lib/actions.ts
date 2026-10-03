@@ -33,6 +33,7 @@ import type { AuctionView } from "@/lib/chain";
 import type { BidState } from "@/lib/chain";
 import type { StoredBid } from "@/lib/vault";
 import { sameAddress } from "@/lib/wallet";
+import { canDispute } from "@/lib/dispute";
 
 export type ActionKind =
   | "send-seed" | "claim-refund" | "claim-lot" | "dispute"
@@ -142,42 +143,40 @@ export function actionsFor(
 
     if (iBid && a.status === Status.Finalized) {
       const won = bids.some((b) => b.index === a.winnerIndex);
-      if (won && !a.lotClaimed) {
-        out.push({
-          kind: "claim-lot", auctionId: id, role: "bidder",
-          title: `Claim your lot — Auction #${id}`,
-          detail: "You won. This transfers the lot to you and is final — the auction is "
-            + "already settled, so nothing about your bid becomes public by claiming it. "
-            + "It is one of two collections, not both.",
-          consequence: "Nothing expires. The lot waits in the contract until you take it, "
-            + "but only this browser's claim secret can release it.",
-          cta: "Claim lot", href: bidHref, deadline: null, deadlineKind: "hard",
-          /* Waiting *for* the winner, not blocked *by* anyone. */
-          blocking: false,
-        });
-      }
-      /* The winner's surplus. `claim-refund` used to be guarded by `!won`, so a winner
-         was told to collect the lot and nothing else — and `finalize` had already taken
-         the clearing price out of their escrow, leaving the remainder sitting in the
-         contract with nothing in the app ever mentioning it.
+      /* One task for the winner, not two. The lot and the surplus are released by the
+         same claim secret, which travels in calldata, so they are collected in one
+         transaction (see `lib/winner.ts`). Two tasks invited two transactions, and the
+         first published the key to the second.
 
-         Listed only once the chain says it is still unclaimed, so it disappears when
-         taken rather than offering a call that would revert. */
+         The surplus half is known only from the chain; until it is read, the lot alone
+         decides whether anything is left. */
       const winnerBid = won ? bids.find((b) => b.index === a.winnerIndex) : undefined;
       const winnerState = winnerBid
         ? bidStates.get(`${winnerBid.auctionId}:${winnerBid.index}`)
         : undefined;
-      if (won && winnerState && !winnerState.claimed) {
-        out.push({
-          kind: "claim-refund", auctionId: id, role: "bidder",
-          title: `Claim your surplus — Auction #${id}`,
-          detail: "You escrowed the top of the ladder and paid the clearing price, which "
-            + "came out of that escrow when the auction was finalized. The difference is "
-            + "yours and is still in the contract.",
-          consequence: "Nothing expires, and claiming the lot does not collect this — they "
-            + "are two separate calls. It waits until you take it, and only this browser's "
-            + "claim secret can release it.",
-          cta: "Claim surplus", href: bidHref, deadline: null, deadlineKind: "hard",
+      const surplusLeft = winnerState ? !winnerState.claimed : !a.lotClaimed;
+      if (won && (!a.lotClaimed || surplusLeft)) {
+        const half = winnerState !== undefined && a.lotClaimed !== winnerState.claimed;
+        out.push(half ? {
+          kind: "claim-lot", auctionId: id, role: "bidder",
+          title: `Collect the rest now — Auction #${id}`,
+          detail: `Your ${a.lotClaimed ? "lot" : "surplus"} was collected in its own `
+            + "transaction, which put your claim secret on chain. Your "
+            + `${a.lotClaimed ? "surplus" : "lot"} is still in the contract.`,
+          consequence: "Anyone who reads that secret off the chain can take what is left. "
+            + "Collect it before someone else does.",
+          cta: "Collect", href: bidHref, deadline: null, deadlineKind: "hard",
+          blocking: true,
+        } : {
+          kind: "claim-lot", auctionId: id, role: "bidder",
+          title: `Collect your lot and surplus — Auction #${id}`,
+          detail: "You won. The lot and your surplus come out together, in one transaction. "
+            + "The clearing price already came out of your escrow when the auction was "
+            + "finalized; the surplus is what is left.",
+          consequence: "Nothing expires. Both wait in the contract until you collect them, "
+            + "but only this browser's claim secret can release them.",
+          cta: "Collect", href: bidHref, deadline: null, deadlineKind: "hard",
+          /* Waiting *for* the winner, not blocked *by* anyone. */
           blocking: false,
         });
       }
@@ -197,12 +196,17 @@ export function actionsFor(
 
     /* `dispute` reverts once the deadline passes, and the status stays `Settled` until
        someone finalizes — so status alone would keep offering a call that cannot land. */
-    if (iBid && a.status === Status.Settled && now < a.disputeDeadline) {
+    /* Only for a bid the settlement left out: forfeited, above the clearing price, and
+       not the winner. Offering it to every bidder offered the winner a way to void their
+       own correct outcome. The disposition is the chain's; unread means not offered. */
+    const disputable = bids.some((b) =>
+      canDispute(a, b, bidStates.get(`${b.auctionId}:${b.index}`)));
+    if (disputable && now < a.disputeDeadline) {
       out.push({
         kind: "dispute", auctionId: id, role: "bidder",
-        title: `Check the result — Auction #${id}`,
-        detail: "The dispute window is open. If your bid was above the price the auctioneer "
-          + "claimed, proving it now voids the settlement and pays you their bond.",
+        title: `The settlement left your bid out — Auction #${id}`,
+        detail: "The auctioneer recorded your bid as forfeited, and it was above the clearing "
+          + "price. Proving that now voids the settlement and pays you their bond.",
         consequence: "The outcome becomes final and cannot be challenged again. This is the "
           + "only window in the protocol that shuts on the bidder, and the only one where "
           + "being late actually costs you the money.",
