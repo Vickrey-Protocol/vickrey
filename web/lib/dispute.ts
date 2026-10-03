@@ -15,7 +15,7 @@
  * The disposition comes from the chain, never from this browser. A bid whose state could
  * not be read is not eligible — the caller says so separately rather than guessing.
  */
-import { Disposition, Status } from "@vickrey/client";
+import { Disposition, NO_WINNER, Status } from "@vickrey/client";
 import type { AuctionView, BidState } from "@/lib/chain";
 import type { StoredBid } from "@/lib/vault";
 
@@ -26,7 +26,10 @@ export function canDispute(
 ): boolean {
   if (auction.status !== Status.Settled) return false;
   if (bid.index === auction.winnerIndex) return false;
-  if (bid.level <= auction.clearingLevel) return false;
+  /* Leaving the bid out must have changed the result: it beat the clearing price, or the
+     settlement claimed no bid could be settled at all. v2's contract asks the same; it
+     also asks that the bid's reveal was posted in time, which the panel checks. */
+  if (bid.level <= auction.clearingLevel && auction.winnerIndex !== NO_WINNER) return false;
   return state?.disposition === Disposition.Forfeit;
 }
 
@@ -41,7 +44,8 @@ export function unreadCandidates(
 ): number[] {
   if (auction.status !== Status.Settled) return [];
   return bids
-    .filter((b) => b.index !== auction.winnerIndex && b.level > auction.clearingLevel)
+    .filter((b) => b.index !== auction.winnerIndex
+      && (b.level > auction.clearingLevel || auction.winnerIndex === NO_WINNER))
     .filter((b) => states[b.index] === null)
     .map((b) => b.index);
 }

@@ -11,8 +11,8 @@
  * to break a test rather than just a user's afternoon.
  */
 import { describe, expect, it } from "vitest";
-import { AuctionOperation, Disposition, Status } from "@vickrey/client";
-import { collectOp, unredeemable } from "@/components/Panels";
+import { Disposition, Status } from "@vickrey/client";
+import { collectMode, unredeemable } from "@/components/Panels";
 import type { BidState } from "@/lib/chain";
 
 const bid = (disposition: Disposition): BidState =>
@@ -20,26 +20,26 @@ const bid = (disposition: Disposition): BidState =>
 
 describe("collect routes to the call that will succeed", () => {
   it("sends a forfeited bid on a finalized auction to redeem_forfeit", () => {
-    expect(collectOp(bid(Disposition.Forfeit), Status.Finalized))
-      .toBe(AuctionOperation.RedeemForfeit);
+    expect(collectMode(bid(Disposition.Forfeit), Status.Finalized))
+      .toBe("redeem");
   });
 
   it("sends an ordinary loser to claim_refund", () => {
-    expect(collectOp(bid(Disposition.AtOrBelow), Status.Finalized))
-      .toBe(AuctionOperation.ClaimRefund);
+    expect(collectMode(bid(Disposition.AtOrBelow), Status.Finalized))
+      .toBe("collect");
   });
 
   it("sends the winner to claim_refund for their surplus", () => {
-    expect(collectOp(bid(Disposition.Exactly), Status.Finalized))
-      .toBe(AuctionOperation.ClaimRefund);
+    expect(collectMode(bid(Disposition.Exactly), Status.Finalized))
+      .toBe("collect");
   });
 
   it("sends a forfeited bid on a CANCELLED auction to claim_refund, not redeem", () => {
     /* `claim_refund` only refuses a forfeit when the auction is Finalized; a cancelled
        one refunds everybody. `redeem_forfeit` requires Finalized outright, so routing a
        cancelled forfeit there would revert on the status check. */
-    expect(collectOp(bid(Disposition.Forfeit), Status.Cancelled))
-      .toBe(AuctionOperation.ClaimRefund);
+    expect(collectMode(bid(Disposition.Forfeit), Status.Cancelled))
+      .toBe("collect");
   });
 });
 

@@ -8,6 +8,11 @@ export default defineConfig({
   },
   test: {
     environment: "jsdom",
+    /* Two contracts, as the site runs once v2 is live: v2 is acted on, v1 is read-only. */
+    env: {
+      NEXT_PUBLIC_AUCTION_ADDRESS: "0xa2",
+      NEXT_PUBLIC_AUCTION_ADDRESS_V1: "0xa1",
+    },
     // `*.live.test.ts` reads the real chain and runs on demand, never in the suite.
     // A unit test that needs a network is not a unit test, and one that fails because
     // Sepolia is slow teaches people to ignore a red mark.

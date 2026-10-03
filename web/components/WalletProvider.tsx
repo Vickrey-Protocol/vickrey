@@ -94,6 +94,23 @@ interface WalletState {
 
 const Ctx = createContext<WalletState | null>(null);
 
+/**
+ * What one wallet error proves about the private rail.
+ *
+ * It used to mark the rail failed on any code but 113 and 118, so a wallet that timed
+ * out — or answered "insufficient private balance" — quietly turned the next bid into a
+ * public one. No answer is not a negative answer, and most codes say nothing about
+ * whether STRK20 works with this wallet. Only the three that say "this wallet cannot do
+ * this on this network" disable the rail; a routed answer proves it works; everything
+ * else leaves what we knew unchanged.
+ */
+export const RAIL_UNSUPPORTED = [112, 117, 162];
+export function strk20Verdict<T extends string>(prev: T | "working" | "failed", code: number | null) {
+  if (code === 118 || code === 113 || code === 119) return "working" as const;
+  if (code !== null && RAIL_UNSUPPORTED.includes(code)) return "failed" as const;
+  return prev;
+}
+
 export function WalletProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [connection, setConnection] = useState<Connection | null>(null);
@@ -274,10 +291,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
    */
   const noteStrk20Error = useCallback((e: unknown) => {
     const err = readWalletError(e);
-    /* Routed, not failed: the pool or the user answered. Also leave it untouched on an
-       error carrying no code at all — that is an absence, not a negative answer. */
-    if (err.code === null) return;
-    setStrk20Proof(err.code === 118 || err.code === 113 ? "working" : "failed");
+    setStrk20Proof((prev) => strk20Verdict(prev, err.code));
   }, []);
 
   const requestShielded = useCallback(async () => {
@@ -314,7 +328,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       /* NOT_REGISTERED and a refusal both mean the wallet understood and routed the
          call — shape confirmed, state simply absent. Everything else is a failure of
          the read itself. */
-      setStrk20Proof(err.code === 118 || err.code === 113 ? "working" : "failed");
+      setStrk20Proof((prev) => strk20Verdict(prev, err.code));
     } finally {
       setShieldedPending(false);
     }

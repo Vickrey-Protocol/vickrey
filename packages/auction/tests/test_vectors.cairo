@@ -67,3 +67,15 @@ fn reveal_vectors() {
     assert!(c_seed == 1913448946204768278282019681581804167590657384628665040943092916084201524734);
     assert!(c_level == 746589006867101285454884351858382899742679408783976786781839442902682449079);
 }
+
+/// The terms hash the client computes in `web/lib/v2.ts` must equal the contract's.
+#[test]
+fn terms_hash_vector() {
+    let text: ByteArray = "What it is: A signed first edition\nHow it's delivered: Tracked post";
+    let mut buf: Array<felt252> = array![];
+    text.serialize(ref buf);
+    let h = core::poseidon::poseidon_hash_span(buf.span());
+    println!("terms_hash {}", h);
+    // Pinned. The same number is in `web/lib/v2.test.ts`.
+    assert!(h == 2787443723799347230240266750640810916947376215087829394704248588849502721177);
+}

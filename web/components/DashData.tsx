@@ -7,7 +7,7 @@ import {
 } from "@/lib/chain";
 import { isDeployed } from "@/lib/config";
 import { reconcile } from "@/lib/reconcile";
-import { allBids, dropBid, onVaultChange, reindexBid, type StoredBid } from "@/lib/vault";
+import { currentBids, dropBid, onVaultChange, reindexBid, type StoredBid } from "@/lib/vault";
 import { startVaultSync } from "@/lib/vaultSync";
 import { sameAddress } from "@/lib/wallet";
 import { actionsFor, type DueAction } from "@/lib/actions";
@@ -74,10 +74,10 @@ export function useDashData(): DashData {
     return () => { live = false; };
   }, [tick]);
 
-  useEffect(() => { setMine(allBids()); setVaultRead(true); }, [tick, auctions.length]);
+  useEffect(() => { setMine(currentBids()); setVaultRead(true); }, [tick, auctions.length]);
   /* Another tab writing the vault is a change to `mine` here too — and the sync that
      undoes an old tab's wipe has to be running wherever the reconciler runs. */
-  useEffect(() => { startVaultSync(); return onVaultChange(() => setMine(allBids())); }, []);
+  useEffect(() => { startVaultSync(); return onVaultChange(() => setMine(currentBids())); }, []);
 
   /**
    * Reconcile this browser's vault against the chain, once the auctions are in.
@@ -144,7 +144,7 @@ export function useDashData(): DashData {
              nothing is dropped and the next poll tries again. */
         }
       }
-      if (live) setMine(allBids());
+      if (live) setMine(currentBids());
     })();
     return () => { live = false; };
   }, [auctions, mine.length]);

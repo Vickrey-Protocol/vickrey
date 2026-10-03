@@ -1,5 +1,6 @@
 "use client";
 
+import { config } from "@/lib/config";
 import type { PrivateBid } from "@vickrey/client";
 
 /**
@@ -25,7 +26,21 @@ export interface StoredBid {
   downAnchor: string;
   txHash?: string;
   revealedAt?: number;
+  /**
+   * The auction contract this bid was placed on. v1 and v2 both number their auctions
+   * from 0, so an id alone does not name an auction once there are two contracts.
+   * Absent on every entry written before v2: those are v1 bids.
+   */
+  contract?: string;
 }
+
+/** Whether a stored bid belongs to `contract` (an absent tag is v1's). */
+export const onContract = (b: StoredBid, contract: string) => {
+  const mine = b.contract ?? config.legacyAuctionAddress;
+  try { return !!mine && !!contract && BigInt(mine) === BigInt(contract); } catch { return false; }
+};
+const here = (b: StoredBid, auctionId: bigint, contract: string) =>
+  b.auctionId === auctionId.toString() && onContract(b, contract);
 
 const read = (): StoredBid[] => {
   if (typeof window === "undefined") return [];
@@ -137,13 +152,22 @@ export function vaultWritable(): boolean {
   }
 }
 
+/** Every stored bid, on every contract. Export and import use this; screens do not. */
 export const allBids = read;
 
-export const bidsFor = (auctionId: bigint): StoredBid[] =>
-  read().filter((b) => b.auctionId === auctionId.toString());
+/** The bids this site acts on: those on the live (v2) contract. */
+export const currentBids = (): StoredBid[] =>
+  read().filter((b) => onContract(b, config.auctionAddress));
 
-export function saveBid(auctionId: bigint, bid: Omit<PrivateBid, "index">, index: number, txHash?: string) {
+export const bidsFor = (auctionId: bigint, contract: string = config.auctionAddress): StoredBid[] =>
+  read().filter((b) => here(b, auctionId, contract));
+
+export function saveBid(
+  auctionId: bigint, bid: Omit<PrivateBid, "index">, index: number, txHash?: string,
+  contract: string = config.auctionAddress,
+) {
   const entry: StoredBid = {
+    contract,
     auctionId: auctionId.toString(),
     index,
     level: bid.level,
@@ -181,8 +205,8 @@ export function saveBid(auctionId: bigint, bid: Omit<PrivateBid, "index">, index
  * returning a hash. Once a hash exists the transaction may still land, and a vault entry
  * removed on a guess is a secret destroyed.
  */
-export function dropBid(auctionId: bigint, index: number) {
-  const victims = read().filter((b) => b.auctionId === auctionId.toString() && b.index === index);
+export function dropBid(auctionId: bigint, index: number, contract: string = config.auctionAddress) {
+  const victims = read().filter((b) => here(b, auctionId, contract) && b.index === index);
   if (!victims.length) return;
   const ids = victims.map(identityOf);
   /* Announced before it is written, so a tab that sees the shrink can tell a proven
@@ -231,16 +255,18 @@ export function onVaultChange(cb: () => void): () => void {
  * `BidPlaced` carries it as a key, so the authoritative answer is available and was
  * simply never read.
  */
-export function reindexBid(auctionId: bigint, from: number, to: number) {
+export function reindexBid(
+  auctionId: bigint, from: number, to: number, contract: string = config.auctionAddress,
+) {
   if (from === to) return;
   write(read().map((b) =>
-    b.auctionId === auctionId.toString() && b.index === from ? { ...b, index: to } : b));
+    here(b, auctionId, contract) && b.index === from ? { ...b, index: to } : b));
 }
 
-export function markRevealed(auctionId: bigint, index: number) {
+export function markRevealed(auctionId: bigint, index: number, contract: string = config.auctionAddress) {
   write(
     read().map((b) =>
-      b.auctionId === auctionId.toString() && b.index === index
+      here(b, auctionId, contract) && b.index === index
         ? { ...b, revealedAt: Date.now() }
         : b,
     ),

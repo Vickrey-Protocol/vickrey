@@ -55,6 +55,18 @@ export const config = {
   strkAddress: defaults.strk,
   auctionAddress: process.env.NEXT_PUBLIC_AUCTION_ADDRESS ?? "",
   anonymizerAddress: process.env.NEXT_PUBLIC_ANONYMIZER_ADDRESS ?? "",
+  /**
+   * The v1 auction, read-only. Its auctions are listed and viewable, never bid on; its
+   * escrow is collected with the claim secret outside this site. Empty: not shown.
+   */
+  legacyAuctionAddress: process.env.NEXT_PUBLIC_AUCTION_ADDRESS_V1 ?? "",
+  /**
+   * The block the v2 auction was deployed at. Event searches (terms, reveals) start
+   * here rather than at genesis, which is the difference between one page and hundreds.
+   */
+  auctionDeployBlock: Number(process.env.NEXT_PUBLIC_AUCTION_DEPLOY_BLOCK ?? 0),
+  /** Whether `/api/relay` is configured to post reveals and disputes for bidders. */
+  relay: (process.env.NEXT_PUBLIC_RELAY ?? "") === "on",
 };
 
 export const isDeployed = () => config.auctionAddress.length > 0;

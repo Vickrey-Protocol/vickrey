@@ -194,3 +194,32 @@ describe("identity is the commitment, not the index", () => {
     expect(allBids()).toHaveLength(2);
   });
 });
+
+describe("two contracts number their auctions from 0", () => {
+  /* v1's auction #0 and v2's auction #0 are different auctions. An entry written before
+     v2 carries no contract and is v1's; a screen acting on v2 must never see it. */
+  it("an untagged entry is v1's and is not a v2 bid", async () => {
+    const { bidsFor, currentBids } = await import("@/lib/vault");
+    window.localStorage.setItem(KEY, JSON.stringify([{
+      auctionId: "0", index: 0, level: 1, claimSecret: "1", seed: "2", claimCommitment: "3",
+      upAnchor: "4", downAnchor: "5" }]));
+    expect(bidsFor(0n)).toHaveLength(0);
+    expect(currentBids()).toHaveLength(0);
+    expect(bidsFor(0n, "0xa1")).toHaveLength(1);
+    expect(allBids()).toHaveLength(1);
+  });
+
+  it("a new bid is tagged with the v2 contract", () => {
+    saveBid(0n, bid(1), 0);
+    expect(allBids()[0]!.contract).toBe("0xa2");
+  });
+
+  it("dropping a v2 bid never touches the v1 bid with the same id and index", () => {
+    window.localStorage.setItem(KEY, JSON.stringify([{
+      auctionId: "0", index: 0, level: 1, claimSecret: "1", seed: "2", claimCommitment: "3",
+      upAnchor: "4", downAnchor: "5" }]));
+    saveBid(0n, bid(1), 0);
+    dropBid(0n, 0);
+    expect(allBids().map((b) => b.contract ?? "v1")).toEqual(["v1"]);
+  });
+});

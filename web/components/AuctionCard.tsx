@@ -1,5 +1,6 @@
 "use client";
 
+import { LotKind } from "@/lib/v2";
 import { Status } from "@vickrey/client";
 import type { AuctionView } from "@/lib/chain";
 import { countdown, formatUnits, kindLabel, priceAt } from "@/lib/config";
@@ -52,6 +53,12 @@ export function AuctionCard({
       <div className="meta">
         <span className="title">Auction #{auction.terms.auctionId.toString()}</span>
         <span className={`pill ${CLS[auction.status]}`}>{LABEL[auction.status]}</span>
+      </div>
+      <div className="meta" style={{ justifyContent: "flex-start", gap: ".4rem", flexWrap: "wrap" }}>
+        {auction.version === 1 && <span className="lot-chip">v1 · read-only</span>}
+        {auction.lotKind === LotKind.Erc20 && <span className="lot-chip">Tokens</span>}
+        {auction.lotKind === LotKind.Erc721 && <span className="lot-chip">NFT</span>}
+        {auction.lotKind === LotKind.OffChain && <span className="lot-chip trust">Off-chain · you trust the seller</span>}
       </div>
 
       <Ladder

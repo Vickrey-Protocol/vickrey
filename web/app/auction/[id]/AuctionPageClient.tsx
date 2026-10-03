@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import type { PublicBid } from "@vickrey/client";
-import { fromWire, readAuction, readBids, type AuctionView, type WireAuction } from "@/lib/chain";
+import {
+  contractFor, fromWire, readAuction, readBids, type AuctionView, type ContractVersion, type WireAuction,
+} from "@/lib/chain";
 import { config } from "@/lib/config";
 import { bidsFor, onVaultChange, type StoredBid } from "@/lib/vault";
 import { PublicShell } from "@/components/PublicShell";
@@ -21,8 +23,9 @@ const unwire = (b: WireBid): PublicBid => ({
 });
 
 export default function AuctionPageClient({
-  id, initial, initialBids,
-}: { id: string; initial: WireAuction | null; initialBids: WireBid[] }) {
+  id, initial, initialBids, version = 2,
+}: { id: string; initial: WireAuction | null; initialBids: WireBid[]; version?: ContractVersion }) {
+  const contract = contractFor(version);
   const { connection } = useWallet();
   const now = useNow();
   const [auction, setAuction] = useState<AuctionView | null>(initial ? fromWire(initial) : null);
@@ -34,23 +37,23 @@ export default function AuctionPageClient({
 
   const refresh = useCallback(async () => {
     try {
-      const a = await readAuction(BigInt(id));
+      const a = await readAuction(BigInt(id), version);
       if (!a) return;
       setAuction(a);
-      setBids(await readBids(BigInt(id), a.bidCount));
+      setBids(await readBids(BigInt(id), a.bidCount, contract));
       setError(null);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       if (msg.includes("AUCTION_NOT_FOUND")) setMissing(true);
       else setError(msg);
     }
-  }, [id]);
+  }, [id, version, contract]);
 
   // State moves; the page must not sit on a snapshot from build time.
   useEffect(() => { void refresh(); const t = setInterval(() => void refresh(), 15_000); return () => clearInterval(t); }, [refresh]);
   // Claim secrets are per-browser, so this can only run client-side.
-  useEffect(() => { setMine(bidsFor(BigInt(id))); }, [id, auction?.bidCount]);
-  useEffect(() => onVaultChange(() => setMine(bidsFor(BigInt(id)))), [id]);
+  useEffect(() => { setMine(bidsFor(BigInt(id), contract)); }, [id, contract, auction?.bidCount]);
+  useEffect(() => onVaultChange(() => setMine(bidsFor(BigInt(id), contract))), [id, contract]);
 
   return (
     <PublicShell>

@@ -1995,3 +1995,33 @@ select:hover { background-color: rgba(0, 0, 0, .32); }
 /* Cross-tab version-skew warning. Absent in the ordinary case; loud when present. */
 .stale-tab { border-color: var(--accent-edge, #E2513C); margin: 0 0 1rem; }
 .stale-tab button { margin-inline-start: .5rem; }
+
+/* ── v2: warnings, confirmations, the destructive action ─────────────────────
+   A warning carries the accent's dim fill and edge; a confirmation the good colour's.
+   Both read in either world because they are built from that world's own tokens. */
+.warnbox {
+  padding: .9rem 1rem; border-radius: 10px;
+  background: var(--accent-dim); border: 1px solid var(--accent-edge); color: var(--ink);
+}
+.okbox {
+  padding: .9rem 1rem; border-radius: 10px;
+  background: color-mix(in srgb, var(--good) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--good) 55%, transparent); color: var(--ink);
+}
+/* The off-chain warning is the first thing on the page, at body size or larger. */
+.trust-warning { display: flex; gap: 1rem; align-items: flex-start; font-size: 1.12rem; line-height: 1.55; }
+.trust-warning svg { flex: none; color: var(--seal); margin-top: .2rem; }
+button.danger {
+  background: transparent; color: var(--seal); border: 1.5px solid var(--seal);
+}
+button.danger:disabled { opacity: .5; }
+.lot-chip {
+  font-family: var(--font-mono), monospace; font-size: .7rem; letter-spacing: .1em;
+  text-transform: uppercase; padding: .25rem .6rem; border-radius: 999px;
+  background: var(--glass-2); color: var(--ink-2); white-space: nowrap;
+}
+.lot-chip.trust { background: transparent; border: 1px solid var(--seal); color: var(--seal); }
+.terms-rows { display: grid; grid-template-columns: minmax(8rem, 12rem) minmax(0, 1fr); gap: .5rem 1.1rem; margin: .6rem 0 0; }
+.terms-rows dt { color: var(--muted); }
+.terms-rows dd { margin: 0; }
+@media (max-width: 640px) { .terms-rows { grid-template-columns: minmax(0, 1fr); } .terms-rows dt { margin-top: .4rem; } }

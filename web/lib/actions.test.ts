@@ -40,6 +40,9 @@ const auction = (over: Partial<AuctionView> = {}): AuctionView => ({
   sealedAtTime: SEALED_AT,
   bidCount: 1, bidRoot: 0n, clearingLevel: 0, winnerIndex: 0,
   collateral: 10n, bond: 1n, lotClaimed: false, poolFee: null,
+  version: 2, contract: "0xa", lotKind: 0, lotTokenId: 0n, lotName: "", revealKeyX: 0n,
+  revealKeyY: 0n, revealWindow: 0, deliveryWindow: 0, sellerBond: 0n, termsHash: 0n,
+  sealedAtBlock: 0, delivery: null, sellerOwed: 0n, lotReclaimable: false,
   ...over,
 });
 

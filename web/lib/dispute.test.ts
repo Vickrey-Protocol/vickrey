@@ -57,3 +57,10 @@ describe("unreadCandidates", () => {
     expect(unreadCandidates(settled, bids, { 1: null, 2: null, 3: undefined })).toEqual([1]);
   });
 });
+
+describe("a settlement that named no winner", () => {
+  it("can be disputed by a forfeited bid at any level", () => {
+    const none = { status: Status.Settled, clearingLevel: 15, winnerIndex: 0xffffffff };
+    expect(canDispute(none, { index: 1, level: 2 }, st(Disposition.Forfeit))).toBe(true);
+  });
+});

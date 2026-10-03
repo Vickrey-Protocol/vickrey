@@ -43,7 +43,7 @@ export default function AuctionsClient({ initial }: { initial: WireAuction[] }) 
       </div>
       <p style={{ maxWidth: "60ch", marginBottom: "1.2rem" }}>
         Every auction on {config.label}, in every state. No wallet needed to read any of
-        it — the bid amounts are not hidden from you, they are not on the chain at all.
+        it. The losing bids are never published.
       </p>
 
       <div className="row" style={{ gap: ".5rem", marginBottom: "1.2rem" }}>
@@ -95,6 +95,45 @@ export default function AuctionsClient({ initial }: { initial: WireAuction[] }) 
           ))}
         </div>
       )}
+      <LegacyAuctions now={now} />
     </PublicShell>
+  );
+}
+
+/**
+ * The v1 contract's auctions, read-only. Listed so their state stays visible while their
+ * escrow exists; nothing on this site acts on them.
+ */
+function LegacyAuctions({ now }: { now: number }) {
+  const router = useRouter();
+  const [v1, setV1] = useState<AuctionView[] | null>(null);
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!open || v1 || !config.legacyAuctionAddress) return;
+    readAll(1).then(setV1).catch(() => setV1([]));
+  }, [open, v1]);
+  if (!config.legacyAuctionAddress) return null;
+  return (
+    <section style={{ marginTop: "2.4rem" }}>
+      <button onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+        {open ? "Hide" : "Show"} the earlier contract (v1) · read-only
+      </button>
+      {open && (
+        <>
+          <p className="note" style={{ margin: ".8rem 0" }}>
+            Auctions on the earlier contract. Shown for the record; nothing here can be bid on or
+            collected from this site.
+          </p>
+          {v1 === null ? <p className="note">Reading…</p> : v1.length === 0 ? <p className="note">None.</p> : (
+            <div className="cards">
+              {v1.map((a) => (
+                <AuctionCard key={`v1-${a.terms.auctionId}`} auction={a} now={now} selected={false}
+                             onSelect={() => router.push(`/auction/v1/${a.terms.auctionId}`)} />
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </section>
   );
 }

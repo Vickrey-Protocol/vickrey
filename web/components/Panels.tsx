@@ -1,39 +1,48 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CallData, num } from "starknet";
+import type { Call } from "starknet";
 import {
-  AuctionOperation,
-  type ClaimOperation,
   Disposition,
-  claimActions,
+  NO_WINNER,
+  Status,
   createBid,
-  disputeWitness,
-  placeBidActions,
+  ephemeralScalar,
   readWalletError,
   redeemWitness,
-  Status,
+  sealReveal,
+  type SealedReveal,
 } from "@vickrey/client";
-import { provider, readBidState, type AuctionView, type BidState } from "@/lib/chain";
 import {
-  STRK_DECIMALS, config, countdown, formatUnits, hasAnonymizer, priceAt, utcDate,
+  abandonAt, bidIndexOf, isRevealPosted, provider, readBidState, readPrivateCollect,
+  revealDeadline, type AuctionView, type BidState,
+} from "@/lib/chain";
+import {
+  STRK_DECIMALS, config, countdown, formatUnits, hasAnonymizer, priceAt, shortAddr, utcDate,
 } from "@/lib/config";
 import {
   VaultWriteError, backupOf, markRevealed, reindexBid, saveBid, toPrivateBid,
   vaultWritable, type StoredBid,
 } from "@/lib/vault";
-import { railUsable, submitBlocked } from "@/lib/rails";
+import { railUsable, submitBlocked, type Rail } from "@/lib/rails";
 import { canDispute, unreadCandidates } from "@/lib/dispute";
 import { receiptOutcome, shortRevert } from "@/lib/receipt";
-import { halfCollected, winnerCollectCalls } from "@/lib/winner";
-import type { Connection } from "@/lib/wallet";
+import { confirmBid, type BidVerdict } from "@/lib/bidConfirm";
+import { relay } from "@/lib/relay";
+import {
+  DeliveryOutcome, LotKind, collectActionsV2, collectCall, collectNotes, disputeCall,
+  placeBidActionsV2, placeBidCalls, postRevealCall, redeemActionsV2, redeemForfeitCall,
+  simpleCall, type PrivateCollect,
+} from "@/lib/v2";
+import { withTimeout, WAIT } from "@/lib/waiting";
+import { sameAddress, type Connection } from "@/lib/wallet";
 import { Ladder } from "./Ladder";
 import { useWallet } from "@/components/WalletProvider";
 
 /**
  * Never `String(e)` on a wallet error: a JSON-RPC error is a plain object, so that
  * yields "[object Object]" and discards the code. `readWalletError` maps the spec's
- * twelve codes to sentences and says plainly when it does not recognise one.
+ * codes to sentences and says plainly when it does not recognise one.
  */
 const errText = (e: unknown) => {
   const err = readWalletError(e);
@@ -45,11 +54,6 @@ const errText = (e: unknown) => {
 /**
  * Hands the bidder a file holding the whole entry, in the shape the vault's own import
  * accepts, so the copy that leaves the browser is a copy that can come back.
- *
- * The panel used to offer the claim secret alone. That is enough to take an escrow back
- * (`redeem_forfeit` and `claim_lot` want only the secret) but not enough to *reveal* —
- * which takes the seed and the level — and a bid that cannot reveal cannot win the lot,
- * only be forfeited. A backup that silently drops the winning path is not a backup.
  */
 const downloadBackup = (b: StoredBid) => {
   const url = URL.createObjectURL(new Blob([backupOf(b)], { type: "application/json" }));
@@ -60,268 +64,285 @@ const downloadBackup = (b: StoredBid) => {
   URL.revokeObjectURL(url);
 };
 
-/* ── bidding ─────────────────────────────────────────────────────────── */
+const keyOf = (a: AuctionView) => ({ x: a.revealKeyX, y: a.revealKeyY });
+const sealedFor = (a: AuctionView, b: StoredBid): SealedReveal =>
+  sealReveal(keyOf(a), a.terms.auctionId, b.index, BigInt(b.seed), b.level);
 
 /**
- * The two rails a bid can travel on, and what each one reveals.
+ * Sends calls from the connected wallet and reports what the chain did with them.
  *
- * A privacy product that lets someone choose a rail without understanding it has failed
- * at the only thing it does. Both rails seal the amount — that is the auction, not the
- * pool. What differs is whether the *bidder's address* is visible, and who pays.
- *
- * The sponsored rail is costed and designed (docs/access.md) but no relayer is
- * deployed, so it is shown and not offered. Drawing a button that cannot run would be
- * inventing capability.
+ * `preflight` runs each call as a read first. A collect carries the claim secret in
+ * calldata, and a transaction that reverts still publishes its calldata — so a collect
+ * that would fail must never be sent.
  */
-type Rail = "public" | "private";
+async function sendAndWait(
+  connection: Connection, calls: Call[], opts: { preflight?: boolean } = {},
+): Promise<{ hash: string; outcome: "succeeded" | "reverted" | "unknown"; reason?: string }> {
+  if (opts.preflight) {
+    for (const c of calls) await provider().callContract(c);
+  }
+  const { transaction_hash } = await connection.account.execute(calls);
+  try {
+    const outcome = receiptOutcome(await provider().waitForTransaction(transaction_hash));
+    return outcome.kind === "reverted"
+      ? { hash: transaction_hash, outcome: "reverted", reason: shortRevert(outcome.reason) }
+      : { hash: transaction_hash, outcome: outcome.kind };
+  } catch {
+    return { hash: transaction_hash, outcome: "unknown" };
+  }
+}
+
+const said = (r: { hash: string; outcome: string; reason?: string }, done: string) =>
+  r.outcome === "succeeded" ? `${done} Transaction ${r.hash}.`
+    : r.outcome === "reverted" ? `The transaction reverted on chain${r.reason ? ` (${r.reason})` : ""}. Nothing changed. Transaction ${r.hash}.`
+      : `Sent ${r.hash}. Its receipt could not be read yet — this screen updates once the chain shows it.`;
+
+/* ── bidding ─────────────────────────────────────────────────────────── */
+
+type Shielded =
+  | { kind: "idle" }
+  | { kind: "checking" }
+  | { kind: "enough"; fee: bigint; collateral: bigint }
+  | { kind: "short"; have: bigint; need: bigint; feeToken: boolean }
+  | { kind: "unknown"; why: string };
+
+type BidPhase =
+  | { kind: "form" }
+  | { kind: "confirming"; walletSaid: string | null; elapsed: number }
+  | { kind: "placed"; bid: StoredBid; txHash?: string }
+  | { kind: "verdict"; verdict: Exclude<BidVerdict, { kind: "placed" }>; txHash?: string };
 
 export function BidPanel({
-  auction,
-  connection,
-  now,
-  onPlaced,
+  auction, connection, now, onPlaced,
 }: {
   auction: AuctionView;
   connection: Connection | null;
-  /** Seconds since epoch. `place_bid` reverts past the deadline; so does this panel. */
   now: number;
   onPlaced: () => void;
 }) {
   const { ensureChain, strk20Proof, noteStrk20Error } = useWallet();
   const [level, setLevel] = useState<number | null>(null);
   const [rail, setRail] = useState<Rail>("public");
+  /* Every change of rail the bidder did not make is announced, with its reason. */
+  const [railNote, setRailNote] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  /* `confirmed` is false when the receipt could not be read: the secret is shown either
-     way, because the bid may have landed, but the screen must not claim it did. */
-  const [placed, setPlaced] = useState<(StoredBid & { confirmed: boolean }) | null>(null);
+  const [phase, setPhase] = useState<BidPhase>({ kind: "form" });
   const [ack, setAck] = useState(false);
-  /*
-    Asked once, on mount, rather than at submit: a bidder who cannot store a secret should
-    meet a disabled button with a reason, not a failure after choosing a level. Optimistic
-    until proven otherwise so server render and first paint agree — `vaultWritable` cannot
-    run during SSR, and a pessimistic default would flash a false alarm on every load.
-  */
+  const [understood, setUnderstood] = useState(false);
+  const [shielded, setShielded] = useState<Shielded>({ kind: "idle" });
   const [storable, setStorable] = useState(true);
   useEffect(() => { setStorable(vaultWritable()); }, []);
 
+  const offchain = auction.lotKind === LotKind.OffChain;
   const canPrivate = !!connection?.strk20Declared && hasAnonymizer() && strk20Proof !== "failed";
+  const fee = auction.poolFee;
+  const payIsStrk = BigInt(auction.paymentToken) === BigInt(config.strkAddress);
 
-  /* A rail selected before a real call failed would otherwise stay selected after it —
-     the rail's own button greys out and explains itself while the submit button beside
-     it still reads "Bid privately" and still fires. */
   useEffect(() => {
-    if (!canPrivate && rail === "private") setRail("public");
-  }, [canPrivate, rail]);
+    if (!canPrivate && rail === "private") {
+      setRail("public");
+      setRailNote(strk20Proof === "failed"
+        ? `Switched to the public rail. Your wallet said it can’t use the privacy pool on ${config.label}, so the private rail is off for now. A wallet that times out or doesn’t answer never switches your rail.`
+        : "Switched to the public rail. This wallet doesn’t advertise STRK20 support.");
+    }
+  }, [canPrivate, rail, strk20Proof]);
+
+  /**
+   * The shielded balance must cover the pool fee and the collateral before the wallet is
+   * asked, or the bidder learns it from a greyed-out Confirm. A wallet that does not
+   * answer is an unknown: nothing is sent, and nothing is guessed.
+   */
+  async function checkShielded() {
+    if (!connection || fee === null) return;
+    setShielded({ kind: "checking" });
+    const tokens = payIsStrk ? [config.strkAddress] : [config.strkAddress, auction.paymentToken];
+    const got = await withTimeout(connection.account.strk20Balances(tokens), WAIT.balance);
+    if (got.outcome === "no-answer") {
+      return setShielded({ kind: "unknown", why: "Your wallet didn’t answer when asked for your shielded balance." });
+    }
+    if (got.outcome === "failed") {
+      noteStrk20Error(got.error);
+      return setShielded({ kind: "unknown", why: errText(got.error) });
+    }
+    const bal = (t: string) => {
+      const hit = got.value.find((e) => BigInt(e.token) === BigInt(t));
+      return hit ? BigInt(hit.balance) : 0n;
+    };
+    if (payIsStrk) {
+      const need = fee + auction.collateral;
+      const have = bal(config.strkAddress);
+      return setShielded(have >= need
+        ? { kind: "enough", fee, collateral: auction.collateral }
+        : { kind: "short", have, need, feeToken: true });
+    }
+    if (bal(config.strkAddress) < fee) {
+      return setShielded({ kind: "short", have: bal(config.strkAddress), need: fee, feeToken: true });
+    }
+    if (bal(auction.paymentToken) < auction.collateral) {
+      return setShielded({ kind: "short", have: bal(auction.paymentToken), need: auction.collateral, feeToken: false });
+    }
+    setShielded({ kind: "enough", fee, collateral: auction.collateral });
+  }
+  useEffect(() => { setShielded({ kind: "idle" }); }, [rail, connection?.address]);
+
+  const closed = now >= auction.bidDeadline;
+  const privateReady = rail !== "private" || shielded.kind === "enough";
 
   async function submit() {
     if (!connection) return setError("Connect a wallet first.");
     if (level === null) return setError("Pick a level on the ladder.");
-    /* Belt and braces with the effect above and the disabled button below: three ways to
-       reach this and only one of them needs to be missed. */
-    if (!railUsable(rail, canPrivate)) {
-      return setError("The private rail is unavailable with this wallet on this network. "
-        + "Switch to the public rail.");
-    }
+    if (offchain && !understood) return setError("Tick the box first: this lot depends on the seller.");
+    if (!railUsable(rail, canPrivate)) return setError("The private rail is unavailable with this wallet.");
     if (!(await ensureChain())) return;
     setError(null);
-    /* Outside the `try` so the catch can read it. Nothing in the catch removes a vault
-       entry any more — see the note there. */
     const guessed = auction.bidCount;
+    let stored: StoredBid;
+    let bid: ReturnType<typeof createBid>;
     try {
-      const bid = createBid(auction.terms, level);
-      /* Written before the send, deliberately: a transaction that lands while the secret
-         does not is an escrow nobody can release. `auction.bidCount` is a *guess* at the
-         index — it comes from a poll — and is corrected from the receipt below. */
-      const stored = saveBid(auction.terms.auctionId, bid, guessed);
-      let transaction_hash: string;
+      bid = createBid(auction.terms, level);
+      /* Written before the send: a transaction that lands while the secret does not is
+         an escrow nobody can release. */
+      stored = saveBid(auction.terms.auctionId, bid, guessed);
+    } catch (e) {
+      return setError(e instanceof VaultWriteError ? e.message : errText(e));
+    }
 
+    let txHash: string | undefined;
+    let walletSaid: string | null = null;
+    try {
       if (rail === "public") {
-        /* Straight at the auction contract. The amount is still sealed — it was never
-           in the calldata — but the escrow transfer names the bidder. */
         setBusy("Waiting for your wallet…");
-        ({ transaction_hash } = await connection.account.execute([
-          { contractAddress: auction.paymentToken, entrypoint: "approve",
-            calldata: CallData.compile([
-              config.auctionAddress, num.toHex(auction.collateral), "0x0"]) },
-          { contractAddress: config.auctionAddress, entrypoint: "place_bid",
-            calldata: CallData.compile([
-              num.toHex(auction.terms.auctionId), num.toHex(bid.claimCommitment),
-              num.toHex(bid.upAnchor), num.toHex(bid.downAnchor)]) },
-        ]));
+        ({ transaction_hash: txHash } = await connection.account.execute(placeBidCalls(
+          auction.contract, auction.paymentToken, auction.collateral, auction.terms.auctionId,
+          bid.claimCommitment, bid.upAnchor, bid.downAnchor)));
       } else {
-        if (!hasAnonymizer()) return setError("No anonymizer address is configured.");
-        const actions = placeBidActions({
-          helper: config.anonymizerAddress,
-          paymentToken: auction.paymentToken,
-          collateral: auction.collateral,
-          auctionId: auction.terms.auctionId,
-          claimCommitment: bid.claimCommitment,
-          upAnchor: bid.upAnchor,
-          downAnchor: bid.downAnchor,
-        });
+        const actions = placeBidActionsV2(config.anonymizerAddress, auction.paymentToken,
+          auction.collateral, auction.terms.auctionId, bid.claimCommitment, bid.upAnchor, bid.downAnchor);
         setBusy("Checking the transaction shape…");
         await connection.account.strk20PrepareInvoke(actions, true);
         setBusy("Proving. This takes about 30 seconds — the wallet is not stuck.");
-        ({ transaction_hash } = await connection.account.strk20InvokeTransaction(actions));
+        ({ transaction_hash: txHash } = await connection.account.strk20InvokeTransaction(actions));
       }
-
-      /*
-        B: the index the chain actually assigned, read from `BidPlaced` in the receipt.
-        `index` is a keyed field, and the event is matched on our own `claim_commitment`
-        so that a transaction carrying several bids still resolves to ours.
-
-        Failure here is not fatal — the entry keeps the guessed index and the reconcile
-        pass on the dashboard corrects it later — so it never blocks showing the secret.
-      */
-      let index = guessed;
-      let confirmed = false;
-      let reverted: string | null = null;
-      setBusy("Waiting for the transaction to land…");
-      try {
-        const rcpt = await provider().waitForTransaction(transaction_hash);
-        /* Inclusion is not success. A REVERTED transaction resolves here too, and it
-           placed nothing — reading "resolved" as "placed" showed the secret screen for
-           a bid that never reached the auction. */
-        const outcome = receiptOutcome(rcpt);
-        if (outcome.kind === "reverted") {
-          reverted = outcome.reason;
-        } else if (outcome.kind === "succeeded") {
-          confirmed = true;
-          const events = (rcpt as { events?: Array<{ from_address: string; keys: string[]; data: string[] }> }).events ?? [];
-          const mine = events.find((ev) =>
-            BigInt(ev.from_address) === BigInt(config.auctionAddress)
-            && ev.data?.[0] !== undefined
-            && BigInt(ev.data[0]) === bid.claimCommitment);
-          if (mine?.keys?.[2] !== undefined) {
-            index = Number(BigInt(mine.keys[2]));
-            reindexBid(auction.terms.auctionId, guessed, index);
-          }
-        }
-      } catch { /* keep the guess; the dashboard reconciles against the chain */ }
-
-      if (reverted !== null) {
-        /* The vault entry stays, as it does for every failure: the reconciler drops it
-           only once the chain positively says no bid carries this commitment. */
-        return setError(
-          "The transaction reverted on chain, so no bid was placed and no escrow moved."
-          + (reverted ? ` Reason: ${shortRevert(reverted)}.` : "")
-          + ` Transaction ${transaction_hash}.`);
-      }
-
-      setPlaced({ ...stored, index, txHash: transaction_hash, confirmed });
-      onPlaced();
     } catch (e) {
-      /* A private-rail failure is the same pool read failing. Recording it stops the
-         rail being offered again, so the next attempt is a button that explains itself
-         rather than a bid that fails. */
-      /* The vault entry stays. It used to be rolled back whenever a flag set *after* the
-         wallet call was still false — which was meant to mean "the wallet threw before
-         returning a hash", but could not tell a throw before broadcast from one after.
-         Any timeout, disconnect or unexpected response shape deleted the claim secret
-         for a transaction that was already on chain. On mainnet that destroyed six seeds
-         and stranded the escrow behind them: Rule 11 broken by the code written to
-         honour Rule 11.
-
-         Nothing is deleted here now. The chain is the only authority on whether a bid
-         exists, and DashData's reconciler already asks it — dropping an entry only on a
-         positive "no bid carries this commitment" after a successful read, never on a
-         failed one. The worst case is a stale entry until that pass runs, which is
-         cosmetic. Losing a seed is not. */
-      /* Thrown by `saveBid` before anything was signed, so this is not a wallet or pool
-         failure and must not be recorded as one — marking the pool broken here would
-         disable the private rail over a browser storage problem. Its own message already
-         says no funds moved; `errText` would rewrite it as an unrecognised wallet error. */
-      if (e instanceof VaultWriteError) return setError(e.message);
       if (rail === "private") noteStrk20Error(e);
-      setError(errText(e));
+      walletSaid = errText(e);
     } finally {
       setBusy(null);
     }
+
+    /* Whatever the wallet said, the auction is asked. */
+    setPhase({ kind: "confirming", walletSaid, elapsed: 0 });
+    const verdict = await confirmBid({
+      indexOf: () => bidIndexOf(auction, bid.upAnchor),
+      bidAt: async (i) => {
+        const r = await provider().callContract({ contractAddress: auction.contract,
+          entrypoint: "get_bid", calldata: [auction.terms.auctionId.toString(), String(i)] });
+        return { commitment: BigInt(r[0]!), downAnchor: BigInt(r[2]!) };
+      },
+      stillOpen: async () => {
+        const st = await provider().callContract({ contractAddress: auction.contract,
+          entrypoint: "get_state", calldata: [auction.terms.auctionId.toString()] });
+        return Number(BigInt(st[0]!)) === Status.Open && Date.now() / 1000 < auction.bidDeadline;
+      },
+      receipt: txHash ? async () => {
+        const o = receiptOutcome(await provider().getTransactionReceipt(txHash!));
+        return o.kind === "reverted" ? { reverted: shortRevert(o.reason) } : o.kind;
+      } : undefined,
+    }, { commitment: bid.claimCommitment, downAnchor: bid.downAnchor },
+    { onTick: (ms) => setPhase({ kind: "confirming", walletSaid, elapsed: Math.floor(ms / 1000) }) });
+
+    if (verdict.kind === "placed") {
+      reindexBid(auction.terms.auctionId, guessed, verdict.index);
+      setPhase({ kind: "placed", bid: { ...stored, index: verdict.index, txHash }, txHash });
+      onPlaced();
+    } else {
+      setPhase({ kind: "verdict", verdict, txHash });
+    }
   }
 
-  // R3: losing this loses the refund, and there is no recovery. It gets a wall.
-  /**
-   * Bidding closes on the clock, not on the status.
-   *
-   * `place_bid` asserts `timestamp < bid_deadline`, but the auction stays `Open` until
-   * somebody seals it — and nothing forces that to happen promptly. So between the
-   * deadline and the seal, which has no upper bound, this panel was fully live and every
-   * submission reverted `BIDDING_CLOSED`. A judge arriving in that window finds a form
-   * that takes their input, asks their wallet to sign, and fails.
-   *
-   * It refuses in place rather than disappearing: a blank column does not explain
-   * anything, and the next step is a thing they can actually do.
-   */
-  if (now >= auction.bidDeadline) {
+  if (phase.kind === "confirming") {
     return (
-      <div className="stack" style={{ gap: ".5rem" }}>
-        <h3 style={{ fontSize: "var(--step-1)" }}>Bidding has closed</h3>
-        <p className="note">
-          The deadline passed {utcDate(auction.bidDeadline)}. The chain refuses a bid from
-          that moment, so this form is closed too rather than letting you sign one that
-          cannot land.
-        </p>
-        <p className="note">
-          The auction stays <b>Open</b> until someone seals it, which freezes the bid set
-          and starts the settlement. <b>Anyone can do that</b> — it is not the
-          auctioneer&rsquo;s alone, precisely so nobody can stall an auction by declining.
-          The control is below.
-        </p>
+      <div className="stack">
+        <div className="spread"><h3 style={{ fontSize: "var(--step-1)" }}>Looking for your bid</h3>
+          <span className="countdown">0:{String(phase.elapsed).padStart(2, "0")}</span></div>
+        <p>{phase.walletSaid
+          ? <>Your wallet said: <i>{phase.walletSaid}</i> That doesn’t always mean it failed — we’re checking the auction itself for your bid.</>
+          : "Checking the auction itself for your bid."}</p>
+        <p className="note">Your claim secret is already saved in this browser.</p>
+        <button disabled>Bid again — wait for the chain</button>
       </div>
     );
   }
 
-  if (placed) {
+  if (phase.kind === "verdict") {
+    const v = phase.verdict;
+    return (
+      <div className="stack">
+        {v.kind === "reverted" && <>
+          <h3 style={{ fontSize: "var(--step-1)", color: "var(--seal)" }}>The transaction reverted</h3>
+          <p>No bid was placed and no escrow moved. Reason: <span className="mono">{v.reason}</span>.</p>
+        </>}
+        {v.kind === "absent" && <>
+          <h3 style={{ fontSize: "var(--step-1)" }}>No bid landed — it’s safe to try again</h3>
+          <p>We checked the auction for 90 seconds and no bid carries your commitment. No escrow moved.</p>
+        </>}
+        {v.kind === "closed" && <>
+          <h3 style={{ fontSize: "var(--step-1)" }}>Not placed</h3>
+          <p>No bid carries your commitment, and bidding has now closed.</p>
+        </>}
+        {v.kind === "unknown" && <>
+          <h3 style={{ fontSize: "var(--step-1)" }}>We couldn’t reach the chain</h3>
+          <p>So we can’t say whether your bid landed. We won’t guess either way. Keep this tab open; the dashboard keeps checking. ({v.why})</p>
+        </>}
+        {phase.txHash && <p className="note mono">tx {phase.txHash}</p>}
+        <div className="row">
+          {(v.kind === "absent" || v.kind === "reverted") && (
+            <button className="primary" onClick={() => setPhase({ kind: "form" })}>Bid again</button>
+          )}
+          {v.kind === "unknown" && <button disabled>Bid again — wait for the chain</button>}
+        </div>
+      </div>
+    );
+  }
+
+  if (phase.kind === "placed") {
+    const placed = phase.bid;
     return (
       <div className="secret">
-        <h3 style={{ fontSize: "var(--step-1)", marginBottom: ".4rem" }}>
-          Save your claim secret
-        </h3>
+        <div className="okbox" style={{ marginBottom: ".9rem" }}>
+          <b>Placed — bid #{placed.index} is on chain.</b>
+          <p className="note" style={{ margin: ".3rem 0 0" }}>
+            The auction holds your bid and its escrow. Save your claim secret next.
+          </p>
+        </div>
+        <h3 style={{ fontSize: "var(--step-1)", marginBottom: ".4rem" }}>Save your claim secret</h3>
         <p className="note" style={{ color: "var(--ink-soft)" }}>
-          This is what collects your refund or the lot. It is not on any server and there
-          is no recovery. If you clear this browser without it, the money stays in the
-          contract for good.
+          It’s the only thing that collects your escrow or the lot. It is not on any server and
+          there is no recovery.
         </p>
         <div className="value">{placed.claimSecret}</div>
         <p className="note" style={{ color: "var(--ink-soft)" }}>
-          The secret alone takes the escrow back. <b>Revealing</b> — which is what wins
-          the lot — also needs the seed for this bid, so the download below is the backup
-          to keep: it holds every field, and restores through <b>My bids → Import</b>.
+          After bidding closes, your bid is revealed to the auctioneer from this browser, using
+          the seed in this backup. Keep the download: it restores through <b>My bids → Import</b>.
         </p>
         <div className="row">
-          <button onClick={() => navigator.clipboard?.writeText(placed.claimSecret)}>
-            Copy secret
-          </button>
-          <button onClick={() => downloadBackup(placed)}>
-            Download backup
-          </button>
+          <button onClick={() => navigator.clipboard?.writeText(placed.claimSecret)}>Copy secret</button>
+          <button onClick={() => downloadBackup(placed)}>Download backup</button>
           <label style={{ display: "flex", gap: ".45rem", alignItems: "center", margin: 0 }}>
-            <input
-              type="checkbox"
-              checked={ack}
-              onChange={(e) => setAck(e.target.checked)}
-              style={{ width: "auto" }}
-            />
+            <input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} style={{ width: "auto" }} />
             I have saved it
           </label>
-          <button className="primary" disabled={!ack} onClick={() => setPlaced(null)}>
-            Continue
-          </button>
+          <button className="primary" disabled={!ack} onClick={() => setPhase({ kind: "form" })}>Continue</button>
         </div>
-        {!placed.confirmed && (
-          <p className="note" style={{ marginTop: ".7rem" }}>
-            <b>Not confirmed yet.</b> The receipt for this transaction could not be read,
-            so this screen cannot say the bid landed. Keep the secret regardless — the
-            dashboard checks the chain and shows the bid once it is there.
-          </p>
-        )}
-        {placed.txHash && (
-          <p className="note mono" style={{ marginTop: ".7rem" }}>{placed.txHash}</p>
-        )}
+        {phase.txHash && <p className="note mono" style={{ marginTop: ".7rem" }}>{phase.txHash}</p>}
       </div>
     );
   }
+
+  const needLine = fee === null ? null : payIsStrk
+    ? <>This bid needs <b className="mono">{formatUnits(fee + auction.collateral, STRK_DECIMALS)} STRK</b> in your shielded balance: <span className="mono">{formatUnits(fee, STRK_DECIMALS)}</span> pool fee + <span className="mono">{formatUnits(auction.collateral, auction.paymentDecimals)}</span> collateral.</>
+    : <>This bid needs <b className="mono">{formatUnits(fee, STRK_DECIMALS)} STRK</b> shielded for the pool fee and <b className="mono">{formatUnits(auction.collateral, auction.paymentDecimals)} {auction.paymentSymbol}</b> shielded for the collateral.</>;
 
   return (
     <div className="stack">
@@ -329,159 +350,108 @@ export function BidPanel({
         <h3 style={{ fontSize: "var(--step-1)" }}>Place a bid</h3>
         <p className="note">
           Pick a level. Everyone escrows the same {formatUnits(auction.collateral, auction.paymentDecimals)}{" "}
-          {auction.paymentSymbol}, which is what stops the escrow saying anything about
-          the bid behind it — the difference comes back to you privately.
+          {auction.paymentSymbol}, which is what stops the escrow saying anything about the bid
+          behind it. The losing bids are never published.
         </p>
       </div>
 
-      {/* The rail, chosen before the amount, because it is the decision with a
-          disclosure consequence and burying it under the ladder makes it a default
-          rather than a choice.
-
-          Public is first and marked as the ordinary path, which is honest rather than
-          modest. The private rail needs a shielded balance that exists before the bid
-          does, and this app deliberately does not create one for you — see the note in
-          the panel. (It *could*: `strk20InvokeTransaction` accepts a deposit action. The
-          reason it does not is a product decision, not a limit of the standard.) So the
-          rail requires leaving this page, shielding inside your wallet, and paying the
-          pool fee before you can even start — almost nobody does that in one sitting.
-          Presenting it as the expected route would be setting most visitors up to
-          abandon a bid halfway. */}
       <div className="rails">
         <button className={rail === "public" ? "rail on" : "rail"}
-                onClick={() => setRail("public")} aria-pressed={rail === "public"}>
+                onClick={() => { setRail("public"); setRailNote(null); }} aria-pressed={rail === "public"}>
           <span className="rail-name">Public rail <span className="rail-tag">usual</span></span>
-          <span className="note">
-            Bid straight from this wallet. Nothing to set up.
-          </span>
-          <span className="rail-cost">gas only · ~0.25 STRK</span>
+          <span className="note">Bid straight from this wallet. Nothing to set up.</span>
+          <span className="rail-cost">gas only</span>
         </button>
-
         <button className={rail === "private" ? "rail on" : "rail"}
-                onClick={() => canPrivate && setRail("private")}
+                onClick={() => { if (canPrivate) { setRail("private"); setRailNote(null); } }}
                 disabled={!canPrivate} aria-pressed={rail === "private"}>
           <span className="rail-name">Private rail</span>
           <span className="note">
-            {canPrivate
-              ? "Also hides your address. Needs a shielded balance first."
-              : connection && !connection.strk20Declared
-                /* What we know is what it advertises. Whether a pool call actually works
-                   is a different question and only a real call answers it. */
-                ? "This wallet does not advertise STRK20 support."
-                : strk20Proof === "failed"
-                  /* Proven, not guessed: a real call to this wallet failed on this
-                     network. Ready X does this on Sepolia. Offering the rail anyway
-                     means the bid fails instead of the button explaining itself. */
-                  ? `A real pool read failed with this wallet on ${config.label}. `
-                    + "Try Xverse, or use the public rail."
+            {canPrivate ? "Also hides your address. Needs a shielded balance first."
+              : connection && !connection.strk20Declared ? "This wallet does not advertise STRK20 support."
+                : strk20Proof === "failed" ? `Your wallet said it can’t use the privacy pool on ${config.label}.`
                   : "No anonymizer configured."}
           </span>
           <span className="rail-cost">
-            {auction.poolFee === null ? "pool fee + gas" : `${formatUnits(auction.poolFee, STRK_DECIMALS)} STRK pool fee + gas`}
+            {fee === null ? "pool fee + gas" : `${formatUnits(fee, STRK_DECIMALS)} STRK pool fee + gas`}
           </span>
         </button>
-
-        <div className="rail muted" aria-disabled="true">
-          <span className="rail-name">Sponsored private</span>
-          <span className="note">
-            We pay the pool fee for you. Designed and costed, no relayer deployed yet.
-          </span>
-          <span className="rail-cost">free to you · not available</span>
-        </div>
       </div>
-
-      <p className="note">
-        <b>Both rails seal your bid.</b> The only difference is whether your address is
-        publicly linked to having bid.
-      </p>
+      {railNote && <p className="note" role="status">{railNote}</p>}
 
       {rail === "private" && canPrivate && (
         <div className="panel" style={{ background: "var(--hatch-bg)" }}>
           <p className="eyebrow">Before this will work</p>
+          {needLine && <p style={{ marginTop: ".4rem" }}>{needLine}</p>}
           <p className="note" style={{ marginTop: ".4rem" }}>
-            The private rail spends from a <b>shielded balance</b>, and{" "}
-            <b>shielding does not happen here</b>. The standard would allow it —{" "}
-            <code>strk20InvokeTransaction</code> takes a deposit action — but your first
-            shield is the one step where seeing the amount in your own wallet is worth
-            more than the convenience. Open your wallet&rsquo;s private balance section
-            and shield there. The pool charges{" "}
-            {auction.poolFee === null ? "its fee" : <b>{formatUnits(auction.poolFee, STRK_DECIMALS)} STRK</b>}{" "}
-            for the shield and again for the bid.
+            Shield in your wallet first — shielding has its own pool fee. When the wallet sends
+            the collateral, it warns “Withdraw recipient is not your address”: that’s expected,
+            the collateral goes to Vickrey’s contract.
           </p>
-          <p className="note" style={{ marginTop: ".4rem" }}>
-            If that is more than you want to do to try this, the public rail seals your
-            bid just as completely.
-          </p>
+          {shielded.kind === "idle" && (
+            <button style={{ marginTop: ".6rem" }} onClick={() => void checkShielded()}>Check my shielded balance</button>
+          )}
+          {shielded.kind === "checking" && <p className="note">Asking your wallet…</p>}
+          {shielded.kind === "enough" && <p className="ok">Your shielded balance covers it.</p>}
+          {shielded.kind === "short" && (
+            <p style={{ marginTop: ".5rem" }}>
+              You have <b className="mono">{formatUnits(shielded.have, shielded.feeToken ? STRK_DECIMALS : auction.paymentDecimals)}</b> shielded.
+              Shield <b className="mono">{formatUnits(shielded.need - shielded.have, shielded.feeToken ? STRK_DECIMALS : auction.paymentDecimals)}</b> more
+              {shielded.feeToken ? " STRK" : ` ${auction.paymentSymbol}`} in your wallet first.
+              <button style={{ marginLeft: ".6rem" }} onClick={() => void checkShielded()}>Check again</button>
+            </p>
+          )}
+          {shielded.kind === "unknown" && (
+            <p style={{ marginTop: ".5rem" }}>
+              {shielded.why} We won’t guess. Nothing has been sent.
+              <button style={{ marginLeft: ".6rem" }} onClick={() => void checkShielded()}>Check again</button>
+            </p>
+          )}
         </div>
       )}
 
-      {/* Ladder left, the numbers and the action right, so the panel is not mostly
-          empty glass at full width. */}
       <div className="bid-grid">
         <Ladder
-          numLevels={auction.terms.numLevels}
-          reservePrice={auction.terms.reservePrice}
-          tick={auction.terms.tick}
-          symbol={auction.paymentSymbol}
-          decimals={auction.paymentDecimals}
-          bidCount={auction.bidCount}
-          status={auction.status}
-          pickedLevel={level}
-          onPick={setLevel}
+          numLevels={auction.terms.numLevels} reservePrice={auction.terms.reservePrice}
+          tick={auction.terms.tick} symbol={auction.paymentSymbol} decimals={auction.paymentDecimals}
+          bidCount={auction.bidCount} status={auction.status} pickedLevel={level} onPick={setLevel}
         />
-
         <div className="stack" style={{ gap: ".9rem" }}>
           <dl className="facts">
-            <div className="fact">
-              <dt>Your bid</dt>
-              <dd>
-                {level === null ? (
-                  "—"
-                ) : (
-                  <span className="price" style={{ fontSize: "1.6rem" }}>
-                    {formatUnits(priceAt(auction.terms, level), auction.paymentDecimals)}
-                  </span>
-                )}
-                {level !== null && ` ${auction.paymentSymbol}`}
-              </dd>
-            </div>
-            <div className="fact">
-              <dt>You escrow</dt>
-              <dd>{formatUnits(auction.collateral, auction.paymentDecimals)} {auction.paymentSymbol}</dd>
-            </div>
-            <div className="fact">
-              {/* The pool charges its fee in STRK whatever the auction settles in. */}
-              <dt>Pool fee</dt>
-              <dd>{auction.poolFee === null ? "—" : `${formatUnits(auction.poolFee, STRK_DECIMALS)} STRK`}</dd>
-            </div>
+            <div className="fact"><dt>Your bid</dt><dd>
+              {level === null ? "—" : <><span className="price" style={{ fontSize: "1.6rem" }}>
+                {formatUnits(priceAt(auction.terms, level), auction.paymentDecimals)}</span> {auction.paymentSymbol}</>}
+            </dd></div>
+            <div className="fact"><dt>You escrow</dt>
+              <dd>{formatUnits(auction.collateral, auction.paymentDecimals)} {auction.paymentSymbol}</dd></div>
           </dl>
 
-          {/*
-            A disabled button with no reason beside it is the same defect as a live button
-            that fails: the interface knows something the bidder does not. This is the one
-            precondition they can actually fix, so it says how.
-          */}
+          {offchain && (
+            <label className="warnbox" style={{ display: "flex", gap: ".7rem", alignItems: "flex-start", cursor: "pointer" }}>
+              <input type="checkbox" checked={understood} onChange={(e) => setUnderstood(e.target.checked)}
+                     style={{ width: "1.2rem", height: "1.2rem", marginTop: ".15rem", flex: "none" }} />
+              <span>I understand this lot depends on the seller.</span>
+            </label>
+          )}
+
           {!storable && (
             <p className="note" role="alert" style={{ color: "var(--bad, #b4341f)" }}>
-              <b>This browser will not keep your claim secret.</b> Bidding is disabled,
-              because the secret is stored before the transaction is sent — a bid placed
-              without it is escrow that nobody can ever release. Private browsing, a full
-              store, or blocked site data cause this. Allow site data for this site in a
-              normal window and reload.
+              <b>This browser will not keep your claim secret.</b> Bidding is disabled, because
+              the secret is stored before the transaction is sent. Allow site data for this
+              site in a normal window and reload.
             </p>
           )}
 
           <div className="row">
-            <button className="primary" onClick={submit}
-                    disabled={submitBlocked({
-                      rail, canPrivate, busy: !!busy, connected: !!connection, storable })}>
+            <button className="primary" onClick={() => void submit()}
+                    disabled={closed || (offchain && !understood) || !privateReady
+                      || submitBlocked({ rail, canPrivate, busy: !!busy, connected: !!connection, storable })}>
               {busy ? "Working…" : rail === "private" ? "Bid privately" : "Place sealed bid"}
             </button>
-            {/* R5: name the wait before it starts. */}
             <span className="note">
-              {busy ?? (rail === "private"
-                ? "Proving takes about 30 seconds."
-                : "One transaction: approve, then place.")}
+              {busy ?? (offchain && !understood ? "Tick the box above first."
+                : rail === "private" && !privateReady ? "Check your shielded balance first."
+                  : rail === "private" ? "Proving takes about 30 seconds." : "One transaction: approve, then place.")}
             </span>
           </div>
         </div>
@@ -494,115 +464,158 @@ export function BidPanel({
 
 /* ── reveal ──────────────────────────────────────────────────────────── */
 
-export function RevealPanel({ auction, bids }: { auction: AuctionView; bids: StoredBid[] }) {
-  const [state, setState] = useState<Record<number, string>>({});
-  const [copied, setCopied] = useState(false);
+type RevealState =
+  | { kind: "checking" }
+  | { kind: "posted"; tx?: string }
+  | { kind: "posting" }
+  | { kind: "relay-failed"; why: string }
+  | { kind: "self"; busy?: boolean; err?: string }
+  | { kind: "unknown"; why: string };
+
+/**
+ * After the seal, each bid is revealed on chain, encrypted to the auctioneer's key for
+ * this auction — by the relay, so the bidder's wallet is not attached, or by the bidder.
+ * A posted reveal is both what lets the bid be settled and, if the settlement leaves it
+ * out, the proof that the auctioneer had it.
+ */
+export function RevealPanel({
+  auction, bids, connection, now,
+}: { auction: AuctionView; bids: StoredBid[]; connection: Connection | null; now: number }) {
+  const [state, setState] = useState<Record<number, RevealState>>({});
+  const deadline = revealDeadline(auction);
+  const open = auction.status === Status.Sealed && now < deadline;
+  const key = bids.map((b) => b.index).join(",");
+
+  useEffect(() => {
+    if (auction.status !== Status.Sealed || !bids.length) return;
+    let live = true;
+    void (async () => {
+      for (const b of bids) {
+        const sealed = sealedFor(auction, b);
+        let posted: boolean;
+        try { posted = await isRevealPosted(auction, b.index, sealed); }
+        catch (e) {
+          if (live) setState((s) => ({ ...s, [b.index]: { kind: "unknown", why: errText(e) } }));
+          continue;
+        }
+        if (!live) return;
+        if (posted) {
+          markRevealed(auction.terms.auctionId, b.index);
+          setState((s) => ({ ...s, [b.index]: { kind: "posted" } }));
+          continue;
+        }
+        if (Date.now() / 1000 >= deadline) continue;
+        if (!config.relay) { setState((s) => ({ ...s, [b.index]: { kind: "self" } })); continue; }
+        setState((s) => ({ ...s, [b.index]: { kind: "posting" } }));
+        const r = await relay({ kind: "reveal", auctionId: auction.terms.auctionId.toString(),
+          bidIndex: b.index, ephX: sealed.ephX.toString(), cSeed: sealed.cSeed.toString(),
+          cLevel: sealed.cLevel.toString() });
+        if (!live) return;
+        if (r.ok) {
+          markRevealed(auction.terms.auctionId, b.index);
+          setState((s) => ({ ...s, [b.index]: { kind: "posted", tx: r.tx } }));
+        } else {
+          setState((s) => ({ ...s, [b.index]: { kind: "relay-failed", why: r.why } }));
+        }
+      }
+    })();
+    return () => { live = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auction.status, auction.terms.auctionId, key, deadline]);
+
   if (auction.status !== Status.Sealed || bids.length === 0) return null;
 
-  /**
-   * The same payload the relay would carry, as text.
-   *
-   * The relay is a convenience, not a dependency: it runs on serverless and its
-   * memory does not survive an instance recycling. A demo that can be lost to a cold
-   * start is not a demo, so the reveal can always be handed over by any channel.
-   */
-  const blob = JSON.stringify(
-    bids.map((b) => ({
-      auctionId: b.auctionId, index: b.index, seed: b.seed, level: b.level,
-    })),
-  );
-
-  async function reveal(bid: StoredBid) {
-    setState((s) => ({ ...s, [bid.index]: "sending" }));
+  async function postMyself(b: StoredBid) {
+    if (!connection) return setState((s) => ({ ...s, [b.index]: { kind: "self", err: "Connect a wallet first." } }));
+    setState((s) => ({ ...s, [b.index]: { kind: "self", busy: true } }));
     try {
-      const res = await fetch("/api/reveals", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          auctionId: bid.auctionId, index: bid.index, seed: bid.seed, level: bid.level,
-        }),
-      });
-      if (!res.ok) throw new Error(await res.text());
-      markRevealed(BigInt(bid.auctionId), bid.index);
-      setState((s) => ({ ...s, [bid.index]: "sent" }));
+      const r = await sendAndWait(connection, [postRevealCall(auction.contract, auction.terms.auctionId, b.index, sealedFor(auction, b))]);
+      if (r.outcome === "reverted") throw new Error(said(r, ""));
+      markRevealed(auction.terms.auctionId, b.index);
+      setState((s) => ({ ...s, [b.index]: { kind: "posted", tx: r.hash } }));
     } catch (e) {
-      setState((s) => ({ ...s, [bid.index]: errText(e) }));
+      setState((s) => ({ ...s, [b.index]: { kind: "self", err: errText(e) } }));
     }
   }
 
   return (
     <div className="panel">
-      <h3 style={{ fontSize: "var(--step-1)" }}>Send your seed to the auctioneer</h3>
-      <p className="note">
-        Safe now, and not before. The bid set is frozen on chain, so the auctioneer
-        committed to exactly these bids before being able to read any of them.
-      </p>
-      {/* Said plainly at the moment of handing it over, because this is where a bidder
-          decides. The seed and level together are the bid; there is no version of this
-          step where the auctioneer does not learn the amount. */}
-      <p className="note" style={{ marginTop: ".5rem" }}>
-        <b>This tells the auctioneer your exact bid.</b> It has to — they cannot prove
-        where it sits without it. What it does not do is put an amount on chain, and it
-        does not include your claim secret, which never leaves this browser.
-      </p>
-
-      {/* Copy first. The relay is off by default and cannot survive a cold start even
-          when it is on, so the channel the bidder chooses is the real one. */}
-      <div className="row" style={{ marginTop: "1rem", gap: ".6rem", flexWrap: "wrap" }}>
-        <button className="primary"
-          onClick={() => { navigator.clipboard?.writeText(blob); setCopied(true); }}>
-          {copied ? "Copied" : "Copy reveal for the auctioneer"}
-        </button>
-        <span className="note">
-          Send it however you and the auctioneer already talk. Anyone holding it can read
-          your bid, so pick the channel accordingly.
-        </span>
+      <div className="spread">
+        <h3 style={{ fontSize: "var(--step-1)" }}>Reveal your bid</h3>
+        {open && <span className="countdown">window closes in {countdown(deadline, now)}</span>}
       </div>
-
-      <details style={{ marginTop: ".9rem" }}>
-        <summary className="note">Or post it to the site&rsquo;s relay</summary>
-        <p className="note" style={{ marginTop: ".5rem" }}>
-          A convenience for demos, and <b>disabled in production</b>: its reads were
-          unauthenticated, so anyone who guessed the auction id could have read every
-          revealed bid. It is in-memory either way and a cold start loses it.
-        </p>
-        <div className="stack" style={{ gap: ".5rem", marginTop: ".6rem" }}>
-          {bids.map((b) => (
-            <div className="row" key={b.index}>
-              <span className="note">Bid #{b.index}</span>
-              <button onClick={() => reveal(b)} disabled={state[b.index] === "sending"}>
-                {state[b.index] === "sent" ? "Sent" : "Post to relay"}
-              </button>
-              {state[b.index] && !["sent", "sending"].includes(state[b.index]!) && (
-                <span className="err">{state[b.index]}</span>
-              )}
+      <p className="note" style={{ marginTop: ".4rem" }}>
+        Bidding has closed and the bid set is sealed. Your bid goes on chain now, encrypted to
+        the auctioneer’s key for this auction: the auctioneer can read it and nobody else can.
+        Revealing is what lets your bid be settled.
+      </p>
+      <div className="stack" style={{ gap: ".7rem", marginTop: ".8rem" }}>
+        {bids.map((b) => {
+          const s = state[b.index] ?? { kind: "checking" };
+          if (s.kind === "posted") {
+            return (
+              <div key={b.index} className="okbox">
+                <b>Bid #{b.index} is revealed on chain.</b> Encrypted to the auctioneer. It’s also
+                your proof, if it’s ever needed, that the auctioneer had your bid.
+                {s.tx && <span className="note mono" style={{ display: "block" }}>tx {s.tx}</span>}
+              </div>
+            );
+          }
+          if (!open) {
+            return (
+              <div key={b.index}>
+                <b>Bid #{b.index} wasn’t revealed in time.</b> The auctioneer couldn’t settle it, so
+                it will be recorded as forfeited. If it was at or below the clearing price, you can
+                redeem the escrow once the auction is final. If it was above, the escrow stays in
+                the contract.
+              </div>
+            );
+          }
+          if (s.kind === "checking") return <p key={b.index} className="note">Checking bid #{b.index}…</p>;
+          if (s.kind === "posting") {
+            return <p key={b.index}><b>Posting your reveal for bid #{b.index}…</b> Sent by Vickrey’s relay, so your wallet isn’t attached to it. Nothing to sign.</p>;
+          }
+          if (s.kind === "unknown") {
+            return <p key={b.index}>Couldn’t check bid #{b.index} on the chain ({s.why}). Reload to try again.</p>;
+          }
+          return (
+            <div key={b.index} className={s.kind === "relay-failed" ? "warnbox" : ""}>
+              {s.kind === "relay-failed"
+                ? <><b>The relay hasn’t posted your reveal for bid #{b.index}.</b> ({s.why}) You can post it yourself instead — that puts your wallet address next to bid #{b.index} on chain. Not your amount.</>
+                : <><b>Post your reveal for bid #{b.index}.</b> Posting it from your wallet puts your address next to bid #{b.index} on chain. Not your amount.</>}
+              <div className="row" style={{ marginTop: ".6rem" }}>
+                <button className="primary" disabled={s.kind === "self" && s.busy} onClick={() => void postMyself(b)}>
+                  {s.kind === "self" && s.busy ? "Waiting for your wallet…" : "Post it myself"}
+                </button>
+              </div>
+              {s.kind === "self" && s.err && <p className="err">{s.err}</p>}
             </div>
-          ))}
-        </div>
-      </details>
+          );
+        })}
+      </div>
     </div>
   );
 }
 
 /* ── dispute ─────────────────────────────────────────────────────────── */
 
+/**
+ * Shown only for a bid the settlement recorded as forfeited, that changed the result by
+ * being left out, and whose reveal was posted on chain in time. The contract asks all
+ * three; so does this panel, from the chain, before it offers anything.
+ */
 export function DisputePanel({
   auction, bids, connection, now,
-}: {
-  auction: AuctionView; bids: StoredBid[]; connection: Connection | null; now: number;
-}) {
-  const { ensureChain } = useWallet();
+}: { auction: AuctionView; bids: StoredBid[]; connection: Connection | null; now: number }) {
+  const [states, setStates] = useState<Record<number, BidState | null | undefined>>({});
+  const [posted, setPosted] = useState<Record<number, boolean | null>>({});
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  /* `undefined` = still reading, `null` = the read failed. */
-  const [states, setStates] = useState<Record<number, BidState | null | undefined>>({});
+  const [busy, setBusy] = useState(false);
 
   const settled = auction.status === Status.Settled;
-  /* Only bids that could qualify are read: not the winner, above the line. Whether the
-     auctioneer actually left one out is its disposition, which only the chain knows. */
-  const candidates = settled
-    ? bids.filter((b) => b.index !== auction.winnerIndex && b.level > auction.clearingLevel)
-    : [];
+  const candidates = settled ? bids.filter((b) => b.index !== auction.winnerIndex
+    && (b.level > auction.clearingLevel || auction.winnerIndex === NO_WINNER)) : [];
   const candidateKey = candidates.map((b) => b.index).join(",");
 
   useEffect(() => {
@@ -610,71 +623,79 @@ export function DisputePanel({
     let live = true;
     void Promise.all(candidates.map(async (b) => {
       try {
-        const st = await readBidState(BigInt(b.auctionId), b.index);
-        if (live) setStates((s) => ({ ...s, [b.index]: st }));
+        const st = await readBidState(auction.terms.auctionId, b.index, auction.contract);
+        const p = await isRevealPosted(auction, b.index, sealedFor(auction, b));
+        if (live) { setStates((s) => ({ ...s, [b.index]: st })); setPosted((s) => ({ ...s, [b.index]: p })); }
       } catch {
         if (live) setStates((s) => ({ ...s, [b.index]: null }));
       }
     }));
     return () => { live = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [candidateKey, auction.terms.auctionId]);
 
   if (!settled) return null;
-  const eligible = candidates.filter((b) => canDispute(auction, b, states[b.index]));
+  const eligible = candidates.filter((b) => canDispute(auction, b, states[b.index]) && posted[b.index]);
   const unread = unreadCandidates(auction, candidates, states);
   if (eligible.length === 0 && unread.length === 0) return null;
   const left = countdown(auction.disputeDeadline, now);
 
   if (eligible.length === 0) {
-    /* Neutral on purpose. Not knowing a disposition is a reason to read again, not a
-       reason to offer a call that may void a correct outcome. */
     return (
-      <div className="panel">
-        <p className="note">
-          Could not read {unread.map((i) => `bid #${i}`).join(", ")} from the chain to
-          check how the settlement recorded it. Reload to try again.
-        </p>
-      </div>
+      <div className="panel"><p className="note">
+        Couldn’t read {unread.map((i) => `bid #${i}`).join(", ")} from the chain to check how the
+        settlement recorded it. Reload to try again.
+      </p></div>
     );
   }
 
-  async function dispute(stored: StoredBid) {
-    if (!connection) return setErr("Connect a wallet first.");
-    if (!(await ensureChain())) return;
-    setErr(null);
+  async function voidIt(b: StoredBid) {
+    setErr(null); setMsg(null); setBusy(true);
+    const sealed = sealedFor(auction, b);
+    const r = ephemeralScalar(BigInt(b.seed), auction.terms.auctionId, b.index);
     try {
-      const bid = toPrivateBid(stored);
-      const witness = disputeWitness(auction.terms, bid, auction.clearingLevel);
-      const res = await connection.account.execute({
-        contractAddress: config.auctionAddress,
-        entrypoint: "dispute",
-        calldata: [auction.terms.auctionId.toString(), String(bid.index), witness.toString()],
-      });
-      setMsg(res.transaction_hash);
+      if (config.relay) {
+        const res = await relay({ kind: "dispute", auctionId: auction.terms.auctionId.toString(),
+          bidIndex: b.index, r: r.toString(), cSeed: sealed.cSeed.toString(), cLevel: sealed.cLevel.toString() });
+        if (res.ok) { setMsg(`The settlement is void. Transaction ${res.tx}.`); return; }
+        if (!connection) { setErr(`The relay couldn’t send it (${res.why}). Connect a wallet to send it yourself.`); return; }
+      }
+      if (!connection) return setErr("Connect a wallet first.");
+      const out = await sendAndWait(connection,
+        [disputeCall(auction.contract, auction.terms.auctionId, b.index, r, sealed.cSeed, sealed.cLevel)],
+        { preflight: true });
+      setMsg(said(out, "The settlement is void."));
     } catch (e) {
       setErr(errText(e));
-    }
+    } finally { setBusy(false); }
   }
 
   return (
     <div className="panel accent">
-      <h3 style={{ fontSize: "var(--step-1)" }}>The settlement left your bid out</h3>
-      <p className="note">
-        The auctioneer recorded this bid as forfeited, and it was above the clearing
-        price. Proving that voids the result and pays you the auctioneer&apos;s bond.
-        You do not reveal what you bid — only that it was above this line. {left ? <>Window closes in <span className="countdown">{left}</span>.</> : "The window has closed."}
-      </p>
-      <div className="stack" style={{ gap: ".5rem", marginTop: ".8rem" }}>
-        {eligible.map((b) => (
-          <div className="row" key={b.index}>
-            <span className="note">Bid #{b.index}</span>
-            <button className="primary" onClick={() => dispute(b)} disabled={!left}>
-              Void the settlement
+      {eligible.map((b) => (
+        <div key={b.index} className="stack" style={{ gap: ".6rem" }}>
+          <h3 style={{ fontSize: "var(--step-1)" }}>The settlement left your bid out</h3>
+          <p>
+            The auctioneer recorded bid #{b.index} as forfeited, and {auction.winnerIndex === NO_WINNER
+              ? "named no winner at all" : "it was above the clearing price"}. Your reveal was
+            posted on chain in time, so you can show the auctioneer had it.
+          </p>
+          <p>
+            Showing it voids the result. The auctioneer’s{" "}
+            <b className="mono">{formatUnits(auction.bond, auction.paymentDecimals)} {auction.paymentSymbol}</b>{" "}
+            bond is added to your escrow, and you collect both with your claim secret.
+          </p>
+          <p className="note">This opens your reveal, so your bid on this auction becomes public. The auction is cancelled either way.</p>
+          <div className="row">
+            <button className="primary" onClick={() => void voidIt(b)} disabled={!left || busy}>
+              {busy ? "Sending…" : "Void the settlement"}
             </button>
+            <span className="note">{left ? <>Window closes in <span className="countdown">{left}</span></> : "The window has closed."}</span>
           </div>
-        ))}
-      </div>
-      {msg && <p className="ok mono">{msg}</p>}
+          {config.relay && <p className="note">Sent through Vickrey’s relay, so your wallet isn’t attached.</p>}
+        </div>
+      ))}
+      {msg && <p className="ok">{msg}</p>}
       {err && <p className="err">{err}</p>}
     </div>
   );
@@ -682,21 +703,12 @@ export function DisputePanel({
 
 /* ── collect ─────────────────────────────────────────────────────────── */
 
-/**
- * Which of the two collect calls this bid can actually make.
- *
- * The contract is strict in both directions and the screen used to offer both buttons
- * side by side, so one of them always reverted. On the screen whose entire job is
- * releasing the user's escrow, a revert reads as "the money is gone".
- *
- *   `claim_refund`   Finalized or Cancelled; on Finalized it refuses a forfeited bid.
- *   `redeem_forfeit` Finalized only, and only a forfeited bid.
- *
- * A cancelled auction refunds everyone including forfeits — no settlement ever
- * established who forfeited — so `claim_refund` is right there whatever the disposition.
- */
+/** A forfeited bid on a finalized auction redeems by proof; anything else collects. */
 export const isForfeit = (st: BidState, status: Status) =>
   status === Status.Finalized && st.disposition === Disposition.Forfeit;
+
+export const collectMode = (st: BidState, status: Status): "collect" | "redeem" =>
+  isForfeit(st, status) ? "redeem" : "collect";
 
 /**
  * A forfeited bid on a finalized auction can be redeemed only by proving it sat at or
@@ -705,164 +717,124 @@ export const isForfeit = (st: BidState, status: Status) =>
 export const unredeemable = (st: BidState, status: Status, level: number, clearingLevel: number) =>
   isForfeit(st, status) && level > clearingLevel;
 
-export const collectOp = (st: BidState, status: Status): ClaimOperation =>
-  isForfeit(st, status) ? AuctionOperation.RedeemForfeit : AuctionOperation.ClaimRefund;
-
-const collectLabel = (st: BidState, status: Status) =>
-  isForfeit(st, status) ? "Redeem forfeit" : "Refund or surplus";
-
-export function ClaimPanel({
-  auction, bids, connection,
-}: {
-  auction: AuctionView; bids: StoredBid[]; connection: Connection | null;
+function PrivateUnavailable({ pc, onCheck, onPublic }: {
+  pc: PrivateCollect; onCheck: () => void; onPublic: () => void;
 }) {
+  if (pc.verdict === "unavailable") {
+    return (
+      <div className="panel" style={{ background: "var(--hatch-bg)" }}>
+        <b>Why there’s no private collect yet</b>
+        <p style={{ marginTop: ".4rem" }}>
+          The privacy pool screens deposits that come from contracts it hasn’t cleared, and it
+          hasn’t cleared Vickrey’s yet. It would refuse a private collect. A refused collect
+          would still put your claim secret on chain with nothing collected, so we don’t send one.
+        </p>
+        <p className="note" style={{ marginTop: ".4rem" }}>
+          Collecting publicly reveals nothing about your bid. It does link this wallet to the collection.
+        </p>
+      </div>
+    );
+  }
+  if (pc.verdict === "unknown") {
+    return (
+      <div className="panel" style={{ background: "var(--hatch-bg)" }}>
+        <b>We couldn’t check whether the pool would accept a private collect</b>
+        <p style={{ marginTop: ".4rem" }}>
+          Reading the pool failed ({pc.why}). We won’t guess, and we won’t send a private collect
+          we haven’t checked.
+        </p>
+        <div className="row" style={{ marginTop: ".6rem" }}>
+          <button onClick={onCheck}>Check again</button>
+          <button className="primary" onClick={onPublic}>Collect publicly instead</button>
+        </div>
+      </div>
+    );
+  }
+  return null;
+}
+
+export function CollectPanel({
+  auction, bids, connection,
+}: { auction: AuctionView; bids: StoredBid[]; connection: Connection | null }) {
   const { ensureChain, strk20Proof, noteStrk20Error } = useWallet();
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const canPrivate = !!connection?.strk20Declared && hasAnonymizer() && strk20Proof !== "failed";
+  const [busy, setBusy] = useState(false);
   const [rail, setRail] = useState<Rail>("public");
-
-  /* A rail selected before a real call failed would otherwise stay selected after it —
-     the rail's own button greys out and explains itself while the submit button beside
-     it still says "Bid privately" and still fires. */
-  useEffect(() => {
-    if (!canPrivate && rail === "private") setRail("public");
-  }, [canPrivate, rail]);
-
-  /* `undefined` = still reading, `null` = the read failed. Distinguishing them matters:
-     one is a spinner and the other has to fall back to offering both calls. */
+  const [pc, setPc] = useState<PrivateCollect | null>(null);
   const [state, setState] = useState<Record<number, BidState | null | undefined>>({});
+  const [lotTo, setLotTo] = useState("");
+  const walletPrivate = !!connection?.strk20Declared && hasAnonymizer() && strk20Proof !== "failed";
 
   const final = auction.status === Status.Finalized || auction.status === Status.Cancelled;
 
-  /* Which collect call will succeed is a property of the bid's disposition, which the
-     anchors do not carry, so it has to be read. Hooks cannot sit behind the early
-     return below, hence the guard inside rather than around. */
+  useEffect(() => { if (connection && !lotTo) setLotTo(connection.address); }, [connection, lotTo]);
+  useEffect(() => {
+    if (!final || !walletPrivate) return;
+    void readPrivateCollect().then(setPc);
+  }, [final, walletPrivate]);
   useEffect(() => {
     if (!final || bids.length === 0) return;
     let live = true;
     void Promise.all(bids.map(async (b) => {
       try {
-        const st = await readBidState(BigInt(b.auctionId), b.index);
+        const st = await readBidState(auction.terms.auctionId, b.index, auction.contract);
         if (live) setState((s) => ({ ...s, [b.index]: st }));
-      } catch {
-        if (live) setState((s) => ({ ...s, [b.index]: null }));
-      }
+      } catch { if (live) setState((s) => ({ ...s, [b.index]: null })); }
     }));
     return () => { live = false; };
-  }, [final, auction.terms.auctionId, bids.length]);
+  }, [final, auction.terms.auctionId, auction.contract, bids.length, msg]);
 
   if (!final || bids.length === 0) return null;
+  const privateOk = walletPrivate && pc?.verdict === "available";
 
-  /* A hash is not a collection. Wait for the receipt and say which it was. */
-  async function confirm(transaction_hash: string) {
-    setMsg(`Sent ${transaction_hash} — waiting for it to land…`);
-    try {
-      const outcome = receiptOutcome(await provider().waitForTransaction(transaction_hash));
-      if (outcome.kind === "reverted") {
-        setMsg(null);
-        setErr("The transaction reverted on chain and collected nothing."
-          + (outcome.reason ? ` Reason: ${shortRevert(outcome.reason)}.` : "")
-          + ` Transaction ${transaction_hash}.`);
-        return;
-      }
-      setMsg(outcome.kind === "succeeded"
-        ? `Collected. Transaction ${transaction_hash}.`
-        : `Sent ${transaction_hash}. Its receipt could not be read yet — this screen updates once the chain shows it.`);
-    } catch {
-      setMsg(`Sent ${transaction_hash}. Its receipt could not be read yet — this screen updates once the chain shows it.`);
-    }
-  }
-
-  /**
-   * The winner's lot and surplus, in one transaction. See `lib/winner.ts`: the claim
-   * secret is in calldata, so collecting them separately published the key to whichever
-   * half was left. Public rail only — the private rail is one pool transaction per claim.
-   */
-  async function collectWinner(stored: StoredBid, refundClaimed: boolean) {
+  async function run(b: StoredBid, st: BidState | null) {
     if (!connection) return setErr("Connect a wallet first.");
     if (!(await ensureChain())) return;
-    setErr(null); setMsg(null);
+    setErr(null); setMsg(null); setBusy(true);
+    const bid = toPrivateBid(b);
+    const wins = auction.status === Status.Finalized && b.index === auction.winnerIndex;
+    const needsLotAddress = wins && auction.lotKind !== LotKind.Erc20;
+    const lotRecipient = needsLotAddress ? lotTo.trim() : connection.address;
     try {
-      const bid = toPrivateBid(stored);
-      const calls = winnerCollectCalls({
-        auctionAddress: config.auctionAddress,
-        auctionId: auction.terms.auctionId,
-        index: bid.index,
-        claimSecret: bid.claimSecret,
-        recipient: connection.address,
-        lotClaimed: auction.lotClaimed,
-        refundClaimed,
-      });
-      if (calls.length === 0) return setMsg("Everything for this bid is already collected.");
-      /* A reverted transaction still publishes its calldata, secret included, with
-         nothing collected. Run each call as a read first, so one that would fail is
-         never sent. The two are independent, so each passing means both will. */
-      try {
-        for (const c of calls) await provider().callContract(c);
-      } catch (e) {
-        return setErr("This collection would fail on chain, so nothing was sent. "
-          + (e instanceof Error ? shortRevert(e.message) : ""));
+      if (needsLotAddress && !/^0x[0-9a-fA-F]{1,64}$/.test(lotRecipient)) {
+        throw new Error("Enter the address the lot should go to.");
       }
-      const { transaction_hash } = await connection.account.execute(calls);
-      await confirm(transaction_hash);
-    } catch (e) {
-      setErr(errText(e));
-    }
-  }
+      const redeem = st !== null && collectMode(st, auction.status) === "redeem";
+      const witness = redeem ? redeemWitness(auction.terms, bid, auction.clearingLevel) : 0n;
 
-  async function run(operation: ClaimOperation, stored: StoredBid) {
-    if (!connection) return setErr("Connect a wallet first.");
-    if (!railUsable(rail, canPrivate)) {
-      return setErr("The private rail is unavailable with this wallet on this network. "
-        + "Collect on the public rail instead.");
-    }
-    if (!(await ensureChain())) return;
-    setErr(null); setMsg(null);
-    try {
-      const bid = toPrivateBid(stored);
-
-      /* The public rail calls the auction directly. It has to exist: a bidder who used
-         the public rail has no shielded balance, and routing their refund through the
-         pool would demand one to retrieve money they put in publicly. Claiming this way
-         reveals nothing new — their address was already on the escrow transfer. */
-      if (rail === "public") {
-        const id = num.toHex(auction.terms.auctionId);
-        const call =
-          operation === AuctionOperation.ClaimLot
-            ? { contractAddress: config.auctionAddress, entrypoint: "claim_lot",
-                calldata: CallData.compile([id, num.toHex(bid.claimSecret), connection.address]) }
-            : operation === AuctionOperation.RedeemForfeit
-              ? { contractAddress: config.auctionAddress, entrypoint: "redeem_forfeit",
-                  calldata: CallData.compile([id, num.toHex(bid.index), num.toHex(bid.claimSecret),
-                    num.toHex(redeemWitness(auction.terms, bid, auction.clearingLevel)),
-                    connection.address]) }
-              : { contractAddress: config.auctionAddress, entrypoint: "claim_refund",
-                  calldata: CallData.compile([id, num.toHex(bid.index),
-                    num.toHex(bid.claimSecret), connection.address]) };
-        const { transaction_hash } = await connection.account.execute(call);
-        await confirm(transaction_hash);
+      if (rail === "private") {
+        /* Read again right before the wallet opens: the answer on screen may be old. */
+        const fresh = await readPrivateCollect();
+        setPc(fresh);
+        if (fresh.verdict !== "available") throw new Error("A private collect isn’t available right now — see the note above.");
+        const actions = redeem
+          ? redeemActionsV2({ helper: config.anonymizerAddress, owner: connection.address,
+            paymentToken: auction.paymentToken, auctionId: auction.terms.auctionId, bidIndex: b.index,
+            claimSecret: bid.claimSecret, witnessDown: witness })
+          : collectActionsV2({ helper: config.anonymizerAddress, owner: connection.address,
+            auctionId: auction.terms.auctionId, bidIndex: b.index, claimSecret: bid.claimSecret,
+            paymentToken: auction.paymentToken, lotRecipient: needsLotAddress ? lotRecipient : undefined,
+            notes: collectNotes({ paymentToken: auction.paymentToken, paymentOut: st?.escrow ?? 0n,
+              isWinner: wins, lotKind: auction.lotKind, lotToken: auction.lotToken, lotAmount: auction.lotAmount }) });
+        /* The auction call itself, as a read, so a collect that would fail is never handed
+           to the pool — a refused one would still publish the claim secret. */
+        await provider().callContract(redeem
+          ? redeemForfeitCall(auction.contract, auction.terms.auctionId, b.index, bid.claimSecret, witness, config.anonymizerAddress)
+          : collectCall(auction.contract, auction.terms.auctionId, b.index, bid.claimSecret, config.anonymizerAddress,
+            needsLotAddress ? lotRecipient : config.anonymizerAddress));
+        const { transaction_hash } = await connection.account.strk20InvokeTransaction(actions);
+        setMsg(`Sent ${transaction_hash}. It lands as private notes in your shielded balance.`);
         return;
       }
-
-      const actions = claimActions(operation, {
-        helper: config.anonymizerAddress,
-        token: operation === AuctionOperation.ClaimLot ? auction.lotToken : auction.paymentToken,
-        owner: connection.address,
-        auctionId: auction.terms.auctionId,
-        bidIndex: bid.index,
-        claimSecret: bid.claimSecret,
-        witnessDown:
-          operation === AuctionOperation.RedeemForfeit
-            ? redeemWitness(auction.terms, bid, auction.clearingLevel)
-            : 0n,
-      });
-      const { transaction_hash } = await connection.account.strk20InvokeTransaction(actions);
-      await confirm(transaction_hash);
+      const call = redeem
+        ? redeemForfeitCall(auction.contract, auction.terms.auctionId, b.index, bid.claimSecret, witness, connection.address)
+        : collectCall(auction.contract, auction.terms.auctionId, b.index, bid.claimSecret, connection.address, lotRecipient);
+      setMsg(said(await sendAndWait(connection, [call], { preflight: true }), "Collected."));
     } catch (e) {
       if (rail === "private") noteStrk20Error(e);
       setErr(errText(e));
-    }
+    } finally { setBusy(false); }
   }
 
   return (
@@ -870,146 +842,228 @@ export function ClaimPanel({
       <h3 style={{ fontSize: "var(--step-1)" }}>Collect</h3>
       <div className="rails" style={{ marginBlock: ".8rem" }}>
         <button className={rail === "public" ? "rail on" : "rail"} onClick={() => setRail("public")}>
-          <span className="rail-name">Public rail <span className="rail-tag">usual</span></span>
-          <span className="note">Straight back to this wallet. Nothing to set up.</span>
+          <span className="rail-name">Public rail</span>
+          <span className="note">To this wallet’s address.</span>
         </button>
-        <button className={rail === "private" ? "rail on" : "rail"}
-                onClick={() => canPrivate && setRail("private")} disabled={!canPrivate}>
-          <span className="rail-name">Private rail</span>
+        <button className={rail === "private" ? "rail on" : "rail"} disabled={!privateOk}
+                onClick={() => privateOk && setRail("private")}>
+          <span className="rail-name">Private rail{walletPrivate && pc && pc.verdict !== "available" ? " · unavailable" : ""}</span>
           <span className="note">
-            {canPrivate
-              ? "Comes back as a note inside the pool — no address beside a price."
-              : "Needs a wallet that speaks STRK20."}
+            {!walletPrivate ? "Needs a wallet that speaks STRK20."
+              : pc === null ? "Checking the pool…"
+                : pc.verdict === "available" ? "Private notes in your shielded balance. No address."
+                  : "See below."}
           </span>
         </button>
       </div>
-      <p className="note">
-        If you bid on the public rail your address is already on the escrow transfer, so
-        collecting that way reveals nothing new. The private rail keeps the return
-        unlinked as well.
-      </p>
-      <div className="stack" style={{ gap: ".5rem", marginTop: ".8rem" }}>
+      {walletPrivate && pc && pc.verdict !== "available" && (
+        <PrivateUnavailable pc={pc} onCheck={() => { setPc(null); void readPrivateCollect().then(setPc); }}
+                            onPublic={() => setRail("public")} />
+      )}
+      <div className="stack" style={{ gap: ".8rem", marginTop: ".8rem" }}>
         {bids.map((b) => {
           const st = state[b.index];
-          const won = b.index === auction.winnerIndex && auction.status === Status.Finalized;
+          const wins = auction.status === Status.Finalized && b.index === auction.winnerIndex;
+          if (st === undefined) return <p key={b.index} className="note">Bid #{b.index} · reading the chain…</p>;
+          if (st && st.claimed) return <p key={b.index} className="note">Bid #{b.index} · already collected.</p>;
+          if (st && unredeemable(st, auction.status, b.level, auction.clearingLevel)) {
+            return <p key={b.index} className="note">Bid #{b.index} · forfeited above the clearing price — this escrow cannot be redeemed.</p>;
+          }
+          const redeem = st !== null && collectMode(st, auction.status) === "redeem";
+          const amount = st ? formatUnits(st.escrow, auction.paymentDecimals) : null;
           return (
-            <div className="row" key={b.index}>
-              <span className="note">Bid #{b.index}</span>
-              {st === undefined ? (
-                <span className="note">reading the chain…</span>
-              ) : st === null && won ? (
-                /* Unreadable, but this is the winning bid: never a lone claim, which would
-                   publish the secret with the other half still in the contract. The
-                   preflight inside refuses to send if the surplus was in fact taken. */
-                <button className="primary" disabled={rail !== "public"}
-                        onClick={() => collectWinner(b, false)}>
-                  Collect the lot and your surplus
-                </button>
-              ) : st === null ? (
-                /* The read failed. Both buttons come back rather than none: an unreadable
-                   chain is a reason to stop guessing, not a reason to lock the user out
-                   of their own escrow. */
+            <div key={b.index} className="stack" style={{ gap: ".5rem" }}>
+              {wins ? (
                 <>
-                  <button onClick={() => run(AuctionOperation.ClaimRefund, b)}>
-                    Refund or surplus
-                  </button>
-                  <button onClick={() => run(AuctionOperation.RedeemForfeit, b)}>
-                    Redeem forfeit
-                  </button>
-                  <span className="note">Could not read this bid, so both are offered.</span>
-                </>
-              ) : won ? (
-                /* One collection, not two. `finalize` already took the clearing price out
-                   of this escrow, so the winner is owed the lot and the surplus — and both
-                   are released by the same claim secret, which travels in calldata. See
-                   `lib/winner.ts`. */
-                <div className="stack" style={{ gap: ".45rem", flex: 1 }}>
-                  {auction.lotClaimed && st.claimed ? (
-                    <span className="note">Lot and surplus — both collected.</span>
-                  ) : halfCollected(auction.lotClaimed, st.claimed) ? (
-                    <>
-                      <p className="note" style={{ margin: 0 }}>
-                        <b>Collect the rest now.</b> Your{" "}
-                        {auction.lotClaimed ? "lot" : "surplus"} was collected in its own
-                        transaction, which put your claim secret on chain. Your{" "}
-                        {auction.lotClaimed ? "surplus" : "lot"} is still in the contract,
-                        and anyone who reads that secret can take it.
-                      </p>
-                      <div className="row" style={{ gap: ".5rem", flexWrap: "wrap" }}>
-                        {rail === "public" ? (
-                          <button className="primary" onClick={() => collectWinner(b, st.claimed)}>
-                            {auction.lotClaimed
-                              ? `Collect your surplus${st.escrow > 0n
-                                ? ` · ${formatUnits(st.escrow, auction.paymentDecimals)} ${auction.paymentSymbol}`
-                                : ""}`
-                              : "Collect the lot"}
-                          </button>
-                        ) : (
-                          <button className="primary"
-                                  onClick={() => run(auction.lotClaimed
-                                    ? AuctionOperation.ClaimRefund : AuctionOperation.ClaimLot, b)}>
-                            {auction.lotClaimed ? "Collect your surplus" : "Collect the lot"}
-                          </button>
-                        )}
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <p className="note" style={{ margin: 0 }}>
-                        <b>You won.</b> The lot and your surplus come out together, in one
-                        transaction. The clearing price already came out of your escrow
-                        when the auction was finalized; the surplus is what is left
-                        {st.escrow > 0n
-                          ? ` — ${formatUnits(st.escrow, auction.paymentDecimals)} ${auction.paymentSymbol}`
-                          : ""}.
-                      </p>
-                      <div className="row" style={{ gap: ".5rem", flexWrap: "wrap" }}>
-                        <button className="primary" disabled={rail !== "public"}
-                                onClick={() => collectWinner(b, false)}>
-                          Collect the lot and your surplus
-                        </button>
-                      </div>
-                      {rail !== "public" && (
-                        <p className="note" style={{ margin: 0 }}>
-                          A winning bid is collected on the public rail. Both halves are
-                          released by the same claim secret, and the private rail would
-                          need a separate pool transaction for each — the first would put
-                          the secret on chain while the second half was still there to
-                          take. The surplus is the cap minus the clearing price, the same
-                          for any winner, so it says nothing about what you bid.
-                        </p>
-                      )}
-                    </>
+                  <b>{auction.lotKind === LotKind.OffChain ? "You won — collect and name the buyer" : "You won — collect"}</b>
+                  {auction.lotKind === LotKind.Erc721 && (
+                    <label>Send the NFT to
+                      <input className="mono" value={lotTo} onChange={(e) => setLotTo(e.target.value)} />
+                      <span className="note">An account address. It will be public — the pool can’t hold NFTs. A fresh address keeps it apart from your wallet.</span>
+                    </label>
                   )}
-                </div>
-              ) : st.claimed ? (
-                <span className="note">Already collected.</span>
-              ) : unredeemable(st, auction.status, b.level, auction.clearingLevel) ? (
-                /* `redeem_forfeit` needs a proof the bid was at or below the clearing
-                   price. Above it there is none to give, so the button could only ever
-                   revert — on the screen where a revert reads as "the money is gone". */
-                <span className="note">
-                  Forfeited above the clearing price — this escrow cannot be redeemed.
-                </span>
+                  {auction.lotKind === LotKind.OffChain && (
+                    <label>Buyer address
+                      <input className="mono" value={lotTo} onChange={(e) => setLotTo(e.target.value)} />
+                      <span className="note">Only this address can confirm or reject delivery. It will be public, and the seller will use it to know who won.</span>
+                    </label>
+                  )}
+                  <p className="note" style={{ margin: 0 }}>
+                    {auction.lotKind === LotKind.Erc20 && <>The lot and your surplus{amount ? ` (${amount} ${auction.paymentSymbol})` : ""} come out together, in one transaction.</>}
+                    {auction.lotKind === LotKind.Erc721 && <>Your surplus{amount ? ` (${amount} ${auction.paymentSymbol})` : ""} comes in the same transaction.</>}
+                    {auction.lotKind === LotKind.OffChain && <>Your surplus{amount ? ` (${amount} ${auction.paymentSymbol})` : ""} comes back now. Your payment stays in the contract until you confirm or reject delivery.</>}
+                  </p>
+                </>
               ) : (
-                <button className="primary"
-                        onClick={() => run(collectOp(st, auction.status), b)}>
-                  {collectLabel(st, auction.status)}
-                </button>
+                <span className="note">Bid #{b.index}{amount ? ` · ${amount} ${auction.paymentSymbol}` : ""}</span>
               )}
+              <div className="row">
+                <button className="primary" disabled={busy || (rail === "private" && !privateOk)}
+                        onClick={() => void run(b, st ?? null)}>
+                  {busy ? "Working…"
+                    : wins && auction.lotKind === LotKind.Erc20 ? (rail === "private" ? "Collect both privately — one transaction" : "Collect the lot and your surplus")
+                      : wins && auction.lotKind === LotKind.Erc721 ? "Collect the NFT and your surplus"
+                        : wins ? "Collect and name this buyer"
+                          : redeem ? "Redeem forfeit" : "Collect"}
+                </button>
+              </div>
             </div>
           );
         })}
       </div>
       {Object.values(state).some((s) => s?.disposition === Disposition.Forfeit) && (
         <p className="note" style={{ marginTop: ".8rem" }}>
-          A bid marked <b>forfeited</b> is one the auctioneer settled without a seed from
-          you. If it was at or below the clearing price, redeeming serves the loser-side
-          proof yourself and returns the escrow in full. If it was above, there is no
-          proof to serve, and the escrow stays in the contract.
+          A bid marked <b>forfeited</b> is one the auctioneer settled without a reveal from you.
+          If it was at or below the clearing price, redeeming serves the loser-side proof yourself
+          and returns the escrow in full. If it was above, there is no proof to serve, and the
+          escrow stays in the contract.
         </p>
       )}
-      {msg && <p className="ok mono">{msg}</p>}
+      {msg && <p className="ok mono" style={{ wordBreak: "break-all" }}>{msg}</p>}
+      {err && <p className="err">{err}</p>}
+    </div>
+  );
+}
+
+/* ── off-chain delivery ──────────────────────────────────────────────── */
+
+/**
+ * The off-chain lot's delivery escrow, after the auction is final. The buyer confirms
+ * (pays the seller) or rejects (destroys the payment and the seller's bond); silence
+ * until the deadline pays the seller, and anyone may release it then.
+ */
+export function DeliveryPanel({
+  auction, connection, now, mine, onDone,
+}: { auction: AuctionView; connection: Connection | null; now: number; mine: StoredBid[]; onDone: () => void }) {
+  const [typed, setTyped] = useState("");
+  const [rejecting, setRejecting] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const d = auction.delivery;
+  if (auction.lotKind !== LotKind.OffChain || !d || auction.status !== Status.Finalized) return null;
+
+  const isBuyer = !!connection && BigInt(d.buyer) !== 0n && sameAddress(connection.address, d.buyer);
+  const isWinner = mine.some((b) => b.index === auction.winnerIndex);
+  const passed = now >= d.deadline;
+  const price = `${formatUnits(d.price, auction.paymentDecimals)} ${auction.paymentSymbol}`;
+  const bond = `${formatUnits(auction.sellerBond, auction.paymentDecimals)} ${auction.paymentSymbol}`;
+
+  async function act(entrypoint: "confirm_delivery" | "reject_delivery" | "release_proceeds", done: string) {
+    if (!connection) return setErr("Connect a wallet first.");
+    setErr(null); setMsg(null); setBusy(true);
+    try {
+      setMsg(said(await sendAndWait(connection, [simpleCall(auction.contract, entrypoint, auction.terms.auctionId)],
+        { preflight: true }), done));
+      onDone();
+    } catch (e) { setErr(errText(e)); } finally { setBusy(false); setRejecting(false); }
+  }
+
+  if (d.outcome === DeliveryOutcome.Confirmed) {
+    return <div className="panel okbox"><b>Delivery confirmed.</b> The seller can now take the {price} payment and their bond.</div>;
+  }
+  if (d.outcome === DeliveryOutcome.Rejected) {
+    return <div className="panel warnbox"><b>Delivery rejected.</b> {price} and the seller’s {bond} bond are locked in the contract for good.</div>;
+  }
+  if (d.outcome === DeliveryOutcome.Released) {
+    return <div className="panel"><b>The deadline passed without a rejection.</b> The seller was paid.</div>;
+  }
+  if (!isBuyer && !isWinner && !passed) return null;
+
+  return (
+    <div className="panel">
+      <p className="eyebrow">Delivery deadline</p>
+      <p style={{ fontSize: "1.35rem", fontWeight: 600, margin: ".2rem 0" }}>{utcDate(d.deadline)}</p>
+      {!passed && <p className="countdown">{countdown(d.deadline, now)} left</p>}
+      {BigInt(d.buyer) === 0n ? (
+        <p>The winner hasn’t collected yet, so no buyer address is named. If nobody rejects before the deadline, the seller is paid.</p>
+      ) : passed ? (
+        <>
+          <p>The deadline has passed without a rejection, so the seller is owed the payment and their bond. Anyone can release it.</p>
+          <button className="primary" disabled={busy} onClick={() => void act("release_proceeds", "Released to the seller.")}>Release to the seller</button>
+        </>
+      ) : (
+        <>
+          <p>The seller delivers now. Your payment, <b className="mono">{price}</b>, stays in the contract until you decide. If you do nothing, the seller is paid when the deadline passes.</p>
+          {!isBuyer && <p className="note">Only the buyer address {shortAddr(d.buyer)} can confirm or reject. Connect it to act.</p>}
+          {isBuyer && !rejecting && (
+            <div className="stack" style={{ gap: ".6rem", marginTop: ".6rem" }}>
+              <button className="primary" disabled={busy} onClick={() => void act("confirm_delivery", "Delivery confirmed.")}>Confirm — pay the seller</button>
+              <button className="danger" disabled={busy} onClick={() => setRejecting(true)}>Reject — destroy the payment and the seller’s bond</button>
+            </div>
+          )}
+          {isBuyer && rejecting && (
+            <div className="panel warnbox" role="dialog" aria-label="Reject delivery" style={{ marginTop: ".8rem" }}>
+              <h3 style={{ fontSize: "var(--step-1)" }}>Reject delivery?</h3>
+              <p>Your <b className="mono">{price}</b> payment and the seller’s <b className="mono">{bond}</b> bond will be locked in the contract permanently. <b>Nobody receives them</b> — not you, not the seller. This can’t be undone.</p>
+              <p className="note">If the item arrived, confirm instead. Rejecting doesn’t get your payment back.</p>
+              <label>Type REJECT to continue
+                <input className="mono" value={typed} onChange={(e) => setTyped(e.target.value)} style={{ maxWidth: "14rem" }} />
+              </label>
+              <div className="row" style={{ marginTop: ".6rem" }}>
+                <button onClick={() => { setRejecting(false); setTyped(""); }}>Keep waiting</button>
+                <button className="danger" disabled={typed !== "REJECT" || busy}
+                        onClick={() => void act("reject_delivery", "Delivery rejected.")}>Reject and destroy both</button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+      {msg && <p className="ok mono" style={{ wordBreak: "break-all" }}>{msg}</p>}
+      {err && <p className="err">{err}</p>}
+    </div>
+  );
+}
+
+/* ── the seller's side ───────────────────────────────────────────────── */
+
+/**
+ * The seller is paid by pull, so no token that refuses them can hold up anyone else.
+ * Anyone may trigger either payout; both only ever pay the seller.
+ */
+export function SellerPanel({
+  auction, connection, onDone,
+}: { auction: AuctionView; connection: Connection | null; onDone: () => void }) {
+  const [msg, setMsg] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  if (auction.version !== 2 || (auction.sellerOwed === 0n && !auction.lotReclaimable)) return null;
+  const isSeller = !!connection && sameAddress(connection.address, auction.seller);
+
+  async function act(entrypoint: "withdraw_seller" | "reclaim_lot", done: string) {
+    if (!connection) return setErr("Connect a wallet first.");
+    setErr(null); setMsg(null); setBusy(true);
+    try {
+      setMsg(said(await sendAndWait(connection, [simpleCall(auction.contract, entrypoint, auction.terms.auctionId)],
+        { preflight: true }), done));
+      onDone();
+    } catch (e) { setErr(errText(e)); } finally { setBusy(false); }
+  }
+
+  return (
+    <div className="panel">
+      <p className="eyebrow">{isSeller ? "Yours to collect" : "Owed to the seller"}</p>
+      <div className="stack" style={{ gap: ".6rem", marginTop: ".5rem" }}>
+        {auction.sellerOwed > 0n && (
+          <div className="row">
+            <span className="mono">{formatUnits(auction.sellerOwed, auction.paymentDecimals)} {auction.paymentSymbol}</span>
+            <button className="primary" disabled={busy || !connection}
+                    onClick={() => void act("withdraw_seller", "Paid to the seller.")}>
+              {isSeller ? "Withdraw" : "Pay the seller"}
+            </button>
+          </div>
+        )}
+        {auction.lotReclaimable && (
+          <div className="row">
+            <span>The unsold lot</span>
+            <button className="primary" disabled={busy || !connection}
+                    onClick={() => void act("reclaim_lot", "The lot is back with the seller.")}>
+              {isSeller ? "Take the lot back" : "Return the lot to the seller"}
+            </button>
+          </div>
+        )}
+      </div>
+      {msg && <p className="ok mono" style={{ wordBreak: "break-all" }}>{msg}</p>}
       {err && <p className="err">{err}</p>}
     </div>
   );
@@ -1018,57 +1072,37 @@ export function ClaimPanel({
 /* ── abandon ─────────────────────────────────────────────────────────── */
 
 /**
- * Cancels a sealed auction whose auctioneer never settled it.
- *
- * Permissionless, and shown to anyone looking at the auction rather than only to the
- * auctioneer — the entire point is that it works when the auctioneer has gone. It
- * renders only once the grace has actually expired, so it is never a button that exists
- * solely to refuse.
+ * Cancels a sealed auction whose auctioneer never settled it. Permissionless, and shown
+ * to anyone, because it has to work when the auctioneer has gone.
  */
 export function AbandonPanel({
   auction, connection, now, onDone,
-}: {
-  auction: AuctionView;
-  connection: Connection | null;
-  now: number;
-  onDone: () => void;
-}) {
-  const { ensureChain } = useWallet();
+}: { auction: AuctionView; connection: Connection | null; now: number; onDone: () => void }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
-
   if (auction.status !== Status.Sealed) return null;
-  const graceEnds = auction.sealedAtTime + auction.disputeWindow;
-  if (!auction.sealedAtTime || now < graceEnds) return null;
+  const graceEnds = abandonAt(auction);
+  if (!graceEnds || now < graceEnds) return null;
 
   async function abandon() {
     if (!connection) return setErr("Connect a wallet first.");
-    if (!(await ensureChain())) return;
     setErr(null); setBusy(true);
     try {
-      const res = await connection.account.execute({
-        contractAddress: config.auctionAddress,
-        entrypoint: "abandon",
-        calldata: [auction.terms.auctionId.toString()],
-      });
-      setMsg(res.transaction_hash);
+      setMsg(said(await sendAndWait(connection, [simpleCall(auction.contract, "abandon", auction.terms.auctionId)]), "Cancelled."));
       onDone();
-    } catch (e) { setErr(errText(e)); }
-    finally { setBusy(false); }
+    } catch (e) { setErr(errText(e)); } finally { setBusy(false); }
   }
 
   return (
     <div className="panel accent">
       <p className="eyebrow">Never settled</p>
       <p style={{ marginTop: ".5rem" }}>
-        The auctioneer&rsquo;s time to settle ran out {countdown(graceEnds, now) ?? ""}
-        ago — it ended {utcDate(graceEnds)}.
+        The auctioneer’s time to settle ran out — it ended {utcDate(graceEnds)}.
       </p>
       <p className="note" style={{ marginTop: ".5rem" }}>
-        <b>Anyone can cancel it now.</b> Every bidder is refunded in full and takes an
-        equal share of the auctioneer&rsquo;s forfeited bond; the lot goes back to the
-        seller. Nothing is sold, no outcome is recorded, and it cannot be undone.
+        <b>Anyone can cancel it now.</b> Every bidder gets their escrow back and an equal share
+        of the auctioneer’s forfeited bond; the lot goes back to the seller.
       </p>
       <div className="row" style={{ gap: ".6rem", marginTop: "1rem" }}>
         <button className="primary" onClick={() => void abandon()} disabled={busy || !connection}>
