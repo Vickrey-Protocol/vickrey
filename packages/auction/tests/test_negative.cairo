@@ -3,15 +3,15 @@
 //! Each one is an attack this design has to refuse. If any of these starts passing,
 //! a security property has been lost.
 
-use auction::erc20::IERC20DispatcherTrait;
 use auction::interface::ISealedBidAuctionDispatcherTrait;
 use auction::ladder;
-use auction::types::{AuctionKind, Disposition, DispositionProof, NO_WINNER, ProofKind, Status};
+use auction::types::{AuctionKind, Disposition, DispositionProof, NO_WINNER, ProofKind};
 use core::num::traits::Zero;
 use snforge_std::{start_cheat_block_timestamp_global, start_cheat_caller_address};
 use super::common::{
-    BOND, CAP, DEADLINE, LEVELS, LOT, WINDOW, balance, finalize, payout, place, place_raw, pool,
-    proof_above, proof_below, proof_exactly, proof_forfeit, seal, seller, settle, setup, setup_with,
+    ABANDON_AT, BOND, CAP, DEADLINE, LEVELS, LOT, SETTLE_AT, WINDOW, balance, collect, dispute_with,
+    erc20_extras, finalize, payout, place, place_raw, pool, post, proof_above, proof_below,
+    proof_exactly, proof_forfeit, seal, seller, seller_lot, seller_paid, settle, setup, setup_with,
     setup_with_auctioneer,
 };
 
@@ -223,23 +223,23 @@ fn disputing_after_the_window_is_rejected() {
     let a = place(env, 'A', 'SA', 12);
     let b = place(env, 'B', 'SB', 7);
     seal(env);
+    let posted = post(env, b);
     settle(env, 0, a.index, array![proof_above(env, a, 0), proof_forfeit()]);
-    start_cheat_block_timestamp_global(DEADLINE + WINDOW + 1);
-    env
-        .auction
-        .dispute(env.id, b.index, ladder::witness_at_or_above(env.id, b.commitment, 'SB', 7, 1));
+    start_cheat_block_timestamp_global(SETTLE_AT + WINDOW);
+    dispute_with(env, b, posted);
 }
 
 #[test]
-#[should_panic(expected: 'PROOF_AT_OR_ABOVE_FAILED')]
-fn a_dispute_needs_a_bid_strictly_above_the_clearing_price() {
+#[should_panic(expected: 'ONLY_FORFEIT_MAY_DISPUTE')]
+fn a_bid_the_settlement_pinned_cannot_dispute() {
     let env = setup(AuctionKind::Vickrey);
     let a = place(env, 'A', 'SA', 12);
     let b = place(env, 'B', 'SB', 7);
     seal(env);
+    let posted = post(env, b);
     settle(env, 7, a.index, array![proof_above(env, a, 7), proof_exactly(env, b, 7)]);
-    // b sits exactly at the clearing level, so there is nothing to dispute.
-    env.auction.dispute(env.id, b.index, ladder::up_seed('SB'));
+    // b sits exactly at the clearing level and was accounted for.
+    dispute_with(env, b, posted);
 }
 
 // ---- claims --------------------------------------------------------------------
@@ -251,7 +251,7 @@ fn refunds_are_not_payable_before_finalize() {
     let a = place(env, 'A', 'SA', 5);
     seal(env);
     settle(env, 0, a.index, array![proof_above(env, a, 0)]);
-    env.auction.claim_refund(env.id, a.index, 'A', payout());
+    collect(env, a.index, 'A');
 }
 
 #[test]
@@ -263,7 +263,7 @@ fn a_refund_needs_the_right_claim_secret() {
     seal(env);
     settle(env, 7, a.index, array![proof_above(env, a, 7), proof_exactly(env, b, 7)]);
     finalize(env);
-    env.auction.claim_refund(env.id, b.index, 'WRONG', payout());
+    collect(env, b.index, 'WRONG');
 }
 
 #[test]
@@ -275,8 +275,8 @@ fn a_refund_cannot_be_taken_twice() {
     seal(env);
     settle(env, 7, a.index, array![proof_above(env, a, 7), proof_exactly(env, b, 7)]);
     finalize(env);
-    env.auction.claim_refund(env.id, b.index, 'B', payout());
-    env.auction.claim_refund(env.id, b.index, 'B', payout());
+    collect(env, b.index, 'B');
+    collect(env, b.index, 'B');
 }
 
 #[test]
@@ -291,7 +291,7 @@ fn a_forfeited_bid_cannot_use_the_ordinary_refund_path() {
         env, 7, a.index, array![proof_above(env, a, 7), proof_exactly(env, b, 7), proof_forfeit()],
     );
     finalize(env);
-    env.auction.claim_refund(env.id, c.index, 'C', payout());
+    collect(env, c.index, 'C');
 }
 
 #[test]
@@ -319,7 +319,7 @@ fn the_lot_goes_only_to_the_winning_bids_secret() {
     seal(env);
     settle(env, 7, a.index, array![proof_above(env, a, 7), proof_exactly(env, b, 7)]);
     finalize(env);
-    env.auction.claim_lot(env.id, 'B', payout());
+    env.auction.collect(env.id, a.index, 'B', payout(), payout());
 }
 
 // ---- listing validation --------------------------------------------------------
@@ -338,7 +338,7 @@ fn a_deadline_in_the_past_is_rejected() {
     let mut config = env.auction.get_config(env.id);
     config.bid_deadline = DEADLINE;
     start_cheat_caller_address(env.auction.contract_address, seller());
-    env.auction.create_auction(config);
+    env.auction.create_auction(config, erc20_extras(), "");
 }
 
 // ---- liveness: the auctioneer who never comes back -----------------------------
@@ -360,18 +360,18 @@ fn an_auctioneer_who_never_settles_can_be_timed_out() {
     seal(env);
 
     // The auctioneer is gone. Long past the point where settling was plausible.
-    start_cheat_block_timestamp_global(DEADLINE + WINDOW + 1);
+    start_cheat_block_timestamp_global(ABANDON_AT + 1);
     env.auction.abandon(env.id);
 
     // Everyone gets their collateral back plus a share of the forfeited bond, and the
     // seller gets the lot. The bond no longer goes home — see
     // `abandon_forfeits_the_bond_to_the_bidders`.
     let share = BOND / 2;
-    let got_a = env.auction.claim_refund(env.id, a.index, 'A', payout());
-    let got_b = env.auction.claim_refund(env.id, b.index, 'B', payout());
+    let got_a = collect(env, a.index, 'A');
+    let got_b = collect(env, b.index, 'B');
     assert!(got_a == escrow + share, "A's escrow did not come back");
     assert!(got_b == escrow + share, "B's escrow did not come back");
-    assert!(env.lot.balance_of(seller()) == LOT.into(), "the lot did not go home");
+    assert!(seller_lot(env) == LOT, "the lot did not go home");
 }
 
 #[test]
@@ -391,7 +391,7 @@ fn abandon_does_not_apply_to_a_settled_auction() {
     let a = place(env, 'A', 'SA', 5);
     seal(env);
     settle(env, 0, a.index, array![proof_above(env, a, 0)]);
-    start_cheat_block_timestamp_global(DEADLINE + WINDOW + 1);
+    start_cheat_block_timestamp_global(ABANDON_AT + 1);
     env.auction.abandon(env.id);
 }
 
@@ -403,17 +403,17 @@ fn an_auction_with_no_auctioneer_is_rejected_at_listing() {
 
 /// The grace boundary, pinned exactly.
 ///
-/// It counts from **`sealed_at_time`** — the block timestamp `seal` stamped — and not
-/// from the bid deadline, the settle attempt, or the listing. Those differ whenever
-/// sealing is late, which it often is: `seal` is permissionless and fires whenever
+/// It counts from **`sealed_at_time`** — the block timestamp `seal` stamped — plus the
+/// reveal window, and not from the bid deadline, the settle attempt, or the listing. Those differ
+/// whenever sealing is late, which it often is: `seal` is permissionless and fires whenever
 /// somebody gets round to it.
 #[test]
 #[should_panic(expected: 'SETTLE_GRACE_OPEN')]
 fn abandon_one_second_before_the_grace_expires_is_rejected() {
     let env = setup(AuctionKind::Vickrey);
     place(env, 'A', 'SA', 5);
-    seal(env); // stamps sealed_at_time = DEADLINE
-    start_cheat_block_timestamp_global(DEADLINE + WINDOW - 1);
+    seal(env); // stamps sealed_at_time = DEADLINE; grace ends DEADLINE + REVEAL + WINDOW
+    start_cheat_block_timestamp_global(ABANDON_AT - 1);
     env.auction.abandon(env.id);
 }
 
@@ -422,7 +422,7 @@ fn abandon_at_exactly_the_grace_boundary_is_allowed() {
     let env = setup(AuctionKind::Vickrey);
     place(env, 'A', 'SA', 5);
     seal(env);
-    start_cheat_block_timestamp_global(DEADLINE + WINDOW);
+    start_cheat_block_timestamp_global(ABANDON_AT);
     env.auction.abandon(env.id);
 }
 
@@ -434,7 +434,7 @@ fn abandon_at_exactly_the_grace_boundary_is_allowed() {
 fn an_open_auction_cannot_be_abandoned() {
     let env = setup(AuctionKind::Vickrey);
     place(env, 'A', 'SA', 5);
-    start_cheat_block_timestamp_global(DEADLINE + WINDOW + 1);
+    start_cheat_block_timestamp_global(ABANDON_AT + 1);
     env.auction.abandon(env.id);
 }
 
@@ -451,7 +451,7 @@ fn a_finalized_auction_can_never_be_abandoned() {
     settle(env, 0, a.index, array![proof_above(env, a, 0)]);
     finalize(env);
     // Far past any grace period. Still refused.
-    start_cheat_block_timestamp_global(DEADLINE + WINDOW * 100);
+    start_cheat_block_timestamp_global(ABANDON_AT * 100);
     env.auction.abandon(env.id);
 }
 
@@ -462,7 +462,7 @@ fn abandon_is_not_repeatable() {
     let env = setup(AuctionKind::Vickrey);
     place(env, 'A', 'SA', 5);
     seal(env);
-    start_cheat_block_timestamp_global(DEADLINE + WINDOW + 1);
+    start_cheat_block_timestamp_global(ABANDON_AT + 1);
     env.auction.abandon(env.id);
     env.auction.abandon(env.id);
 }
@@ -502,21 +502,15 @@ fn abandon_forfeits_the_bond_to_the_bidders() {
     seal(env);
 
     let seller_before = balance(env.pay, seller());
-    start_cheat_block_timestamp_global(DEADLINE + WINDOW + 1);
+    start_cheat_block_timestamp_global(ABANDON_AT + 1);
     env.auction.abandon(env.id);
 
-    assert!(balance(env.pay, seller()) == seller_before, "the bond must not go home");
+    assert!(seller_paid(env) == seller_before, "the bond must not go home");
 
     // Each bidder receives their own escrow plus an equal share of the forfeited bond.
     let share = BOND / 2;
-    assert!(
-        env.auction.claim_refund(env.id, a.index, 'A', payout()) == CAP + share,
-        "bidder A: escrow plus a share of the bond",
-    );
-    assert!(
-        env.auction.claim_refund(env.id, b.index, 'B', payout()) == CAP + share,
-        "bidder B: escrow plus a share of the bond",
-    );
+    assert!(collect(env, a.index, 'A') == CAP + share, "bidder A: escrow plus a share of the bond");
+    assert!(collect(env, b.index, 'B') == CAP + share, "bidder B: escrow plus a share of the bond");
 }
 
 /// **The attack this closes.**
@@ -535,16 +529,12 @@ fn an_auctioneer_who_is_the_seller_cannot_discard_an_outcome_for_free() {
     place(env, 'B', 'SB', 2);
     seal(env);
 
-    let pay_before = balance(env.pay, seller());
-    let lot_before = balance(env.lot, seller());
-    start_cheat_block_timestamp_global(DEADLINE + WINDOW + 1);
+    start_cheat_block_timestamp_global(ABANDON_AT + 1);
     env.auction.abandon(env.id);
 
     // The lot comes home — nothing was sold — but the bond does not.
-    assert!(balance(env.lot, seller()) == lot_before + LOT, "lot returns");
-    assert!(
-        balance(env.pay, seller()) == pay_before, "discarding the outcome must now cost the bond",
-    );
+    assert!(seller_lot(env) == LOT, "lot returns");
+    assert!(env.auction.seller_owed(env.id) == 0, "discarding the outcome must now cost the bond");
 }
 
 /// Nobody bid, so nobody was harmed and the bond goes home.
@@ -553,9 +543,9 @@ fn abandoning_an_auction_with_no_bids_returns_the_bond() {
     let env = setup(AuctionKind::Vickrey);
     seal(env);
     let before = balance(env.pay, seller());
-    start_cheat_block_timestamp_global(DEADLINE + WINDOW + 1);
+    start_cheat_block_timestamp_global(ABANDON_AT + 1);
     env.auction.abandon(env.id);
-    assert!(balance(env.pay, seller()) == before + BOND, "no bidders, bond returns");
+    assert!(seller_paid(env) == before + BOND, "no bidders, bond returns");
 }
 
 // ---- where a forfeited escrow actually goes ------------------------------------
@@ -608,7 +598,7 @@ fn a_forfeited_bogus_bid_cannot_take_the_ordinary_refund() {
     seal(env);
     settle(env, 0, good.index, array![proof_above(env, good, 0), proof_forfeit()]);
     finalize(env);
-    env.auction.claim_refund(env.id, bogus_index, 'B', payout());
+    collect(env, bogus_index, 'B');
 }
 
 #[test]
@@ -636,5 +626,6 @@ fn a_bid_at_the_top_of_the_ladder_settles_normally() {
     settle(env, 5, top.index, array![proof_above(env, top, 5), proof_exactly(env, mid, 5)]);
     finalize(env);
     assert!(env.auction.get_state(env.id).clearing_level == 5, "second price is the runner-up's");
-    assert!(env.auction.claim_lot(env.id, 'A', payout()) == LOT, "the top bidder takes the lot");
+    collect(env, top.index, 'A');
+    assert!(balance(env.lot, payout()) == LOT, "the top bidder takes the lot");
 }

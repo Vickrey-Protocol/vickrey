@@ -6,8 +6,13 @@
 //! Bidding is the deposit leg: the pool withdraws the collateral to this contract,
 //! this contract forwards it into the auction, and an empty span tells the pool there
 //! is nothing to credit. Every claim leg is the reverse — pull from the auction,
-//! approve the pool, return one `OpenNoteDeposit`, so **refunds, surplus and the lot
-//! all land as private notes**.
+//! approve the pool, return the `OpenNoteDeposit`s, so **refunds, surplus and an ERC-20
+//! lot all land as private notes**. A winner's surplus and lot come out in the same
+//! leg, as two notes when they are different tokens: the claim secret is in calldata,
+//! so collecting them in two transactions would publish the key to the second.
+//!
+//! An NFT or off-chain lot cannot enter the pool, which only holds ERC-20 amounts. It
+//! goes to the public address the winner names; the surplus still comes back privately.
 //!
 //! No bidder address ever crosses this boundary. The auction sees only this helper.
 //!
@@ -24,6 +29,7 @@
 pub mod AuctionAnonymizer {
     use auction::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
     use auction::interface::{ISealedBidAuctionDispatcher, ISealedBidAuctionDispatcherTrait};
+    use auction::types::LotKind;
     use core::num::traits::Zero;
     use starknet::storage::{StoragePointerReadAccess, StoragePointerWriteAccess};
     use starknet::{ContractAddress, get_caller_address, get_contract_address};
@@ -91,6 +97,8 @@ pub mod AuctionAnonymizer {
             claim_secret: felt252,
             witness_down: felt252,
             note_id: felt252,
+            lot_note_id: felt252,
+            lot_recipient: ContractAddress,
         ) -> Span<OpenNoteDeposit> {
             // This helper handles funds mid-transaction, so it is pinned rather than
             // permissionless.
@@ -102,6 +110,7 @@ pub mod AuctionAnonymizer {
             let auction_addr = self.auction_contract.read();
             let auction = ISealedBidAuctionDispatcher { contract_address: auction_addr };
             let config = auction.get_config(auction_id);
+            let this = get_contract_address();
 
             match operation {
                 AuctionOperation::PlaceBid => {
@@ -112,39 +121,64 @@ pub mod AuctionAnonymizer {
                     // Funds now sit in the auction contract. Credit nothing.
                     [].span()
                 },
-                AuctionOperation::ClaimRefund => {
-                    let out = self
-                        .collect(
-                            config.payment_token,
-                            || auction
-                                .claim_refund(
-                                    auction_id, bid_index, claim_secret, get_contract_address(),
-                                ),
-                        );
-                    self.credit(pool, note_id, config.payment_token, out)
+                AuctionOperation::Collect => {
+                    let extras = auction.get_extras(auction_id);
+                    let pay = config.payment_token;
+                    // An ERC-20 lot comes here to be noted. An NFT or an off-chain lot
+                    // cannot enter the pool, so it goes to the address the winner named.
+                    let erc20_lot = extras.lot_kind == LotKind::Erc20;
+                    let lot_dest = if erc20_lot {
+                        this
+                    } else {
+                        lot_recipient
+                    };
+                    // A lot in the payment token arrives mixed with the surplus, and the
+                    // two are credited to one note together. Only a lot in another token
+                    // gets a note of its own.
+                    let separate_lot = erc20_lot && config.lot_token != pay;
+
+                    let pay_before = balance(pay, this);
+                    let lot_before = if separate_lot {
+                        balance(config.lot_token, this)
+                    } else {
+                        0
+                    };
+                    auction.collect(auction_id, bid_index, claim_secret, this, lot_dest);
+
+                    // Measured, never taken from the auction's return value: the pool can
+                    // only pull what is really here. Zero amounts get no note, because
+                    // the pool refuses an empty deposit; the client opens one note per
+                    // non-zero output.
+                    let mut deposits: Array<OpenNoteDeposit> = array![];
+                    let pay_out = delta(pay, this, pay_before);
+                    if pay_out.is_non_zero() {
+                        approve(pay, pool, pay_out);
+                        deposits.append(OpenNoteDeposit { note_id, token: pay, amount: pay_out });
+                    }
+                    if separate_lot {
+                        let lot_out = delta(config.lot_token, this, lot_before);
+                        if lot_out.is_non_zero() {
+                            approve(config.lot_token, pool, lot_out);
+                            deposits
+                                .append(
+                                    OpenNoteDeposit {
+                                        note_id: lot_note_id,
+                                        token: config.lot_token,
+                                        amount: lot_out,
+                                    },
+                                );
+                        }
+                    }
+                    deposits.span()
                 },
                 AuctionOperation::RedeemForfeit => {
-                    let out = self
-                        .collect(
-                            config.payment_token,
-                            || auction
-                                .redeem_forfeit(
-                                    auction_id,
-                                    bid_index,
-                                    claim_secret,
-                                    witness_down,
-                                    get_contract_address(),
-                                ),
-                        );
-                    self.credit(pool, note_id, config.payment_token, out)
-                },
-                AuctionOperation::ClaimLot => {
-                    let out = self
-                        .collect(
-                            config.lot_token,
-                            || auction.claim_lot(auction_id, claim_secret, get_contract_address()),
-                        );
-                    self.credit(pool, note_id, config.lot_token, out)
+                    let pay = config.payment_token;
+                    let before = balance(pay, this);
+                    auction.redeem_forfeit(auction_id, bid_index, claim_secret, witness_down, this);
+                    let out = delta(pay, this, before);
+                    assert(out.is_non_zero(), errors::ZERO_OUT_AMOUNT);
+                    approve(pay, pool, out);
+                    [OpenNoteDeposit { note_id, token: pay, amount: out }].span()
                 },
             }
         }
@@ -158,35 +192,14 @@ pub mod AuctionAnonymizer {
         }
     }
 
-    #[generate_trait]
-    impl InternalImpl of InternalTrait {
-        /// Runs a claim and measures what actually arrived. The auction's return
-        /// value is deliberately ignored: the pool can only pull what is really here.
-        fn collect<F, +Drop<F>, impl Call: core::ops::FnOnce<F, ()>, +Drop<Call::Output>>(
-            self: @ContractState, token: ContractAddress, action: F,
-        ) -> u128 {
-            let erc20 = IERC20Dispatcher { contract_address: token };
-            let this = get_contract_address();
-            let before = erc20.balance_of(this);
-            action();
-            let after = erc20.balance_of(this);
-            let delta = after - before;
-            let out: u128 = delta.try_into().expect(errors::AMOUNT_OVERFLOW);
-            assert(out.is_non_zero(), errors::ZERO_OUT_AMOUNT);
-            out
-        }
+    fn balance(token: ContractAddress, who: ContractAddress) -> u256 {
+        IERC20Dispatcher { contract_address: token }.balance_of(who)
+    }
 
-        /// Approves the pool to pull `amount` and tells it which note to credit.
-        fn credit(
-            self: @ContractState,
-            pool: ContractAddress,
-            note_id: felt252,
-            token: ContractAddress,
-            amount: u128,
-        ) -> Span<OpenNoteDeposit> {
-            approve(token, pool, amount);
-            [OpenNoteDeposit { note_id, token, amount }].span()
-        }
+    /// What arrived since `before`, as the pool's `u128`.
+    fn delta(token: ContractAddress, who: ContractAddress, before: u256) -> u128 {
+        let d = balance(token, who) - before;
+        d.try_into().expect(errors::AMOUNT_OVERFLOW)
     }
 
     /// Approve, never transfer: the pool executes the pull itself.

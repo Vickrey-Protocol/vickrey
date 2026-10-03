@@ -33,6 +33,19 @@ pub const BID_ROOT_TAG: felt252 = 'VICKREY_BID_ROOT:V1';
 /// auditable number rather than an accident. See PHASE0.md Q3.
 pub const MAX_LEVELS: u16 = 1024;
 
+/// Settlement checks every bid, and a bid costs up to `num_levels` hashes, so the work
+/// in `settle` is bounded by `bids × levels`. Starknet caps a transaction's execution at
+/// 1.11 billion L2 gas (`execute_max_sierra_gas`, versioned constants 0.14.3), and the
+/// benchmark puts a bid-level at about 14 thousand. Measured at the two corners of this
+/// budget (`test_benchmark`, worst-case clearing level, settle alone): ~446M L2 gas for
+/// 1024 levels × 32 bids, ~495M for 128 levels × 256 bids — under half the cap. Without
+/// it, enough bids would make `settle` impossible and force an abandon.
+pub const MAX_SETTLE_WORK: u32 = 32768;
+
+/// A ceiling on the bid count itself, for small ladders where per-bid overhead rather
+/// than hashing dominates.
+pub const MAX_BIDS: u32 = 256;
+
 /// Three minutes: short enough that an auction can be listed, bid in, settled and
 /// finalized inside a demo, long enough that a watching bidder can actually dispute.
 /// Only appropriate when the amounts are nominal and the bidders are in the room.

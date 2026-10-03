@@ -1,7 +1,12 @@
 mod common;
 mod test_benchmark;
+mod test_dispute;
 mod test_first_price;
 mod test_ladder;
+mod test_layout;
 mod test_negative;
+mod test_nft;
+mod test_offchain;
+mod test_robust;
 mod test_vectors;
 mod test_vickrey;

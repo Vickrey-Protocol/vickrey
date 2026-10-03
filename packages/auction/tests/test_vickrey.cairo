@@ -4,8 +4,9 @@ use auction::interface::ISealedBidAuctionDispatcherTrait;
 use auction::ladder;
 use auction::types::{AuctionKind, Disposition, NO_WINNER, Status};
 use super::common::{
-    BOND, CAP, DEADLINE, LOT, RESERVE, TICK, balance, finalize, payout, place, proof_above,
-    proof_below, proof_exactly, proof_forfeit, seal, seller, settle, setup, setup_with_decimals,
+    BOND, CAP, DEADLINE, LOT, RESERVE, TICK, balance, collect, dispute_with, finalize, payout,
+    place, post, proof_above, proof_below, proof_exactly, proof_forfeit, seal, seller_lot,
+    seller_paid, settle, setup, setup_with_decimals,
 };
 
 /// The headline. Five bidders, and afterwards the chain knows exactly one number.
@@ -48,20 +49,19 @@ fn winner_pays_the_second_price_and_nothing_else_is_revealed() {
     finalize(env);
 
     let price = RESERVE + 9 * TICK; // 190
-    assert!(balance(env.pay, seller()) == price + BOND, "seller gets price plus bond back");
+    assert!(seller_paid(env) == price + BOND, "seller gets price plus bond back");
 
     // The winner's surplus refunds privately, so the winning bid stays hidden too.
-    let surplus = env.auction.claim_refund(env.id, a.index, 'A', payout());
+    let surplus = collect(env, a.index, 'A');
     assert!(surplus == CAP - price, "winner is refunded collateral minus the second price");
 
     // Losers are made whole.
-    assert!(env.auction.claim_refund(env.id, c.index, 'C', payout()) == CAP);
-    assert!(env.auction.claim_refund(env.id, d.index, 'D', payout()) == CAP);
-    assert!(env.auction.claim_refund(env.id, e.index, 'E', payout()) == CAP);
-    assert!(env.auction.claim_refund(env.id, b.index, 'B', payout()) == CAP);
+    assert!(collect(env, c.index, 'C') == CAP);
+    assert!(collect(env, d.index, 'D') == CAP);
+    assert!(collect(env, e.index, 'E') == CAP);
+    assert!(collect(env, b.index, 'B') == CAP);
 
     // The lot leaves as a private note, addressed to a secret rather than an address.
-    assert!(env.auction.claim_lot(env.id, 'A', payout()) == LOT);
     assert!(balance(env.lot, payout()) == LOT);
 }
 
@@ -73,8 +73,8 @@ fn a_lone_bidder_clears_at_the_reserve() {
     settle(env, 0, a.index, array![proof_above(env, a, 0)]);
     finalize(env);
 
-    assert!(balance(env.pay, seller()) == RESERVE + BOND);
-    assert!(env.auction.claim_refund(env.id, a.index, 'A', payout()) == CAP - RESERVE);
+    assert!(seller_paid(env) == RESERVE + BOND);
+    assert!(collect(env, a.index, 'A') == CAP - RESERVE);
 }
 
 #[test]
@@ -88,8 +88,8 @@ fn a_tie_at_the_top_clears_at_that_level() {
     finalize(env);
 
     let price = RESERVE + 8 * TICK;
-    assert!(balance(env.pay, seller()) == price + BOND);
-    assert!(env.auction.claim_refund(env.id, a.index, 'A', payout()) == CAP - price);
+    assert!(seller_paid(env) == price + BOND);
+    assert!(collect(env, a.index, 'A') == CAP - price);
 }
 
 #[test]
@@ -100,8 +100,8 @@ fn an_auction_nobody_bid_in_returns_the_lot() {
     finalize(env);
 
     assert!(env.auction.get_state(env.id).status == Status::Cancelled);
-    assert!(balance(env.lot, seller()) == LOT);
-    assert!(balance(env.pay, seller()) == BOND);
+    assert!(seller_lot(env) == LOT);
+    assert!(seller_paid(env) == BOND);
 }
 
 /// A bidder who never sends their seed cannot stall the auction. Settlement completes
@@ -127,15 +127,17 @@ fn a_silent_bidder_does_not_block_settlement() {
     assert!(env.auction.redeem_forfeit(env.id, ghost.index, 'G', witness, payout()) == CAP);
 }
 
-/// The attack the plan is built around: the auctioneer drops a rival's high bid to
-/// depress the price. It settles, and then it does not survive the window.
+/// The auctioneer drops a rival's high bid to depress the price. The rival revealed on
+/// chain in time, so the auctioneer had the bid; the settlement stands only until the
+/// rival opens that reveal.
 #[test]
-fn excluding_a_high_bid_is_caught_in_the_dispute_window() {
+fn an_excluded_bid_with_a_posted_reveal_voids_the_settlement() {
     let env = setup(AuctionKind::Vickrey);
     let a = place(env, 'A', 'SA', 12); // the auctioneer's friend
     let victim = place(env, 'V', 'SV', 11); // the bid it wants gone
     let c = place(env, 'C', 'SC', 2);
     seal(env);
+    let posted = post(env, victim);
 
     // Forfeit the victim and the price collapses from 11 to 2.
     settle(
@@ -143,41 +145,39 @@ fn excluding_a_high_bid_is_caught_in_the_dispute_window() {
     );
     assert!(env.auction.get_state(env.id).status == Status::Settled);
 
-    // The victim proves they were strictly above the clearing level. That is all it takes.
-    let witness = ladder::witness_at_or_above(env.id, victim.commitment, 'SV', 11, 3);
-    env.auction.dispute(env.id, victim.index, witness);
+    dispute_with(env, victim, posted);
 
     let state = env.auction.get_state(env.id);
     assert!(state.status == Status::Cancelled, "a proved exclusion voids the settlement");
     assert!(balance(env.pay, payout()) == 0, "nothing was paid out");
-    assert!(balance(env.lot, seller()) == LOT, "the lot went home");
+    assert!(seller_lot(env) == LOT, "the lot goes home");
 
-    // Everyone, forfeits included, is made whole.
-    assert!(env.auction.claim_refund(env.id, a.index, 'A', payout()) == CAP);
-    assert!(env.auction.claim_refund(env.id, victim.index, 'V', payout()) == CAP);
-    assert!(env.auction.claim_refund(env.id, c.index, 'C', payout()) == CAP);
+    // Everyone, forfeits included, is made whole; the victim also holds the bond.
+    assert!(collect(env, a.index, 'A') == CAP);
+    assert!(collect(env, victim.index, 'V') == CAP + BOND);
+    assert!(collect(env, c.index, 'C') == CAP);
 }
 
+/// The bond is credited to the excluded bid, collected with its own claim secret —
+/// privately, through the pool, like any refund. Whoever sends the dispute gets nothing,
+/// and the event names no address.
 #[test]
-fn the_bond_is_slashed_to_whoever_proves_the_exclusion() {
+fn the_bond_is_credited_to_the_excluded_bid() {
     let env = setup(AuctionKind::Vickrey);
     let a = place(env, 'A', 'SA', 12);
     let victim = place(env, 'V', 'SV', 11);
     seal(env);
+    let posted = post(env, victim);
     settle(env, 0, a.index, array![proof_above(env, a, 0), proof_forfeit()]);
 
-    let before = balance(env.pay, payout());
-    snforge_std::start_cheat_caller_address(env.auction.contract_address, payout());
-    env
-        .auction
-        .dispute(
-            env.id,
-            victim.index,
-            ladder::witness_at_or_above(env.id, victim.commitment, 'SV', 11, 1),
-        );
+    let sender: starknet::ContractAddress = 'ANY_RELAYER'.try_into().unwrap();
+    snforge_std::start_cheat_caller_address(env.auction.contract_address, sender);
+    dispute_with(env, victim, posted);
     snforge_std::stop_cheat_caller_address(env.auction.contract_address);
 
-    assert!(balance(env.pay, payout()) == before + BOND, "the bond pays the disputer");
+    assert!(balance(env.pay, sender) == 0, "the sender is not paid");
+    assert!(env.auction.get_bid(env.id, victim.index).escrow == CAP + BOND, "the bid holds it");
+    assert!(collect(env, victim.index, 'V') == CAP + BOND);
 }
 
 #[test]
@@ -228,11 +228,8 @@ fn an_auction_denominated_in_a_six_decimal_token_settles_identically() {
 
     // Losers get the whole cap back; the winner keeps only the surplus.
     let cap = env.auction.collateral(env.id);
-    assert!(env.auction.claim_refund(env.id, c.index, 'C', payout()) == cap, "loser short-changed");
-    assert!(
-        env.auction.claim_refund(env.id, a.index, 'A', payout()) == cap - price,
-        "winner's surplus is wrong",
-    );
+    assert!(collect(env, c.index, 'C') == cap, "loser short-changed");
+    assert!(collect(env, a.index, 'A') == cap - price, "winner's surplus is wrong");
 }
 
 /// **Conservation.** Everything the contract takes in, it pays out — and it ends empty.
@@ -277,18 +274,19 @@ fn a_full_lifecycle_conserves_value() {
     assert!(balance(env.pay, auction) == BOND + CAP * 3, "settle must move no money");
 
     finalize(env);
-    // Out: the clearing price and the bond to the seller. Everything else still held.
+    // Finalize records what the seller is owed and moves nothing either: the seller is
+    // paid by pull, so no token can make finalize revert.
+    assert!(balance(env.pay, auction) == BOND + CAP * 3, "finalize must move no money");
+    assert!(env.auction.seller_owed(env.id) == price + BOND, "price and bond owed to seller");
+    env.auction.withdraw_seller(env.id);
     assert!(balance(env.pay, auction) == CAP * 3 - price, "only price and bond have left");
 
     // ── out: every claim, and then nothing is left
     // ──────────────────────────────
-    assert!(env.auction.claim_refund(env.id, c.index, 'C', payout()) == CAP, "loser whole");
-    assert!(env.auction.claim_refund(env.id, b.index, 'B', payout()) == CAP, "runner-up whole");
-    assert!(
-        env.auction.claim_refund(env.id, a.index, 'A', payout()) == CAP - price,
-        "winner keeps only the surplus",
-    );
-    assert!(env.auction.claim_lot(env.id, 'A', payout()) == LOT, "winner takes the lot");
+    assert!(collect(env, c.index, 'C') == CAP, "loser whole");
+    assert!(collect(env, b.index, 'B') == CAP, "runner-up whole");
+    assert!(collect(env, a.index, 'A') == CAP - price, "winner keeps only the surplus");
+    assert!(balance(env.lot, payout()) == LOT, "the same call delivered the lot");
 
     assert!(balance(env.pay, auction) == 0, "the contract holds no payment token at the end");
     assert!(balance(env.lot, auction) == 0, "the contract holds no lot token at the end");

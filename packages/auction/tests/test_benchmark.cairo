@@ -84,3 +84,60 @@ fn settle_ten_bids_at_the_worst_case_clearing_level() {
 
     assert!(env.auction.get_state(env.id).clearing_level == 0);
 }
+
+// ---- at the bid cap ---------------------------------------------------------------
+//
+// `ladder::MAX_SETTLE_WORK` caps bids × levels at 32768 so `settle` always fits under
+// Starknet's 1.11B L2 gas per transaction. These run the worst case at the two corners
+// of that budget — the biggest ladder, and the most bids — each against a baseline that
+// does everything except settle. Subtract to read settle alone.
+
+fn fill(env: super::common::Env, n: u32, level: u16) -> Array<super::common::Kit> {
+    let mut kits = array![];
+    let mut i: u32 = 0;
+    while i < n {
+        kits.append(place(env, 'S' + i.into(), 'K' + i.into(), level));
+        i += 1;
+    }
+    kits
+}
+
+/// Winner at the top, everyone else at level 0, clearing at 0: every loser proof walks
+/// the whole down-chain. The worst case for a given ladder.
+fn worst_case_settle(levels: u16, n: u32, run_settle: bool) {
+    let env = setup_with(AuctionKind::Vickrey, levels, TICK);
+    let winner = place(env, 'W', 'SW', levels - 1);
+    let rest = fill(env, n - 1, 0);
+    seal(env);
+    // Proofs are built in both runs, so the difference is the contract's own work.
+    let mut proofs: Array<DispositionProof> = array![proof_above(env, winner, 0)];
+    proofs.append(proof_exactly(env, *rest.at(0), 0));
+    let mut j: u32 = 1;
+    while j < rest.len() {
+        proofs.append(proof_below(env, *rest.at(j), 0));
+        j += 1;
+    }
+    if run_settle {
+        settle(env, 0, winner.index, proofs);
+    }
+}
+
+#[test]
+fn settle_at_the_cap_1024_levels_32_bids() {
+    worst_case_settle(1024, 32, true);
+}
+
+#[test]
+fn baseline_at_the_cap_1024_levels_32_bids() {
+    worst_case_settle(1024, 32, false);
+}
+
+#[test]
+fn settle_at_the_cap_128_levels_256_bids() {
+    worst_case_settle(128, 256, true);
+}
+
+#[test]
+fn baseline_at_the_cap_128_levels_256_bids() {
+    worst_case_settle(128, 256, false);
+}

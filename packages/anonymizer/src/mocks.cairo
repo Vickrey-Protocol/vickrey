@@ -1,5 +1,6 @@
 //! A stand-in for the STRK20 pool, exercising the `privacy_invoke` sandwich the way
-//! the real pool does: withdraw to the helper, invoke it, then pull what it approved.
+//! the real pool does: withdraw to the helper, invoke it, then pull what it approved —
+//! one pull per returned deposit, refusing an empty one, as the real pool does.
 //! Test double, not for deployment.
 
 use crate::privacy_objects::OpenNoteDeposit;
@@ -27,6 +28,8 @@ pub trait IMockPrivacyPool<T> {
         claim_secret: felt252,
         witness_down: felt252,
         note_id: felt252,
+        lot_note_id: felt252,
+        lot_recipient: starknet::ContractAddress,
     ) -> Span<OpenNoteDeposit>;
 }
 
@@ -69,6 +72,8 @@ pub mod MockPrivacyPool {
                     0,
                     0,
                     0,
+                    0,
+                    0.try_into().unwrap(),
                 );
             assert(deposits.len() == 0, 'BID_MUST_CREDIT_NOTHING');
         }
@@ -82,16 +87,29 @@ pub mod MockPrivacyPool {
             claim_secret: felt252,
             witness_down: felt252,
             note_id: felt252,
+            lot_note_id: felt252,
+            lot_recipient: ContractAddress,
         ) -> Span<OpenNoteDeposit> {
             let deposits = IAuctionAnonymizerDispatcher { contract_address: helper }
                 .privacy_invoke(
-                    operation, auction_id, bid_index, 0, 0, 0, claim_secret, witness_down, note_id,
+                    operation,
+                    auction_id,
+                    bid_index,
+                    0,
+                    0,
+                    0,
+                    claim_secret,
+                    witness_down,
+                    note_id,
+                    lot_note_id,
+                    lot_recipient,
                 );
 
             // Apply the deposits: the pool pulls what the helper approved.
             let mut i = 0;
             while i < deposits.len() {
                 let d = *deposits.at(i);
+                assert(d.amount != 0, 'ZERO_AMOUNT');
                 let ok = IERC20Dispatcher { contract_address: d.token }
                     .transfer_from(helper, get_contract_address(), d.amount.into());
                 assert(ok, 'POOL_PULL_FAILED');

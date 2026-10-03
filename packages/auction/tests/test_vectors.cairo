@@ -30,3 +30,40 @@ fn print_conformance_vectors() {
         ladder::extend_bid_root(ladder::extend_bid_root(0, 0, c, 111, 222), 1, c, 333, 444),
     );
 }
+
+/// The reveal encryption, for `client/test/reveal.test.ts`. Asserted here as well as
+/// printed, so a change on the Cairo side fails this file before it can strand a client.
+#[test]
+fn reveal_vectors() {
+    let sk: felt252 = 'AUCTIONEER_SK';
+    let seed: felt252 = 'BID_SEED';
+    let auction_id: u64 = 42;
+    let bid_index: u32 = 3;
+    let level: u16 = 9;
+    let (kx, ky) = super::common::reveal_key();
+    let r = auction::reveal::ephemeral_scalar(seed, auction_id, bid_index);
+    let (eph_x, c_seed, c_level) = auction::reveal::encrypt(
+        r, kx, ky, auction_id, bid_index, seed, level,
+    );
+    let k = auction::reveal::shared_key(r, kx, ky).unwrap();
+    println!("key_x {}", kx);
+    println!("key_y {}", ky);
+    println!("r {}", r);
+    println!("eph_x {}", eph_x);
+    println!("k {}", k);
+    println!("c_seed {}", c_seed);
+    println!("c_level {}", c_level);
+    println!("record {}", auction::reveal::record(eph_x, c_seed, c_level));
+    let (s, l) = auction::reveal::open_as_auctioneer(
+        sk, eph_x, auction_id, bid_index, c_seed, c_level,
+    )
+        .unwrap();
+    assert!(s == seed && l == level.into(), "the auctioneer opens what was sealed");
+
+    // Pinned. The same numbers are in `client/test/reveal.test.ts`.
+    assert!(r == 1096758706370399936340077541185969099233227558469687129007935104948560983167);
+    assert!(eph_x == 1730920132285456082242979380521797916492723854716072199299279519883021950147);
+    assert!(k == 1234767036340032115673756496322496542623562067134743824257253330510632466289);
+    assert!(c_seed == 1913448946204768278282019681581804167590657384628665040943092916084201524734);
+    assert!(c_level == 746589006867101285454884351858382899742679408783976786781839442902682449079);
+}

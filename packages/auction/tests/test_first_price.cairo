@@ -4,8 +4,8 @@
 use auction::interface::ISealedBidAuctionDispatcherTrait;
 use auction::types::{AuctionKind, Disposition};
 use super::common::{
-    BOND, CAP, LOT, RESERVE, TICK, balance, finalize, payout, place, proof_below, proof_exactly,
-    seal, seller, settle, setup,
+    BOND, CAP, LOT, RESERVE, TICK, balance, collect, finalize, payout, place, proof_below,
+    proof_exactly, seal, seller_paid, settle, setup,
 };
 
 #[test]
@@ -25,13 +25,13 @@ fn winner_pays_their_own_bid_and_the_losers_stay_hidden() {
     finalize(env);
 
     let price = RESERVE + 13 * TICK;
-    assert!(balance(env.pay, seller()) == price + BOND);
+    assert!(seller_paid(env) == price + BOND);
 
     // The winner overpaid the ladder cap into escrow and gets the rest back.
-    assert!(env.auction.claim_refund(env.id, a.index, 'A', payout()) == CAP - price);
-    assert!(env.auction.claim_refund(env.id, b.index, 'B', payout()) == CAP);
-    assert!(env.auction.claim_refund(env.id, c.index, 'C', payout()) == CAP);
-    assert!(env.auction.claim_lot(env.id, 'A', payout()) == LOT);
+    assert!(collect(env, a.index, 'A') == CAP - price);
+    assert!(collect(env, b.index, 'B') == CAP);
+    assert!(collect(env, c.index, 'C') == CAP);
+    assert!(balance(env.lot, payout()) == LOT);
 
     // Only "at or below the winning bid" was ever proved about the losers.
     assert!(env.auction.get_bid(env.id, b.index).disposition == Disposition::AtOrBelow);
@@ -46,6 +46,6 @@ fn a_first_price_winner_at_the_reserve_pays_the_reserve() {
     settle(env, 0, a.index, array![proof_exactly(env, a, 0)]);
     finalize(env);
 
-    assert!(balance(env.pay, seller()) == RESERVE + BOND);
-    assert!(env.auction.claim_refund(env.id, a.index, 'A', payout()) == CAP - RESERVE);
+    assert!(seller_paid(env) == RESERVE + BOND);
+    assert!(collect(env, a.index, 'A') == CAP - RESERVE);
 }

@@ -1,7 +1,9 @@
 pub mod auction;
 pub mod erc20;
+pub mod erc721;
 pub mod errors;
 pub mod interface;
 pub mod ladder;
 pub mod mocks;
+pub mod reveal;
 pub mod types;

@@ -36,12 +36,14 @@ fn a_span_of_deposits_serializes_length_first() {
 }
 
 /// The dapp sends the operation as a bare variant index. If these move, every
-/// existing calldata template in the web app silently targets the wrong leg.
+/// calldata template in the client silently targets the wrong leg. v2 renumbers them
+/// (`ClaimRefund` and `ClaimLot` became one `Collect`), so the client's v2 templates are
+/// pinned here and the v1 ones stay with the v1 anonymizer.
 #[test]
 fn operation_variants_keep_their_indices() {
     let cases = array![
-        (AuctionOperation::PlaceBid, 0), (AuctionOperation::ClaimRefund, 1),
-        (AuctionOperation::RedeemForfeit, 2), (AuctionOperation::ClaimLot, 3),
+        (AuctionOperation::PlaceBid, 0), (AuctionOperation::Collect, 1),
+        (AuctionOperation::RedeemForfeit, 2),
     ];
     let mut i = 0;
     while i < cases.len() {

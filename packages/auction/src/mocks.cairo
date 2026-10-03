@@ -111,3 +111,244 @@ pub mod MockERC20 {
 pub trait IMintable<T> {
     fn mint(ref self: T, to: starknet::ContractAddress, amount: u256);
 }
+
+/// Switches for a token that misbehaves. Test-only: `MockERC20` stays well-behaved,
+/// because a copy of it is deployed as a demo lot.
+#[starknet::interface]
+pub trait IHostile<T> {
+    /// Deliver `fee` less than asked on every `transfer_from`.
+    fn set_fee(ref self: T, fee: u256);
+    /// Revert every transfer.
+    fn set_frozen(ref self: T, frozen: bool);
+    /// Revert any transfer to `who`, as a token with a blocklist would.
+    fn block(ref self: T, who: starknet::ContractAddress);
+}
+
+#[starknet::contract]
+pub mod HostileERC20 {
+    use core::num::traits::Zero;
+    use starknet::storage::{
+        Map, StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess,
+    };
+    use starknet::{ContractAddress, get_caller_address};
+    use crate::erc20::IERC20;
+    use super::IHostile;
+
+    #[storage]
+    struct Storage {
+        balances: Map<ContractAddress, u256>,
+        allowances: Map<(ContractAddress, ContractAddress), u256>,
+        fee: u256,
+        frozen: bool,
+        blocked: Map<ContractAddress, bool>,
+    }
+
+    #[constructor]
+    fn constructor(ref self: ContractState, recipient: ContractAddress, supply: u256) {
+        self.balances.entry(recipient).write(supply);
+    }
+
+    #[abi(embed_v0)]
+    impl HostileImpl of IHostile<ContractState> {
+        fn set_fee(ref self: ContractState, fee: u256) {
+            self.fee.write(fee);
+        }
+        fn set_frozen(ref self: ContractState, frozen: bool) {
+            self.frozen.write(frozen);
+        }
+        fn block(ref self: ContractState, who: ContractAddress) {
+            self.blocked.entry(who).write(true);
+        }
+    }
+
+    #[abi(embed_v0)]
+    impl ERC20Impl of IERC20<ContractState> {
+        fn transfer(ref self: ContractState, recipient: ContractAddress, amount: u256) -> bool {
+            self.move_funds(get_caller_address(), recipient, amount, 0);
+            true
+        }
+
+        fn transfer_from(
+            ref self: ContractState,
+            sender: ContractAddress,
+            recipient: ContractAddress,
+            amount: u256,
+        ) -> bool {
+            let spender = get_caller_address();
+            if sender != spender {
+                let allowed = self.allowances.entry((sender, spender)).read();
+                assert(allowed >= amount, 'INSUFFICIENT_ALLOWANCE');
+                self.allowances.entry((sender, spender)).write(allowed - amount);
+            }
+            let fee = self.fee.read();
+            self.move_funds(sender, recipient, amount, fee);
+            true
+        }
+
+        fn approve(ref self: ContractState, spender: ContractAddress, amount: u256) -> bool {
+            self.allowances.entry((get_caller_address(), spender)).write(amount);
+            true
+        }
+
+        fn balance_of(self: @ContractState, account: ContractAddress) -> u256 {
+            self.balances.entry(account).read()
+        }
+
+        fn allowance(
+            self: @ContractState, owner: ContractAddress, spender: ContractAddress,
+        ) -> u256 {
+            self.allowances.entry((owner, spender)).read()
+        }
+    }
+
+    #[generate_trait]
+    impl InternalImpl of InternalTrait {
+        fn move_funds(
+            ref self: ContractState,
+            from: ContractAddress,
+            to: ContractAddress,
+            amount: u256,
+            fee: u256,
+        ) {
+            assert(!self.frozen.read(), 'TOKEN_FROZEN');
+            assert(!self.blocked.entry(to).read(), 'RECIPIENT_BLOCKED');
+            assert(to.is_non_zero(), 'TRANSFER_TO_ZERO');
+            let balance = self.balances.entry(from).read();
+            assert(balance >= amount, 'INSUFFICIENT_BALANCE');
+            self.balances.entry(from).write(balance - amount);
+            // The fee simply vanishes; what matters is that `to` receives less.
+            self.balances.entry(to).write(self.balances.entry(to).read() + amount - fee);
+        }
+    }
+}
+
+/// The OpenZeppelin ERC-721 receiver interface id.
+pub const IERC721_RECEIVER_ID: felt252 =
+    0x3a0dff5f70d80458ad14ae37bb182a728e3c8cdda0402a5daa86620bdf910bc;
+
+#[starknet::interface]
+pub trait ISRC5<T> {
+    fn supports_interface(self: @T, interface_id: felt252) -> bool;
+}
+
+#[starknet::interface]
+pub trait IERC721Receiver<T> {
+    fn on_erc721_received(
+        self: @T,
+        operator: starknet::ContractAddress,
+        from: starknet::ContractAddress,
+        token_id: u256,
+        data: Span<felt252>,
+    ) -> felt252;
+}
+
+#[starknet::interface]
+pub trait IMockERC721Admin<T> {
+    fn mint(ref self: T, to: starknet::ContractAddress, token_id: u256);
+    fn set_frozen(ref self: T, frozen: bool);
+    fn approve(ref self: T, to: starknet::ContractAddress, token_id: u256);
+    fn set_approval_for_all(ref self: T, operator: starknet::ContractAddress, approved: bool);
+}
+
+/// An ERC-721 shaped like OpenZeppelin's: snake_case, plain `transfer_from` with no
+/// hook, and `safe_transfer_from` that asks the recipient for the receiver interface.
+///
+/// One concession to the test harness: snforge's test addresses are not deployed
+/// contracts, so an address with no class is treated as an account. Real accounts pass
+/// OZ's check by reporting `ISRC6`; a deployed contract without the receiver interface
+/// fails here exactly as it would there.
+#[starknet::contract]
+pub mod MockERC721 {
+    use core::num::traits::Zero;
+    use starknet::storage::{
+        Map, StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess,
+    };
+    use starknet::syscalls::get_class_hash_at_syscall;
+    use starknet::{ContractAddress, SyscallResultTrait, get_caller_address};
+    use crate::erc721::IERC721;
+    use super::{
+        IERC721ReceiverDispatcher, IERC721ReceiverDispatcherTrait, IERC721_RECEIVER_ID,
+        IMockERC721Admin, ISRC5Dispatcher, ISRC5DispatcherTrait,
+    };
+
+    #[storage]
+    struct Storage {
+        owners: Map<u256, ContractAddress>,
+        approved: Map<u256, ContractAddress>,
+        operators: Map<(ContractAddress, ContractAddress), bool>,
+        frozen: bool,
+    }
+
+    #[abi(embed_v0)]
+    impl AdminImpl of IMockERC721Admin<ContractState> {
+        fn mint(ref self: ContractState, to: ContractAddress, token_id: u256) {
+            assert(self.owners.entry(token_id).read().is_zero(), 'ALREADY_MINTED');
+            self.owners.entry(token_id).write(to);
+        }
+        fn set_frozen(ref self: ContractState, frozen: bool) {
+            self.frozen.write(frozen);
+        }
+        fn approve(ref self: ContractState, to: ContractAddress, token_id: u256) {
+            assert(self.owners.entry(token_id).read() == get_caller_address(), 'NOT_OWNER');
+            self.approved.entry(token_id).write(to);
+        }
+        fn set_approval_for_all(
+            ref self: ContractState, operator: ContractAddress, approved: bool,
+        ) {
+            self.operators.entry((get_caller_address(), operator)).write(approved);
+        }
+    }
+
+    #[abi(embed_v0)]
+    impl ERC721Impl of IERC721<ContractState> {
+        fn owner_of(self: @ContractState, token_id: u256) -> ContractAddress {
+            let owner = self.owners.entry(token_id).read();
+            assert(owner.is_non_zero(), 'INVALID_TOKEN_ID');
+            owner
+        }
+
+        fn transfer_from(
+            ref self: ContractState, from: ContractAddress, to: ContractAddress, token_id: u256,
+        ) {
+            assert(!self.frozen.read(), 'TOKEN_FROZEN');
+            assert(to.is_non_zero(), 'INVALID_RECEIVER');
+            let owner = self.owners.entry(token_id).read();
+            assert(owner == from, 'WRONG_SENDER');
+            let caller = get_caller_address();
+            assert(
+                caller == owner
+                    || self.approved.entry(token_id).read() == caller
+                    || self.operators.entry((owner, caller)).read(),
+                'UNAUTHORIZED',
+            );
+            self.approved.entry(token_id).write(Zero::zero());
+            self.owners.entry(token_id).write(to);
+        }
+
+        fn safe_transfer_from(
+            ref self: ContractState,
+            from: ContractAddress,
+            to: ContractAddress,
+            token_id: u256,
+            data: Span<felt252>,
+        ) {
+            self.transfer_from(from, to, token_id);
+            let class = get_class_hash_at_syscall(to).unwrap_syscall();
+            if class.is_zero() {
+                return;
+            }
+            // Panics if `to` has no `supports_interface`, which is OZ's outcome too.
+            assert(
+                ISRC5Dispatcher { contract_address: to }.supports_interface(IERC721_RECEIVER_ID),
+                'SAFE_TRANSFER_FAILED',
+            );
+            assert(
+                IERC721ReceiverDispatcher { contract_address: to }
+                    .on_erc721_received(
+                        get_caller_address(), from, token_id, data,
+                    ) == IERC721_RECEIVER_ID,
+                'SAFE_TRANSFER_FAILED',
+            );
+        }
+    }
+}

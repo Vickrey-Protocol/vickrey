@@ -27,6 +27,7 @@ build-external-contracts = [
     "anonymizer::mocks::MockPrivacyPool",
     "auction::auction::SealedBidAuction",
     "auction::mocks::MockERC20",
+    "auction::mocks::MockERC721",
 ]
 
 [[target.starknet-contract]]
