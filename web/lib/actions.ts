@@ -125,10 +125,10 @@ export function actionsFor(
               + "each exact bid, after the set was frozen, so the knowledge cannot change "
               + "which bids exist. The chain still never sees an amount.",
           consequence:
-            "The auctioneer settles without you and the bid is marked forfeited. That is "
-            + "recoverable, not lost: at or below the clearing price you take the whole "
-            + "escrow back after finalize with Redeem forfeit; above it you dispute "
-            + "instead, which voids the settlement and pays you the auctioneer's bond.",
+            "The auctioneer settles without you and the bid is marked forfeited. If it was "
+            + "at or below the clearing price, you take the whole escrow back after "
+            + "finalize with Redeem forfeit. If it was above, the escrow stays in the "
+            + "contract.",
           cta: "Send seed", href: bidHref, blocking: false,
           /* `dispute_deadline` is written by `settle`, so during `Sealed` — the only
              status this fires in — it is still 0, and the old `|| null` turned the

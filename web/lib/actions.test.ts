@@ -88,9 +88,11 @@ describe("send-seed, the step that can be silently missed", () => {
     const text = `${detail} ${consequence}`;
     // `redeem_forfeit` returns the escrow in full, so no phrasing may claim otherwise.
     expect(text).not.toMatch(/forfeits your collateral/i);
-    // and it has to say where the money actually comes back from — both branches.
+    // It says where the money comes back from, and when it does not.
     expect(consequence).toMatch(/redeem forfeit/i);
-    expect(consequence).toMatch(/dispute/i);
+    expect(consequence).toMatch(/stays in the contract/i);
+    // A bidder who did not send their seed is never pointed at a dispute.
+    expect(`${detail} ${consequence}`).not.toMatch(/dispute/i);
   });
 
   it("marks its deadline as a bound, because the auctioneer may settle sooner", () => {

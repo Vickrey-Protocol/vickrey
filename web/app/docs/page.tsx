@@ -333,29 +333,26 @@ down_anchor = step^(P−1−ℓ)    a depth-(P−1−t) preimage proves  ℓ ≤
               contract holds nothing at all once an ordinary auction has been claimed out.
             </p>
 
-            <h3>The auctioneer cannot drop a rival&rsquo;s bid</h3>
+            <h3>Leaving a bid out is on the record</h3>
             <p>
               The auctioneer learns every level after sealing. The obvious attack is to
               pretend a high bid never arrived, settle lower, and win the lot cheaply — or
               hand it to a friend.
             </p>
             <p>
-              Two things stop it. <b>Ordering:</b> <code>seal()</code> freezes the set and
-              stamps the block <em>before</em> any seed is sent, so the set cannot be
-              chosen after seeing the contents. <b>Consequence:</b> during the dispute
-              window, anyone holding a witness that their bid was above the claimed
-              clearing price can present it. The contract verifies it, cancels the auction,
-              and <b>slashes the auctioneer&rsquo;s bond to the disputer</b>.
-            </p>
-            <p>
-              So excluding a bid is not merely detectable — it is detectable by exactly the
-              person with the motive to detect it, and it pays them to do so.
+              <b>Ordering</b> limits it: <code>seal()</code> freezes the set and stamps the
+              block <em>before</em> any seed is sent, so the set cannot be chosen after
+              seeing the contents. And settlement must give every sealed bid a
+              disposition, so a bid left out is recorded on chain as forfeited, for anyone
+              to see.
             </p>
             <p className="lede">
-              <b>And walking away costs the bond too.</b> <code>abandon</code> does not
-              return it to the seller — it forfeits it to the bidders, split evenly and
-              paid out with their escrow. So discarding an outcome you do not like is not
-              a cheaper alternative to excluding a bid; it costs the same stake.
+              On the current contracts, the dispute window does not reliably penalise
+              leaving a bid out.
+            </p>
+            <p>
+              Walking away is not free: <code>abandon</code> forfeits the auctioneer&rsquo;s
+              bond to the bidders, split evenly and paid out with their escrow.
             </p>
             <p>
               The bond is bounded at both ends. At least one tick, so there is always
