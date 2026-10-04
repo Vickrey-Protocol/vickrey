@@ -73,7 +73,7 @@ const STEPS: Step[] = [
           your position in each. Open one to read its ladder and place a sealed bid.
         </p>
         <p className="note">
-          Bid amounts are never on the chain, so nothing here shows you anyone's — only how
+          Bid amounts are never published, so nothing here shows you anyone's — only how
           many bids there are and what the clearing price turned out to be.
         </p>
       </>

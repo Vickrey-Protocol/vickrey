@@ -313,7 +313,8 @@ posting the reveals on chain, and the auctioneer's bond are for.
 
 **Bidding on the public rail is the ordinary path.** Connect a wallet, pick a level,
 sign. Nothing to install, nothing to fund in advance, and **your bid is sealed** — the
-amount is never in the calldata and never reaches the chain.
+amount is not in the bid's calldata, and it reaches the chain only after the seal,
+encrypted to the auctioneer.
 
 **The private rail additionally hides your address**, by funding the bid from a shielded
 balance inside the STRK20 pool. It is the deeper integration and it is what the rest of
@@ -507,7 +508,7 @@ Bids are levels on a public price ladder: `price(ℓ) = reserve + ℓ · tick`, 
 `ℓ ∈ [0, P)`. Level 0 is the reserve, so bidding at all means bidding at least the
 reserve.
 
-Each bidder publishes two hash-chain anchors and nothing else:
+While bidding is open, each bidder publishes two hash-chain anchors and nothing else:
 
 ```
 step(x) = poseidon([CHAIN_TAG, auction_id, claim_commitment, x])

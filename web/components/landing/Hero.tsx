@@ -75,7 +75,7 @@ export function LpHero({
         className="tw:relative tw:z-10 tw:mx-auto tw:mt-6 tw:max-w-3xl tw:text-center tw:text-base tw:text-neutral-600 tw:dark:text-neutral-300 tw:text-balance tw:md:text-xl"
       >
         Highest bidder wins and pays the <strong className="tw:font-semibold tw:text-black tw:dark:text-white">second-highest bid</strong>.
-        The chain learns one number and nothing else — <strong className="tw:font-semibold tw:text-black tw:dark:text-white">not even the winner&apos;s own bid</strong>.
+        The price is the only number ever published — <strong className="tw:font-semibold tw:text-black tw:dark:text-white">not the losing bids, and not the winner&apos;s own</strong>.
       </p>
 
       <div

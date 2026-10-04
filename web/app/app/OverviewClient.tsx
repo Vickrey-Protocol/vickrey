@@ -141,7 +141,7 @@ export default function OverviewClient() {
           {[
             ["Auctions", "Every auction on this contract, in every state.", d.auctions.length],
             ["Bids sealed", "Escrowed, hashed, and never opened.", d.auctions.reduce((n, a) => n + a.bidCount, 0)],
-            ["Amounts disclosed", "Losing bids are never on the chain.", 0],
+            ["Amounts disclosed", "Losing bids are never published.", 0],
           ].map(([t, desc, v]) => (
             <div className="stat" key={String(t)}>
               <p className="stat-title">{t}</p>

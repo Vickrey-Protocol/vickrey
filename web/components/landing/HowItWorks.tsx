@@ -27,7 +27,7 @@ function Timeline() {
   const steps = [
     ["bids arrive", "two hashes and an escrow each"],
     ["seal()", "the set is frozen, the block stamped"],
-    ["seeds move", "only now, and only to the auctioneer"],
+    ["reveals posted", "only now, encrypted to the auctioneer"],
     ["settle()", "N+1 witnesses, checked on chain"],
   ];
   return (
@@ -46,13 +46,13 @@ function Timeline() {
   );
 }
 
-/** What a bid is, as the chain sees it. The two things people expect are the two that are absent. */
+/** What a bid is, as the chain sees it. The two things people expect are the two it never shows. */
 function Record() {
   const rows: Array<[string, string, boolean]> = [
     ["up_anchor", "poseidon chain, ℓ steps", true],
     ["down_anchor", "poseidon chain, P−1−ℓ steps", true],
     ["escrow", "the top of the ladder — the same for everyone", true],
-    ["amount", "never on chain", false],
+    ["amount", "never in the clear — encrypted to the auctioneer after the seal", false],
     ["address", "never on the private rail", false],
   ];
   return (
@@ -92,7 +92,7 @@ export function LpHowItWorks() {
           </div>
           <div className={`${CARD} tw:border-b tw:border-neutral-200 tw:dark:border-neutral-700 tw:lg:col-span-2`} data-reveal style={{ ["--d" as string]: ".08s" }}>
             <h3 className={TITLE}>Seal</h3>
-            <p className={DESC}>The contract freezes the set and stamps the block. Only then do seeds move.</p>
+            <p className={DESC}>The contract freezes the set and stamps the block. Only then are bids revealed, encrypted to the auctioneer.</p>
             <Timeline />
           </div>
           <div className={`${CARD} tw:border-b tw:border-neutral-200 tw:dark:border-neutral-700 tw:lg:col-span-3 tw:lg:border-b-0 tw:lg:border-r`} data-reveal style={{ ["--d" as string]: ".16s" }}>
