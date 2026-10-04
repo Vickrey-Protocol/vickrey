@@ -40,10 +40,10 @@ export function LpProblem() {
             stops producing the outcome it promises.
           </p>
           <p>
-            <b className="tw:font-semibold tw:text-black tw:dark:text-white">Vickrey never opens a bid.</b> Collateral is escrowed up front, and a silent
-            bidder is settled around, not waited for. The winner and the price are proved
-            from hash chains instead of disclosure. The losing bids are not withheld — they are never on the chain
-            in the first place.
+            <b className="tw:font-semibold tw:text-black tw:dark:text-white">Vickrey never publishes a losing bid.</b> Collateral is escrowed up front, and a
+            bid that is not revealed in time is settled around, not waited for. The winner and the price are proved
+            from hash chains instead of disclosure. On chain, a losing bid is two hashes and a ciphertext that
+            only the auction&rsquo;s key opens.
           </p>
         </div>
       </div>

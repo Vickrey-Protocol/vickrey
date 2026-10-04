@@ -41,36 +41,44 @@ work has continued in this repository since.
 > bid could be opened, so the auctioneer cannot misplace any bid it settles, or
 > misreport the price those bids set, without failing a proof. **What is not:** after
 > sealing, the auctioneer learns every bid amount — it can never publish them or spend
-> anyone's funds, but it knows them; it can settle without a bid by recording it as
-> forfeited, and on the current contracts the dispute window does not reliably
-> penalise that; and the number of bids, their timing, and the uniform escrow amount
-> are public on-chain.
+> anyone's funds, but it knows them, and every bid sits on chain encrypted to the
+> auction's key, readable by anyone who ever holds that key; it can settle without a
+> bid by recording it as forfeited, but a bid it left out that beat the price, whose
+> reveal was posted in time, voids that settlement and takes the auctioneer's bond;
+> and the number of bids, their timing, and the uniform escrow amount are public
+> on-chain.
+
+On the first-version contracts, which stay readable on the site, the second sentence
+ends differently: "it can settle without a bid by recording it as forfeited, and on
+the current contracts the dispute window does not reliably penalise that; and the
+number of bids, their timing, and the uniform escrow amount are public on-chain."
 
 The long form, including everything this does *not* protect against, is in
 [TRUST.md](TRUST.md).
 
 ## Status — read this before believing anything above
 
-**Live on Starknet mainnet since 7 Sep 2026.** Both contracts are deployed from the
-frozen build, and three private-rail bids have gone through the STRK20 pool into them.
-**Settlement has not yet run on mainnet**, and neither contract has been audited. The site at
-**https://vickrey.0xo.in** points at mainnet.
-
-Mainnet cost is measured rather than estimated: [docs/mainnet.md](docs/mainnet.md).
+**The second version is live on Starknet mainnet since 4 Oct 2026.** It adds NFT and
+off-chain lots, posts each reveal on chain encrypted to the auctioneer's per-auction key,
+and lets a bid the settlement left out void it. **Nothing has been audited.** The site at
+**https://vickrey.0xo.in** points at it. The first version, live since 7 Sep 2026, is
+frozen and stays readable on the site.
 
 | Piece | State |
 |---|---|
-| Auction contract | **Deployed on mainnet** `0x02d893ac…6831`. 71 tests passing. **Not audited** |
-| Anonymizer helper | **Deployed on mainnet** `0x04628cab…64ff`. 9 tests passing. **Not audited** |
-| Client library | 59 tests passing, hash-conformant with Cairo, action shapes type-checked against the wallet's own types |
-| Web app | Reads and writes the contracts. **Design under review — the current UI is a working prototype, not the shipped design** |
-| Private-rail bids through the pool | **Done on mainnet**: three bids into auction #1 on 7 Sep, from a browser wallet |
-| Sepolia lifecycles | **Done**, driven by scripts: create, bid, seal, settle, finalize, claim, including a 6-decimal token |
-| Settlement on mainnet | **Not done.** The 7 Sep auctions can never settle — their seeds were destroyed ([disclosure](#disclosure--7-sep-2026-the-claim-secret-does-not-reliably-persist)). A fresh auction needs a full run with a human in the browser |
-| Full lifecycle by a human in the browser | **Not done** on either network. In progress on Sepolia on the public rail |
-| Private rail on Sepolia | **Blocked since 23 Sep**: Xverse and Ready X both fail to shield there. The mainnet pool is unchanged. See [docs/sepolia-done.md §9](docs/sepolia-done.md) |
+| Auction contract (v2) | **Deployed on mainnet** `0x01b81e43…08c7`. 139 tests passing. **Not audited** |
+| Anonymizer helper (v2) | **Deployed on mainnet** `0x00cb8007…e050`, wired to the STRK20 pool. 14 tests passing. **Not audited** |
+| Reveal relay | **Live.** Posts encrypted reveals and disputes from its own account, `0x00b6bd64…9966`, so a bidder's wallet is not attached |
+| Client library | 66 tests passing, hash- and encryption-conformant with Cairo |
+| Web app | 160 tests passing. Every screen recorded at 1440 and 390, light and dark, before the switch |
+| Mainnet smoke test, 4 Oct 2026 | **Done** on the public rail at nominal value: a token lot with a forfeit redeemed, an NFT lot, off-chain confirm / reject / release, a dispute through the relay, an abandon, and two auctions with no bids. [Transactions](docs/deployments.md) |
+| Sepolia end to end | **Done** through the UI: 17 auctions across every path, including the screens no chain state produces on demand |
+| Private bids through the pool | Work on mainnet, as on 7 Sep |
+| Private collect | **Waiting on the pool.** The pool screens open-note deposits from contracts it has not cleared, and it reports the helper as `Required`. Until it is cleared, the site shows the private collect as unavailable, says why, and offers the public one. It never sends a private collect the pool would refuse |
+| First version | Frozen at `0x02d893ac…6831`. Read-only on the site |
 | Demo video | [Done](https://www.youtube.com/watch?v=VngKo7Ud1r0) |
-| Visual direction | Second pass under review — the shipped UI is the previous direction |
+
+Mainnet cost is measured rather than estimated: [docs/mainnet.md](docs/mainnet.md).
 
 Two dependency advisories are open and deliberately not chased: `postcss` and `sharp`
 reach the web app only as Next.js build-time transitives, and clearing them needs
@@ -120,12 +128,11 @@ for mainnet, which is why it is read and never hardcoded.
   `get_fee_amount`, taken from the *shielded* balance — the public balance moved by
   exactly 0.000000 on each bid. Gas about 2.73 STRK per bid, paymaster-sponsored.
 
-### Still open
+### Settlement on mainnet
 
-- **Mainnet gas for `settle`.** Settlement has not run on mainnet, and cannot for these
-  auctions: the witnesses `settle` verifies are built from each bid's seed, and those
-  seeds were destroyed by the defect disclosed immediately below. The proof path is
-  exercised on Sepolia, where two full lifecycles settle and finalize.
+The 7 Sep auctions can never settle: the witnesses `settle` verifies are built from each
+bid's seed, and those seeds were destroyed by the defect disclosed immediately below.
+Settlement first ran on mainnet on the second version, in the 4 Oct smoke test.
 
 ### Disclosure — 7 Sep 2026: the claim secret does not reliably persist
 
@@ -220,10 +227,14 @@ the wrong reason twice: first because the auction page does not use it, then bec
 single fresh tab does not trigger it. The reconciler did not need to run in the tab that
 bid. It needed to be running in any other tab at all.
 
-**Cost to us:** 1.44 STRK of escrow stranded across mainnet auctions #1 and #2, plus
-0.24 on #3. Recoverable via `abandon` where the claim secret was saved outside the
-browser, at a 6 STRK pool fee each — which is more than the escrow, so in practice it
-stays there. Full account in [docs/mainnet.md](docs/mainnet.md).
+**Cost to us:** the first-version mainnet contract still holds **2.34 STRK** — nine
+bids' escrow at 0.24 and six bonds at 0.03 — and the **600 VLOT** lot, across auctions
+#0 to #5 (checked on chain 4 Oct 2026). None of them can settle. Anyone can seal them and,
+after the grace period, `abandon` them: the VLOT then returns to the seller, and each
+bid's escrow, with its share of the bond, comes back to whoever still holds that bid's
+claim secret — on the public rail, for gas alone. Where the secret was lost, as it was
+for #5, the escrow stays in the contract permanently. Full account in
+[docs/mainnet.md](docs/mainnet.md).
 
 **The three qualifying transactions are unaffected.** They are on chain, verified, and
 independent of any secret.
@@ -287,15 +298,16 @@ true at the next auction. A bidder who dislikes the result can also simply withh
 reveal, which in a second-price auction changes what the winner pays.
 
 Here the auction ends and one number is published: the clearing price, because it *is*
-the price. Every other bid is still two hashes, the winner's included. A silent bidder is
-settled around, not waited for.
+the price. Every other bid is still two hashes and a ciphertext that only the auction's
+key opens, the winner's included. A bid that is not revealed in time is settled around,
+not waited for.
 
 One corollary, stated because it cuts against us if left unsaid. In commit–reveal the
 question *"can the auctioneer exclude a rival's bid?"* largely dissolves — by settlement
 every bid is public and anyone can recompute the result. That is a genuine answer. It is
 bought by publishing the bids. Keeping them sealed means the exclusion problem has to be
-**solved** rather than dissolved, which is what freezing the set before any reveal and
-the auctioneer's slashable bond are for.
+**solved** rather than dissolved, which is what freezing the set before any reveal,
+posting the reveals on chain, and the auctioneer's bond are for.
 
 ## Two rails, and which one you will actually use
 
@@ -526,29 +538,33 @@ bid is the price, so it necessarily becomes public. The losers' still do not.
 
 Every bidder escrows the **same** amount: the price at the top of the ladder. Uniform
 collateral is the only escrow that satisfies "real locked funds" and "the bid stays
-secret" at once. The winner pays the clearing price out of it and the surplus refunds
-as a private note; losers refund in full, privately. The cost is capital efficiency —
+secret" at once. The winner pays the clearing price out of it and the surplus comes
+back; losers get theirs back in full. On the private rail both come back as private
+notes, once the pool clears the helper (see Status). The cost is capital efficiency —
 you lock the cap, not your bid — and that is an honest trade, not a hidden one.
 
-### A silent bidder is settled around, not waited for
+### A bid that is not revealed is settled around, not waited for
 
-Bidders transmit their seed to the auctioneer **only after observing the `Sealed`
-event**. The auctioneer cannot decrypt early because it has not been sent anything.
+After the `Sealed` event, each bid's seed and level are posted on chain with
+`post_reveal`, encrypted to a key the auctioneer published with this auction alone — by
+the app's relay, or by the bidder. `post_reveal` reverts before the seal, so no amount
+can be read while the set can still change.
 
-A bidder who then goes quiet leaves a bid the auctioneer cannot disposition, so it is
-marked `Forfeit` and excluded from the ranking. Settlement always completes. What the
+A bid whose reveal is not posted by the reveal deadline leaves the auctioneer nothing to
+disposition it with, so it is marked `Forfeit` and excluded from the ranking. Settlement always completes. What the
 bidder gets back depends on where their bid sat: **at or below the clearing price**,
 `redeem_forfeit` returns the escrow after finalization, from a loser-side proof built
 from the bid's seed; **above it**, `redeem_forfeit` cannot return it.
 
 That mechanism could be abused to exclude an honest high bid, so settlement moves no
-money. It opens a **dispute window**. A bidder who proves `ℓ ≥ ℓ*+1` voids the
-settlement and takes the auctioneer's bond. `finalize` releases funds only after
-the window closes clean.
+money. It opens a **dispute window**. A bid marked `Forfeit` whose reveal was posted in
+time and opens to both of its anchors, and which sat above the clearing price (or the
+settlement named no winner), voids the settlement; the auctioneer's bond is added to
+its escrow. `finalize` releases funds only after the window closes clean.
 
 > **What the bond covers, and a correction.** The bond answers for a dishonest
 > settlement *and* for walking away. `abandon` forfeits it to the bidders, paid pro-rata
-> through `claim_refund`, and `create_auction` requires `tick ≤ bond ≤ cap`.
+> through `collect`, and `create_auction` requires `tick ≤ bond ≤ cap`.
 >
 > It did not always. Until **30 Aug 2026** the bond was pulled from the seller and
 > *returned* to the seller by `abandon`, and no minimum was enforced — so where one
@@ -564,7 +580,8 @@ the window closes clean.
 
 | Public | Private |
 |---|---|
-| The auction, its ladder and deadlines | Every bid amount, winner's included |
+| The auction, its ladder and deadlines | Every bid amount, winner's included — on chain only as a ciphertext to the auction's key |
+| Each bid's encrypted reveal, after the seal | |
 | That a bid arrived, and when | Which address bid — bids are keyed by a claim commitment, never an address |
 | The number of bids | Any losing bid, ever |
 | The uniform escrow amount | |
@@ -572,9 +589,10 @@ the window closes clean.
 
 ## The dispute window
 
-Settlement moves no money. It records the outcome and opens a window in which a
-forfeited bidder can prove they were above the clearing price, void the result and take
-the auctioneer's bond. `finalize` releases funds only after it closes clean.
+Settlement moves no money. It records the outcome and opens a window in which a bid it
+left out — one whose reveal was posted in time and that beat the clearing price — can
+void the result and take the auctioneer's bond. `finalize` releases funds only after it
+closes clean. The reveal window before it is set and shown the same way.
 
 The length is **a parameter fixed at listing and public on-chain**, and the contract
 enforces no minimum. That is deliberate: any floor short enough to demo an auction
@@ -596,10 +614,10 @@ value should.**
 ## Layout
 
 ```
-packages/auction/      the auction contract, the ladder, 51 tests
-packages/anonymizer/   the privacy_invoke helper, 7 tests
-client/                bid crypto, settlement planning, action building, 32 tests
-web/                   create / bid / settle / result. No login.
+packages/auction/      the auction contract, the ladder, on-chain reveals, 139 tests
+packages/anonymizer/   the privacy_invoke helper, 14 tests
+client/                bid crypto, reveal encryption, settlement planning, 66 tests
+web/                   create / bid / reveal / settle / collect / deliver, 160 tests. No login.
 PHASE0.md              the investigation this design came out of
 TRUST.md               the long-form trust statement
 ```
@@ -610,8 +628,8 @@ Requires the toolchain in `.tool-versions` (scarb 2.14.0, starknet-foundry 0.53.
 Node 24.
 
 ```shell
-scarb build && snforge test            # 58 Cairo tests
-cd client && npm install && npm test   # 32 client tests
+scarb build && snforge test            # 153 Cairo tests across both packages
+cd client && npm install && npm test   # 66 client tests
 cd client && npm run verify:pool       # our calldata vs the live Sepolia pool
 cd web    && npm install && npm run build
 ```
@@ -619,7 +637,7 @@ cd web    && npm install && npm run build
 Deploying, once you have a funded `sncast` account:
 
 ```shell
-scripts/deploy.sh sepolia <account-name> <privacy-pool-address>
+scripts/deploy.sh <sepolia|mainnet> <account-name>
 ```
 
 It runs the whole suite before it touches a network.

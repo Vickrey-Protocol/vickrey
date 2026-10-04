@@ -8,6 +8,7 @@ import { HeroInstrument } from "@/components/HeroInstrument";
 import { Ladder } from "@/components/Ladder";
 import { TrustStatement } from "@/components/TrustStatement";
 import { LpButton } from "./Button";
+import { plainReadError } from "@/lib/readError";
 
 /**
  * The template's hero, to the letter: a badge, a headline, one paragraph, two
@@ -115,7 +116,7 @@ export function LpHero({
                 </div>
               </div>
               <p className="note" style={{ marginTop: ".8rem" }}>
-                {loadError ? `Could not read ${config.label}: ${loadError}` : `Reading ${config.label}…`}
+                {loadError ? `Could not read ${config.label}: ${plainReadError(loadError)}` : `Reading ${config.label}…`}
               </p>
             </div>
           )}

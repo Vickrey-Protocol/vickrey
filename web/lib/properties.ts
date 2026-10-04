@@ -23,20 +23,20 @@ export const PROPERTIES: Property[] = [
     how: "Placing a bid transfers collateral into the contract in the same transaction that records it. A bid that is not funded does not exist.",
   },
   {
-    n: 2, title: "The chain never learns a bid. The auctioneer learns them only after the set is frozen",
+    n: 2, title: "No amount is readable while bidding is open. The auctioneer reads them only after the set is frozen",
     hard: "Designs with a trusted auctioneer leak every bid to whoever runs the server, from the moment it arrives.",
-    how: "During bidding the chain holds two hashes per bid and nothing else, and nobody — auctioneer included — has been sent an amount. After `seal()` freezes the set, bidders send their seeds and the auctioneer does learn every exact bid. That ordering is the whole protection: by then the set cannot change, no bid can be added or dropped, and the clearing price is already determined by bids nobody could edit. What the auctioneer never gets is the ability to act on the knowledge — or to publish it, since the amounts never touch the chain.",
+    how: "During bidding the chain holds two hashes per bid and nothing else. After `seal()` freezes the set, each bid is posted on chain encrypted to a key the auctioneer made for this auction alone, and the auctioneer learns every exact bid. That ordering is the protection: by then the set cannot change, no bid can be added or dropped, and the clearing price is already fixed by bids nobody could edit. The encrypted bids stay on chain, so anyone who ever obtains that auction's key can read them; the auctioneer is prompted to delete it once the auction is final."
   },
   {
     n: 3, title: "The bid set is frozen before any amount can be read",
     hard: "If the party producing the result picks the set after seeing the contents, they can drop a rival's high bid and claim it never arrived.",
-    how: "`seal()` stamps the block number and freezes the set on-chain. Only afterwards do bidders send their seeds. Excluding a bid that arrived is provable, and slashes the auctioneer's bond. Sealing is permissionless — the contract checks only that the bid deadline has passed — so an auctioneer cannot stall an auction by refusing to seal it, and any bidder can start the clock themselves.",
+    how: "`seal()` stamps the block number and freezes the set on-chain. Only afterwards are bids revealed, encrypted to the auctioneer. Leaving out a bid whose reveal was posted in time is provable: that bidder can void the settlement and takes the auctioneer's bond. Sealing is permissionless — the contract checks only that the bid deadline has passed — so an auctioneer cannot stall an auction by refusing to seal it, and any bidder can start the clock themselves.",
     star: true,
   },
   {
     n: 4, title: "Losing bids are never published",
     hard: "Every commit-reveal auction ends by publishing all of them. Your valuation is a business fact, and it is still true at the next auction.",
-    how: "Settlement proves the outcome from bounds. The clearing price is revealed because it is the price; every other bid stays a pair of hashes forever.",
+    how: "Settlement proves the outcome from bounds. The clearing price is revealed because it is the price; every other bid stays on chain only as two hashes and a ciphertext that the auction's key opens.",
     star: true,
   },
   {
@@ -47,6 +47,6 @@ export const PROPERTIES: Property[] = [
   {
     n: 6, title: "A silent bidder is settled around, not waited for",
     hard: "In commit-reveal, a bidder who dislikes the result simply never reveals — and in a second-price auction one silent bidder moves the price the winner pays.",
-    how: "Settlement needs no cooperation from a bidder who stays silent: their bid is marked forfeited and the auction completes without them. What they get back depends on where the bid sat — at or below the clearing price, they redeem the escrow afterwards with a late loser-side proof built from their seed; above it, redeem_forfeit cannot return it.",
+    how: "Settlement needs no cooperation from a bidder whose reveal was not posted in the reveal window: their bid is marked forfeited and the auction completes without them. What they get back depends on where the bid sat — at or below the clearing price, they redeem the escrow afterwards with a late loser-side proof built from their seed; above it, redeem_forfeit cannot return it.",
   },
 ];

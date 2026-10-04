@@ -74,7 +74,10 @@ export default function Page() {
             before the deploy kept running the old code. So the store now refuses to remove a
             bid without proof, current tabs restore anything an older tab deletes, and the app
             names an older tab and asks for it to be reloaded. If you see that notice, do
-            what it says. The full account, including what it cost us, is in{" "}
+            what it says. A second path to the same loss was found on 4 Oct 2026 and is fixed
+            in this version: cleaning up a failed bid attempt stored at the same index as a
+            bid that landed could take the landed bid&rsquo;s secret with it. Clean-up now
+            names the one bid by its commitment. The full account, including what it cost us, is in{" "}
             <a href={`${REPO}#disclosure--7-sep-2026-the-claim-secret-does-not-reliably-persist`}
                target="_blank" rel="noreferrer">the README disclosure</a>.
           </div>
@@ -108,10 +111,10 @@ export default function Page() {
               silent bidder changes what the winner pays.
             </p>
             <p className="lede">
-              <b>Vickrey never opens a bid.</b> Collateral is escrowed up front, and a silent
-              bidder is settled around, not waited for. The winner and the price are proved
-              with hash chains instead of disclosure. The losing bids are not withheld — they are never on the chain
-              at all.
+              <b>Vickrey never publishes a losing bid.</b> Collateral is escrowed up front, and
+              a bid that is not revealed in time is settled around, not waited for. The winner
+              and the price are proved with hash chains instead of disclosure. On chain, a
+              losing bid is two hashes and a ciphertext that only the auction&rsquo;s key opens.
             </p>
 
             <h3>The difference from commit–reveal, concretely</h3>
@@ -139,10 +142,11 @@ export default function Page() {
                 <p className="eyebrow">Here, at the end</p>
                 <ul className="tight">
                   <li>One number is published: the clearing price, because it is the price</li>
-                  <li>Every other bid is still two hashes — including the winner&rsquo;s
-                    own</li>
-                  <li>Silence marks a bid forfeited and settlement proceeds without it.
-                    What the bidder gets back depends on where the bid sat</li>
+                  <li>Every other bid is still two hashes and a ciphertext encrypted to the
+                    auction&rsquo;s key — including the winner&rsquo;s own</li>
+                  <li>A bid whose reveal is not posted in time is marked forfeited and
+                    settlement proceeds without it. What the bidder gets back depends on
+                    where the bid sat</li>
                 </ul>
               </div>
             </div>
@@ -153,7 +157,8 @@ export default function Page() {
               compute the result. That is a real answer — but it is bought by publishing
               the bids, which is the thing being avoided here. Keeping them sealed means
               the exclusion problem has to be solved rather than dissolved, which is what
-              sealing before reveal and the auctioneer&rsquo;s slashable bond are for.
+              sealing before reveal, reveals posted on chain, and the auctioneer&rsquo;s bond
+              are for.
             </p>
           </section>
 
@@ -281,15 +286,17 @@ down_anchor = step^(P−1−ℓ)    a depth-(P−1−t) preimage proves  ℓ ≤
               does not reveal how much was unspent.
             </p>
 
-            <h3>A silent bidder is settled around, not waited for</h3>
+            <h3>A bid that is not revealed is settled around, not waited for</h3>
             <p>
               In commit–reveal, a bidder who dislikes the result simply never reveals. In a
               second-price auction that is not a small problem: the runner-up going quiet
               changes what the winner pays. So non-reveal is an attack, and it is free.
             </p>
             <p>
-              Here a bidder who never sends their seed is marked <b>forfeited</b> and
-              settlement proceeds without them. The auction does not wait, does not stall,
+              Here each bid is revealed after the seal: its seed and level are posted on
+              chain, encrypted to the auctioneer&rsquo;s key for that auction, by
+              Vickrey&rsquo;s relay or by the bidder. A bid whose reveal is not posted within
+              the reveal window is marked <b>forfeited</b> and settlement proceeds without it. The auction does not wait, does not stall,
               and does not need their cooperation.
             </p>
             <p className="note">
@@ -306,7 +313,7 @@ down_anchor = step^(P−1−ℓ)    a depth-(P−1−t) preimage proves  ℓ ≤
               whose anchors match no rung — which <code>place_bid</code> cannot detect,
               because it is handed two hashes and never a level — is marked forfeited at
               settlement, and its escrow then sits there permanently. No claim path
-              releases it: <code>claim_refund</code> refuses a forfeited bid,{" "}
+              releases it: <code>collect</code> refuses a forfeited bid,{" "}
               <code>redeem_forfeit</code> needs a witness that cannot exist for a bogus
               anchor, and <code>finalize</code> never sweeps it.
             </p>
@@ -341,14 +348,22 @@ down_anchor = step^(P−1−ℓ)    a depth-(P−1−t) preimage proves  ℓ ≤
             </p>
             <p>
               <b>Ordering</b> limits it: <code>seal()</code> freezes the set and stamps the
-              block <em>before</em> any seed is sent, so the set cannot be chosen after
-              seeing the contents. And settlement must give every sealed bid a
-              disposition, so a bid left out is recorded on chain as forfeited, for anyone
-              to see.
+              block <em>before</em> any bid is revealed, so the set cannot be chosen after
+              seeing the contents. Each reveal is then posted on chain, encrypted to the
+              auctioneer, inside a reveal window that closes before settlement can start. A
+              reveal posted in time is a public record that the auctioneer had the bid.
             </p>
             <p className="lede">
-              On the current contracts, the dispute window does not reliably penalise
-              leaving a bid out.
+              If the settlement marks a bid forfeited although its reveal was posted in time,
+              and the bid beat the clearing price or the settlement named no winner, that
+              bidder can void the settlement while the dispute window is open. The auction is
+              cancelled, every escrow comes back, and the auctioneer&rsquo;s bond is added to
+              that bidder&rsquo;s escrow.
+            </p>
+            <p>
+              Voiding opens that one bid&rsquo;s reveal, so its amount becomes public. Only a
+              bid the settlement wronged can do it: the winner&rsquo;s bid, a bid that was
+              ranked, or one whose reveal was never posted cannot.
             </p>
             <p>
               Walking away is not free: <code>abandon</code> forfeits the auctioneer&rsquo;s
@@ -383,9 +398,10 @@ down_anchor = step^(P−1−ℓ)    a depth-(P−1−t) preimage proves  ℓ ≤
 
             <h3>The lot</h3>
             <p>
-              The seller&rsquo;s <b>full</b> <code>lot_amount</code> is pulled at{" "}
-              <code>create_auction</code>, before the auction is visible to anyone. There is
-              no partial or lazy funding: an unfunded listing does not exist.
+              The seller&rsquo;s <b>full</b> lot — an amount of a token, or one NFT — is pulled
+              at <code>create_auction</code>, before the auction is visible to anyone. There is
+              no partial or lazy funding: an unfunded listing does not exist. An off-chain lot
+              is not held by anyone; its delivery escrow is set out below.
             </p>
             <div className="scroller">
               <table>
@@ -396,18 +412,20 @@ down_anchor = step^(P−1−ℓ)    a depth-(P−1−t) preimage proves  ℓ ≤
                       not the seller, not the auctioneer, not us.</td></tr>
                   <tr><td><b>Sealed</b></td><td>The contract</td>
                     <td><b>Anyone</b>, via <code>abandon</code>, once the grace has expired
-                      (<code>sealed_at + dispute_window</code>). It goes back to the seller.</td></tr>
+                      (the reveal window, then the dispute window, after the seal). The
+                      auction is cancelled.</td></tr>
                   <tr><td><b>Settled</b></td><td>The contract</td>
-                    <td>Any bidder via <code>dispute</code> while the window is open, proving
-                      a bid above the clearing level — the lot returns to the seller. Or{" "}
-                      <b>anyone</b> via <code>finalize</code> once the window closes.</td></tr>
+                    <td>A bidder the settlement left out, via <code>dispute</code> while the
+                      window is open — the auction is cancelled. Or <b>anyone</b> via{" "}
+                      <code>finalize</code> once the window closes.</td></tr>
                   <tr><td><b>Finalized</b></td><td>The contract</td>
-                    <td><b>The winner only</b>, via <code>claim_lot</code>, by presenting the
-                      claim secret. Once, and to any recipient they name.</td></tr>
-                  <tr><td><b>Cancelled</b></td><td><b>Already with the seller</b></td>
-                    <td>Nothing left to move. All three routes to Cancelled — dispute,
-                      abandon, and finalize with no winner — push the lot to the seller in
-                      the same call.</td></tr>
+                    <td><b>The winner only</b>, via <code>collect</code>, by presenting the
+                      claim secret. Once, and to any recipient they name; an NFT always goes
+                      to a public address.</td></tr>
+                  <tr><td><b>Cancelled</b></td><td>The contract, owed to the seller</td>
+                    <td><b>Anyone</b>, via <code>reclaim_lot</code>, which only ever sends it
+                      to the seller. All three routes to Cancelled — dispute, abandon, and
+                      finalize with no winner — make it reclaimable.</td></tr>
                 </tbody>
               </table>
             </div>
@@ -428,16 +446,18 @@ down_anchor = step^(P−1−ℓ)    a depth-(P−1−t) preimage proves  ℓ ≤
                       records the outcome and opens the dispute window.</td></tr>
                   <tr><td><b>Finalized</b></td><td>The contract</td>
                     <td>The clearing price has already left the <i>winner&rsquo;s</i> escrow
-                      and gone to the seller, inside <code>finalize</code>. What remains is
-                      claimable only by whoever holds each bid&rsquo;s claim secret:{" "}
-                      <code>claim_refund</code> for a loser&rsquo;s full escrow or the
-                      winner&rsquo;s surplus, <code>redeem_forfeit</code> for a bid marked
-                      forfeited.</td></tr>
+                      inside <code>finalize</code>: owed to the seller, who takes it with{" "}
+                      <code>withdraw_seller</code>, or held in the delivery escrow for an
+                      off-chain lot. What remains is claimable only by whoever holds each
+                      bid&rsquo;s claim secret: <code>collect</code> for a loser&rsquo;s full
+                      escrow or the winner&rsquo;s surplus, <code>redeem_forfeit</code> for a
+                      bid marked forfeited at or below the clearing price.</td></tr>
                   <tr><td><b>Cancelled</b></td><td>The contract</td>
-                    <td>Every bid is refundable in full through <code>claim_refund</code>,
-                      forfeits included — no settlement ever established who forfeited. If
-                      the auction was abandoned with bids in it, each claim also carries an
-                      equal share of the forfeited bond.</td></tr>
+                    <td>Every bid collects in full through <code>collect</code>, forfeits
+                      included — no settlement ever established who forfeited. If the auction
+                      was abandoned with bids in it, each claim also carries an equal share of
+                      the forfeited bond. If a dispute cancelled it, the disputer&rsquo;s bid
+                      also carries the whole bond.</td></tr>
                 </tbody>
               </table>
             </div>
@@ -445,11 +465,28 @@ down_anchor = step^(P−1−ℓ)    a depth-(P−1−t) preimage proves  ℓ ≤
             <h3>The bond</h3>
             <p>
               Pulled from the <b>seller</b> at listing, despite the name — seller and
-              auctioneer may be different addresses. It goes to a successful disputer, back
-              to the seller on <code>finalize</code>, back to the seller on{" "}
-              <code>abandon</code> if nobody bid, and otherwise into a pot split equally
-              among the bidders as they claim.
+              auctioneer may be different addresses. It goes to a successful disputer&rsquo;s
+              escrow, back to the seller on <code>finalize</code> (taken with{" "}
+              <code>withdraw_seller</code>), back to the seller on <code>abandon</code> if
+              nobody bid, and otherwise into a pot split equally among the bidders as they
+              collect.
             </p>
+
+            <h3>An off-chain lot: the delivery escrow</h3>
+            <p>
+              The contract holds nothing of the item. It holds the seller&rsquo;s bond from
+              listing and, after <code>finalize</code>, the clearing price. When the winner
+              collects, they name a buyer address; only that address can confirm or reject
+              delivery, and only before the delivery deadline.
+            </p>
+            <ul className="tight">
+              <li><b>Confirm</b> pays the price and the seller&rsquo;s bond to the seller.</li>
+              <li><b>Reject</b> locks both in the contract for good. The buyer&rsquo;s payment
+                does not come back — it is destroyed — and the seller loses the bond. Neither
+                side gains from either answer, which is what keeps both honest.</li>
+              <li><b>Neither</b>: once the deadline passes, anyone can release the price and
+                the bond to the seller.</li>
+            </ul>
 
             <h3>Is there a state where the lot is stuck?</h3>
             <p>
@@ -477,74 +514,40 @@ down_anchor = step^(P−1−ℓ)    a depth-(P−1−t) preimage proves  ℓ ≤
           <section id="tokens">
             <h2>Which tokens work, and which quietly do not</h2>
             <p>
-              The contract accepts <b>any ERC-20</b>. The only check at listing is that the
-              address is non-zero — there is no allowlist, no decimals constraint, and no
-              probe of how the token behaves. Decimals are read from the token itself
+              The contract accepts <b>any ERC-20</b> as payment or lot, and any ERC-721 as a
+              lot. There is no allowlist and no decimals constraint; a lot token must answer
+              as the kind it is listed as, and every ERC-20 pull is checked for what arrived. Decimals are read from the token itself
               everywhere they are displayed, never assumed.
             </p>
 
-            <h3>Known limitation: fee-on-transfer and rebasing tokens break the accounting</h3>
+            <h3>Fee-on-transfer tokens are refused; rebasing tokens are not</h3>
             <p>
-              Every amount here is a <b>number the contract recorded</b>, not a balance it
-              re-reads. At listing it pulls <code>lot_amount</code> and remembers that
-              figure; each bid pulls the cap and remembers that. It never asks the token
-              how much actually arrived.
+              Every amount here is a <b>number the contract recorded</b>. In this version every
+              pull also measures what actually arrived — the contract&rsquo;s balance before
+              and after — and reverts if it is short. A fee-on-transfer token is therefore
+              refused at listing and at bidding, before anything is booked. Two tests cover
+              it with a deliberately hostile token.
             </p>
             <p>
-              A <b>fee-on-transfer</b> token therefore credits the contract with less than
-              it books. `transfer_from` returns true, the assertion passes, and the deficit
-              is invisible until someone tries to take money out. Because one contract
-              holds every auction&rsquo;s funds, the shortfall is not paid by the person
-              who caused it: earlier claims succeed out of the pooled balance and{" "}
-              <b>a later claimant&rsquo;s transfer fails</b>, on an auction that may have
-              nothing to do with the offending token.
+              A <b>rebasing</b> token is not caught: it changes balances after the transfer,
+              and the contract never re-reads them. When it rebases down, a later
+              claimant&rsquo;s transfer can fail; when it rebases up, the surplus belongs to no
+              bid and no path sweeps it.
             </p>
+            <h3>It can affect other auctions, not just its own</h3>
             <p>
-              A <b>rebasing</b> token fails the same way when it rebases down, and strands
-              value when it rebases up — the surplus belongs to no bid, and no path sweeps
-              it. So do tokens that transfer less than asked for any other reason.
-            </p>
-            <h3>It contaminates other auctions, not just its own</h3>
-            <p>
-              This is the part worth reading twice. <b>One contract holds every
-              auction&rsquo;s funds in one balance per token.</b> There is no per-auction
-              vault and no per-auction accounting of what actually arrived.
-            </p>
-            <p>
-              So the shortfall is not paid by whoever caused it. The claims that happen to
-              come first succeed out of the pooled balance, and the deficit lands on
-              whoever claims last — <b>on an auction that may never have touched the
-              offending token</b>. A seller who listed a perfectly ordinary ERC-20 can find
-              their payout failing because somebody else listed a deflationary one against
-              the same payment token.
-            </p>
-            <p>
-              Which means the obvious defence does not fully work: <b>choosing a
-              well-behaved token protects you from your own mistake, not from someone
-              else&rsquo;s.</b> On a shared deployment your exposure includes every other
-              auction denominated in the same token.
+              One contract holds every auction&rsquo;s funds in one balance per token, so a
+              rebasing token&rsquo;s shortfall is not paid by whoever listed it. The claims
+              that come first succeed out of the pooled balance, and the last
+              claimant&rsquo;s transfer fails — on an auction that may never have dealt with
+              the person who caused it. Choosing a well-behaved token protects you from your
+              own mistake, not from someone else&rsquo;s.
             </p>
             <p className="note">
-              <b>No test covers this, and the invariant we have would not catch it.</b>{" "}
-              <code>a_full_lifecycle_conserves_value</code> asserts what the contract holds
-              at each stage and that it holds nothing once an ordinary auction has been
-              claimed out — and it passes under a hostile token, because the mock ERC-20 in
-              the suite transfers exactly what it is told. The invariant proves the
-              contract&rsquo;s arithmetic; it says nothing about whether its counterparties
-              behave. We are stating the hazard rather than claiming coverage we do not
-              have.
-            </p>
-            <p>
-              This is <b>not</b> being fixed in the contract. An allowlist would be the
-              wrong repair — it makes us the arbiter of which assets may be auctioned,
-              which is a worse property than the one it protects — and the contracts are
-              frozen. The right fix is per-auction balance accounting, measuring what
-              actually arrived, and that is a redesign rather than a patch.
-            </p>
-            <p>
-              <b>Use standard, non-rebasing ERC-20s.</b> STRK and ordinary tokens are fine.
-              If you are listing something unusual, check how it transfers first — the
-              contract will not check for you.
+              There is no allowlist, deliberately: it would make us the arbiter of which
+              assets may be auctioned. <b>Use standard, non-rebasing ERC-20s.</b> STRK and
+              ordinary tokens are fine. If you are listing something unusual, check how it
+              behaves first.
             </p>
             <p className="note">
               The contract supports a lot token and a payment token that differ. The create
@@ -642,45 +645,37 @@ down_anchor = step^(P−1−ℓ)    a depth-(P−1−t) preimage proves  ℓ ≤
 
           {/* ── 5 ─────────────────────────────────────────────────────────── */}
           <section id="reveal">
-            <h2>The reveal channel, and what it costs</h2>
+            <h2>The reveal, and what it costs</h2>
             <p>
-              After <code>seal()</code>, each bidder sends the auctioneer{" "}
-              <code>{"{ index, seed, level }"}</code>. That is the whole payload, and it
-              carries the level <b>explicitly</b> — so the auctioneer learns the exact bid.
-              Removing the level would change nothing: the seed walks the hash chains, so
-              anyone holding it can find the level by trying all of them.
+              After <code>seal()</code>, each bid&rsquo;s <code>{"{ seed, level }"}</code> is
+              encrypted to a public key the auctioneer published with the listing, made fresh
+              for that one auction, and posted on chain with <code>post_reveal</code>. The
+              auctioneer decrypts it with the matching secret key and so learns the exact bid.
+              Nobody without that key can read it.
             </p>
             <p>
-              <b>There is no on-chain reveal step.</b> The word &ldquo;seed&rdquo; does not
-              appear in the contract. Nothing enforces when a bidder sends it or to whom,
-              and nothing can — the contract never sees it. What the contract enforces is
-              the part that matters: <code>settle</code> requires the auction to be{" "}
-              <code>Sealed</code>, so the bid set is fixed before any seed is legitimately
-              in the auctioneer&rsquo;s hands. A bidder who reveals earlier harms only
-              themselves.
+              <b>The reveal window is enforced on chain.</b> <code>post_reveal</code> is
+              accepted only between the seal and the reveal deadline, and{" "}
+              <code>settle</code> only after it. A bid whose reveal is not posted by the
+              deadline is settled as forfeited. A posted reveal is checked against the
+              bid&rsquo;s own anchors wherever it counts, so an invented one changes nothing.
             </p>
 
-            <h3>How it actually travels</h3>
+            <h3>How it travels</h3>
             <p>
-              The bid screen copies the payload as text and you send it to the auctioneer
-              over a channel you choose; the auctioneer console accepts it pasted in. That
-              is the real mechanism, and it is the least convenient step in the product.
-              We would rather say so than dress it up.
-            </p>
-            <p>
-              There is also a relay at <code>/api/reveals</code> — an in-memory map on this
-              site — and it is <b>disabled in production</b>. Its reads had no
-              authentication: <code>GET /api/reveals?auctionId=N</code> returned every
-              revealed bid for that auction to anyone who asked, and auction ids are
-              sequential integers. For a site whose claim is that losing bids are never
-              published, a plaintext bid feed at a guessable URL is the claim itself. It
-              stays off until the read is authenticated against the auction&rsquo;s
-              auctioneer address, which is not built.
+              Vickrey&rsquo;s relay posts each reveal from its own account, so your wallet is
+              not attached to it. The relay can fail to post, but it cannot alter a reveal or
+              move anything. If it has not posted, the bid page offers to post it from your
+              wallet, which puts your address next to your bid index on chain. Not your
+              amount.
             </p>
             <p className="note">
-              Whatever channel you use, treat the reveal as the bid: anyone holding it can
-              read the amount. It never contains your claim secret, so it cannot move your
-              money — only reveal what you bid.
+              <b>What this costs.</b> The encrypted bids stay on chain permanently, so anyone
+              who ever obtains an auction&rsquo;s secret key can read every bid in it. The key
+              is generated in the auctioneer&rsquo;s browser for that auction alone and saved
+              as a file, and the console prompts the auctioneer to delete it once the auction
+              is final. A reveal never contains your claim secret, so it cannot move your
+              money — only show what you bid.
             </p>
           </section>
 
@@ -694,18 +689,21 @@ down_anchor = step^(P−1−ℓ)    a depth-(P−1−t) preimage proves  ℓ ≤
             <ol className="phases">
               <li><b>Open</b> — bids arrive as two hashes plus escrow. Anyone can bid.
                 <span className="note"> Ends at the bid deadline.</span></li>
-              <li><b>Sealed</b> — the set is frozen and stamped from the block. Bidders now
-                send seeds to the auctioneer.
-                <span className="note"> A seed not sent marks the bid forfeited: at or below
-                the clearing price that costs a delay; above it, <code>redeem_forfeit</code>{" "}
-                cannot return the escrow.</span></li>
+              <li><b>Sealed</b> — the set is frozen and stamped from the block. Each bid&rsquo;s
+                reveal is posted on chain, encrypted to the auctioneer, until the reveal
+                deadline.
+                <span className="note"> A reveal not posted in time marks the bid forfeited: at
+                or below the clearing price that costs a delay; above it,{" "}
+                <code>redeem_forfeit</code> cannot return the escrow.</span></li>
               <li><b>Settled</b> — the outcome is proved on-chain from N+1 witnesses.
-                <span className="note"> The dispute window opens here — the only time a
-                wrong outcome can be challenged.</span></li>
-              <li><b>Finalized</b> — the window closed clean and funds move. The winner
-                claims the lot; losers claim refunds in full.</li>
+                <span className="note"> The dispute window opens here — the only time a bid
+                left out of the settlement can void it.</span></li>
+              <li><b>Finalized</b> — the window closed clean. The winner collects the lot and
+                their surplus; every other bid collects its escrow in full. For an off-chain
+                lot, the price waits in the delivery escrow.</li>
               <li><b>Cancelled</b> — a dispute succeeded, nothing was awarded, or the
-                auctioneer never settled. Everything unwinds and every bidder is refunded.</li>
+                auctioneer never settled. Everything unwinds and every bid collects its
+                escrow in full.</li>
             </ol>
             <p>
               That last route matters. A sealed auction otherwise has exactly one way out —
@@ -721,7 +719,7 @@ down_anchor = step^(P−1−ℓ)    a depth-(P−1−t) preimage proves  ℓ ≤
             <h2>Disclosure: we shipped an endpoint that exposed every revealed bid</h2>
             <p className="note">Found and fixed 30 August 2026.</p>
             <p>
-              The reveal relay described above had a read endpoint —{" "}
+              The off-chain reveal relay of the first version had a read endpoint —{" "}
               <code>GET /api/reveals?auctionId=N</code> — with <b>no authentication of any
               kind</b>. It returned every reveal posted for that auction, each carrying the
               bidder&rsquo;s exact level, in plaintext, to anyone who asked. Auction ids are
@@ -772,29 +770,15 @@ down_anchor = step^(P−1−ℓ)    a depth-(P−1−t) preimage proves  ℓ ≤
 
             <h3>What changed</h3>
             <p>
-              The relay is disabled unless <code>REVEAL_RELAY=on</code>, which production
-              does not set; both verbs return 503 with an explanation. Reveals travel by
-              copy-and-paste over a channel the bidder chooses, which was always the durable
-              path. Authenticating the read is designed and deliberately not built — see
-              below.
+              The relay was switched off the day it was found, and reveals went back to
+              copy-and-paste. In the second version of the contracts it is gone: each reveal
+              is posted on chain, encrypted to the auctioneer&rsquo;s key for that auction, so
+              no server ever holds a bid in plaintext.
             </p>
           </section>
 
           <section id="unshipped">
             <h2 className="section">What didn&rsquo;t ship</h2>
-            <h3>Authenticated reads on the reveal relay</h3>
-            <p>
-              Designed, not built, deliberately. The auctioneer would sign a challenge and
-              the route would verify it against the auction&rsquo;s <code>auctioneer</code>
-              address via <code>is_valid_signature</code>. It is perhaps sixty lines.
-            </p>
-            <p className="note">
-              It is not built because an authentication scheme written under deadline, on
-              the one path that carries bid amounts, is the wrong thing to rush — and
-              because copy-and-paste already works and leaks nothing to us. The relay
-              stays off. See the disclosure above.
-            </p>
-
             <p>
               An entry that states its own gaps is worth more than one that hides them.
             </p>

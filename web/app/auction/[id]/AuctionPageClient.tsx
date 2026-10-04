@@ -11,6 +11,7 @@ import { bidsFor, onVaultChange, type StoredBid } from "@/lib/vault";
 import { PublicShell } from "@/components/PublicShell";
 import { AuctionDetail } from "@/components/AuctionDetail";
 import { useNow, useWallet } from "@/components/WalletProvider";
+import { plainReadError } from "@/lib/readError";
 
 export interface WireBid {
   index: number; claimCommitment: string; upAnchor: string; downAnchor: string;
@@ -81,7 +82,7 @@ export default function AuctionPageClient({
           ) : (
             <p className="note" style={{ marginTop: ".6rem" }}>
               {error
-                ? `Could not read ${config.label}: ${error}`
+                ? `Could not read ${config.label}: ${plainReadError(error)}`
                 : `Reading auction #${id} from ${config.label}…`}
             </p>
           )}

@@ -5,7 +5,7 @@
   "x_handle": "jagadeeeshftw",
   "name": "Vickrey",
   "tagline": "Sealed-bid auctions where the losing bids are never published",
-  "description": "A Vickrey (second-price) auction on Starknet where no bid is ever revealed - not the losers', not the winner's. Bidders commit to a price level with two Poseidon hash chains that let the contract verify 'my bid is at least X' and 'my bid is at most X' without learning the bid. Settlement proves the Vickrey outcome from N+1 such witnesses: the winner is at or above the clearing level, the runner-up is exactly at it, everyone else is at or below. Funds move through the STRK20 privacy pool, so the bidder's identity is unlinked from the bid as well.",
+  "description": "A Vickrey (second-price) auction on Starknet where no bid is ever published - not the losers', not the winner's. After the bid set is frozen, each bid is revealed on chain encrypted to a key the auctioneer made for that auction alone. Bidders commit to a price level with two Poseidon hash chains that let the contract verify 'my bid is at least X' and 'my bid is at most X' without learning the bid. Settlement proves the Vickrey outcome from N+1 such witnesses: the winner is at or above the clearing level, the runner-up is exactly at it, everyone else is at or below. Funds move through the STRK20 privacy pool, so the bidder's identity is unlinked from the bid as well.",
   "rfp": "RFP-08",
   "license": "MIT",
   "repo": "https://github.com/Vickrey-Protocol/vickrey",
@@ -14,7 +14,8 @@
     "SealedBidAuction": {
       "class_hash": "0x2cf4e3d00a71c2b7019a9b021309ba442b2e0e1e6b51d162a6faf1b183d9923",
       "source": "packages/auction/src/auction.cairo",
-      "mainnet_address": "0x02d893acf290c61be4afb6999d6fa39244fba514267c1ccea9e124af64bb6831"
+      "mainnet_address": "0x02d893acf290c61be4afb6999d6fa39244fba514267c1ccea9e124af64bb6831",
+      "version": "v1, frozen 7 Sep 2026; read-only on the site"
     },
     "AuctionAnonymizer": {
       "class_hash": "0x112814b7d151b1499d65e8afffae67cc23e47cc5684229a6a2576aeb58b0f84",
@@ -23,13 +24,31 @@
         "privacy_pool",
         "auction_contract"
       ],
-      "mainnet_address": "0x04628cabde44481d1264d9b701147340b32df63172dbad05368178e18e9764ff"
+      "mainnet_address": "0x04628cabde44481d1264d9b701147340b32df63172dbad05368178e18e9764ff",
+      "version": "v1"
     },
     "MockERC20": {
       "class_hash": "0x23bd6340d5c7f252343c6423fe9839b4bd3aa673e649c819cf276d448fe1e5e",
       "source": "packages/auction/src/mocks.cairo",
       "mainnet_address": "0x06593745d3fdcf7f50d3d49a0eebfad43d08ec37d7cdff87e33c26017957f62b",
       "note": "The lot token for the judged auction. A test ERC-20 with no mint entrypoint on the declared class — the whole supply is minted to the deployer by the constructor. It is the thing being sold, not part of the protocol, so it is recorded here and deliberately NOT in `contracts`: that array gates which contracts a qualifying transaction must have run through, and a bid runs through the auction and the anonymizer, never the lot token."
+    },
+    "SealedBidAuction_v2": {
+      "class_hash": "0xbb605ad94f562e75dd3a867798489dcb5e71f38b0f1dfc4adb340d829f058d",
+      "source": "packages/auction/src/auction.cairo",
+      "mainnet_address": "0x01b81e43fa60a6ef78ed86fdcd472a1f0072fc1556723f04b94d8ac8c62908c7",
+      "deployed": "2026-10-04, block 15866452",
+      "version": "v2: NFT and off-chain lots, encrypted reveals on chain, a dispute that voids a settlement which left a revealed bid out"
+    },
+    "AuctionAnonymizer_v2": {
+      "class_hash": "0x32bb3bf49e29a93b248f6bd9a69be6de7fb3b0ccac469beded7e827c0adf269",
+      "source": "packages/anonymizer/src/auction_anonymizer.cairo",
+      "constructor": [
+        "privacy_pool",
+        "auction_contract"
+      ],
+      "mainnet_address": "0x00cb8007daa66eb9eb92c3b3e5a4e2b27f848ccef08d6e7688a2a737ff94e050",
+      "version": "v2"
     }
   },
   "strk20_integration": {
@@ -54,7 +73,7 @@
     "scarb": "2.14.0",
     "sierra": "1.7.0"
   },
-  "trust_statement": "What is assured: the winner and the clearing price are established by hash-preimage proofs verified on-chain over a bid set the contract froze before any bid could be opened, so the auctioneer cannot misplace any bid it settles, or misreport the price those bids set, without failing a proof. What is not: after sealing, the auctioneer learns every bid amount - it can never publish them or spend anyone's funds, but it knows them; it can settle without a bid by recording it as forfeited, and on the current contracts the dispute window does not reliably penalise that; and the number of bids, their timing, and the uniform escrow amount are public on-chain.",
+  "trust_statement": "What is assured: the winner and the clearing price are established by hash-preimage proofs verified on-chain over a bid set the contract froze before any bid could be opened, so the auctioneer cannot misplace any bid it settles, or misreport the price those bids set, without failing a proof. What is not: after sealing, the auctioneer learns every bid amount — it can never publish them or spend anyone's funds, but it knows them, and every bid sits on chain encrypted to the auction's key, readable by anyone who ever holds that key; it can settle without a bid by recording it as forfeited, but a bid it left out that beat the price, whose reveal was posted in time, voids that settlement and takes the auctioneer's bond; and the number of bids, their timing, and the uniform escrow amount are public on-chain.",
   "freeze": {
     "_comment": "Contracts are CANDIDATE-FROZEN until the on-chain gates pass on Sepolia against the declared candidate. Mainnet declares only after that, because declaring twice pays twice.",
     "state": "candidate-frozen",
@@ -106,7 +125,9 @@
   ],
   "contracts": [
     "0x02d893acf290c61be4afb6999d6fa39244fba514267c1ccea9e124af64bb6831",
-    "0x04628cabde44481d1264d9b701147340b32df63172dbad05368178e18e9764ff"
+    "0x04628cabde44481d1264d9b701147340b32df63172dbad05368178e18e9764ff",
+    "0x01b81e43fa60a6ef78ed86fdcd472a1f0072fc1556723f04b94d8ac8c62908c7",
+    "0x00cb8007daa66eb9eb92c3b3e5a4e2b27f848ccef08d6e7688a2a737ff94e050"
   ],
   "transactions": [
     "0x57ba561f86904a692cc96443edaeddb71bc3a9ae2103bef12e3b9d70ebf536",

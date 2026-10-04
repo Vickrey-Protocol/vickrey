@@ -37,20 +37,24 @@ const QA: Array<{ q: string; a: React.ReactNode }> = [
     q: "What does the auctioneer learn, and when?",
     a: (
       <>
-        Nothing while bidding is open — it has not been sent anything. Once the contract
-        freezes the bid set, bidders send their seeds, and from that moment the
-        auctioneer knows every amount. It can never publish them, prove a false outcome,
-        or spend anyone&rsquo;s funds. But it knows them, and that is the honest limit of
-        what this design gives you.
+        Nothing while bidding is open: no amount has been posted anywhere. Once the
+        contract freezes the bid set, each bid is posted on chain encrypted to a key the
+        auctioneer made for this auction, and from that moment the auctioneer knows every
+        amount. It can never publish them, prove a false outcome, or spend anyone&rsquo;s
+        funds. But it knows them, and that is the honest limit of what this design gives
+        you. The encrypted bids stay on chain, so anyone who ever obtains that key can
+        read them; the auctioneer is prompted to delete it once the auction is final.
       </>
     ),
   },
   {
-    q: "What happens if a bidder goes silent?",
+    q: "What happens if a bid isn't revealed?",
     a: (
       <>
-        Settlement still completes: a silent bidder is settled around, not waited for. A
-        bid nobody can prove is marked forfeit and left out of the ranking. If it was at or
+        After the seal, Vickrey&rsquo;s relay posts each bid&rsquo;s encrypted reveal, and
+        you can post it yourself if the relay doesn&rsquo;t. A bid whose reveal is not posted
+        in the reveal window is settled around, not waited for: it is marked forfeit and
+        left out of the ranking. If it was at or
         below the clearing price, its owner can reclaim the escrow after the auction
         finalizes; above it, the escrow cannot be redeemed.
       </>
@@ -68,13 +72,24 @@ const QA: Array<{ q: string; a: React.ReactNode }> = [
     ),
   },
   {
+    q: "What can be auctioned?",
+    a: (
+      <>
+        An amount of a token, one NFT, or something off chain. Tokens and NFTs are held by
+        the contract from listing. An NFT goes to a public address the winner names,
+        because the privacy pool can&rsquo;t hold NFTs. An off-chain lot is held by nobody:
+        you are trusting the seller to deliver, and if you reject delivery, your payment
+        does not come back — it is destroyed, along with the seller&rsquo;s bond.
+      </>
+    ),
+  },
+  {
     q: "Is this audited? Is it on mainnet?",
     a: (
       <>
-        No, and not yet. The contracts are deployed to Sepolia and a complete auction has
-        run there end to end. <strong>Nothing has been audited.</strong> Mainnet is the
-        target before the sprint closes, and the README carries the honest status of
-        every piece.
+        <strong>Nothing has been audited.</strong> The contracts run on Starknet mainnet,
+        and the earlier version stays readable on the site. The README carries the honest
+        status of every piece.
       </>
     ),
   },

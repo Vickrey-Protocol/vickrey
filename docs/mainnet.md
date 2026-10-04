@@ -527,6 +527,14 @@ across many bids, uniform collateral that leaks nothing, refunds claimed togethe
 
 ### The day the client deleted a claim secret
 
+> **Corrected 4 Oct 2026, read from chain.** The figure below counted only #1 and #2.
+> The first-version contract holds **2.34 STRK** (nine bids at 0.24, six bonds at 0.03)
+> and the **600 VLOT** lot across auctions #0 to #5. #0, #1, #3, #4 and #5 are open past
+> their deadlines and #2 is sealed; none can settle. Anyone can seal them and `abandon`
+> after the grace period, which returns the VLOT to the seller and lets each bid collect
+> its escrow and bond share on the public rail, for gas — but only where the claim secret
+> survived. Where it did not, as for #5, that escrow stays in the contract permanently.
+
 **1.44 STRK is stranded and unrecoverable** — 0.72 on mainnet auction #1, 0.72 on #2.
 Auction #2 is sealed and can never be settled, because no bidder can produce a witness.
 

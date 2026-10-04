@@ -12,6 +12,7 @@ import { useDashData } from "@/components/DashData";
 import { AuctionDetail } from "@/components/AuctionDetail";
 import { AuctioneerSection } from "@/components/AuctioneerSection";
 import { useNow, useWallet } from "@/components/WalletProvider";
+import { plainReadError } from "@/lib/readError";
 
 /**
  * The auctioneer console.
@@ -61,7 +62,7 @@ export default function Client({ id }: { id: string }) {
       {!auction ? (
         <div className="panel">
           <p className="note">
-            {error ? `Could not read auction #${id}: ${error}` : `Reading auction #${id}…`}
+            {error ? `Could not read auction #${id}: ${plainReadError(error)}` : `Reading auction #${id}…`}
           </p>
         </div>
       ) : (

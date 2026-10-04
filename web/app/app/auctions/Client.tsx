@@ -8,6 +8,7 @@ import { STATUS } from "@/lib/ui";
 import { DashShell } from "@/components/DashShell";
 import { useDashData } from "@/components/DashData";
 import { useNow, useWallet } from "@/components/WalletProvider";
+import { plainReadError } from "@/lib/readError";
 
 /** The same book as the public list, with the one column a wallet adds: your position. */
 export default function Client() {
@@ -21,7 +22,7 @@ export default function Client() {
         <div className="panel skel" style={{ blockSize: "12rem" }} aria-hidden="true" />
       ) : d.error ? (
         <div className="banner">
-          <b>Could not read the chain.</b> {d.error}
+          <b>Could not read the chain.</b> {plainReadError(d.error)}
           <div style={{ marginTop: ".6rem" }}><button onClick={d.refresh}>Try again</button></div>
         </div>
       ) : d.auctions.length === 0 ? (

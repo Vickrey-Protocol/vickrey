@@ -35,8 +35,8 @@ const mono = IBM_Plex_Mono({
 
 const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? "https://vickrey.0xo.in";
 const DESCRIPTION =
-  "The highest bidder wins and pays the second-highest bid, and the chain never learns " +
-  "what anyone bid. The outcome is proved on-chain, not asserted.";
+  "Sealed-bid auctions on Starknet. The highest bidder wins and pays the second-highest " +
+  "bid, and the losing bids are never published. The outcome is proved on-chain, not asserted.";
 
 /**
  * `metadataBase` is what turns every relative URL in a page's metadata into an absolute

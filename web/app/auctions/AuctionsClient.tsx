@@ -8,6 +8,7 @@ import { config, explorerContract, isDeployed } from "@/lib/config";
 import { PublicShell } from "@/components/PublicShell";
 import { AuctionCard } from "@/components/AuctionCard";
 import { useNow } from "@/components/WalletProvider";
+import { plainReadError } from "@/lib/readError";
 
 
 type Filter = "all" | "open" | "settled";
@@ -69,7 +70,7 @@ export default function AuctionsClient({ initial }: { initial: WireAuction[] }) 
         </div>
       ) : error && all.length === 0 ? (
         <div className="banner">
-          <b>Could not read {config.label}.</b> {error}
+          <b>Could not read {config.label}.</b> {plainReadError(error)}
           <div style={{ marginTop: ".6rem" }}>
             <button onClick={() => location.reload()}>Try again</button>
           </div>

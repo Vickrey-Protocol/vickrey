@@ -1,135 +1,155 @@
 {
   "_comment": [
-    "Resource usage per step, measured from Sepolia receipts on the classes that",
-    "match the current build (see docs/mainnet.md). Resource *amounts* do not depend",
-    "on which network you are on, so these project onto mainnet by repricing them at",
-    "mainnet gas.",
+    "Resource usage per step, measured from the second-version mainnet receipts of",
+    "4 Oct 2026 (the declares, the deploys and the smoke test). Amounts do not depend on",
+    "gas prices, so these reprice at whatever mainnet charges on the day.",
     "",
-    "'measured' is what the receipt actually charged. 'bound' is what the estimator",
-    "demands the account hold before it will submit. The bound is what decides whether",
-    "a transaction goes through, and it runs ~38% above measured on the declares.",
-    "Fund against bound, expect to be charged measured."
+    "'measured' is what the receipt charged. 'bound' is 1.5x measured: the balance the",
+    "preflight insists on before it spends. Fund against bound, expect to be charged measured."
   ],
   "steps": [
     {
       "step": "declare SealedBidAuction",
+      "tx": "0x65ce575dfe2d74439ed49d4ac7229fb2ab7f787ec72eb8c1a0c9d598409b795",
       "measured": {
-        "l2_gas": 1038760640,
+        "l2_gas": 1798133120,
         "l1_data_gas": 192
       },
       "bound": {
-        "l2_gas": 1437474240,
+        "l2_gas": 2697199680,
         "l1_data_gas": 288
       }
     },
     {
       "step": "declare AuctionAnonymizer",
+      "tx": "0x3f9c7f5c5a0ad86a833b92236ab9b4425194194f17fa71fc34885edaa315dae",
       "measured": {
-        "l2_gas": 226468800,
+        "l2_gas": 242977920,
         "l1_data_gas": 192
       },
       "bound": {
-        "l2_gas": 313000000,
+        "l2_gas": 364466880,
         "l1_data_gas": 288
       }
     },
     {
       "step": "deploy SealedBidAuction",
+      "tx": "0x536e34e57e8ff83a23b4eae0c822d4974da9477fcdf547a104db0118a2701cd",
       "measured": {
-        "l2_gas": 1328000,
+        "l2_gas": 1212160,
         "l1_data_gas": 224
       },
       "bound": {
-        "l2_gas": 2000000,
+        "l2_gas": 1818240,
         "l1_data_gas": 336
       }
     },
     {
       "step": "deploy AuctionAnonymizer",
+      "tx": "0x4c44966c1e498e530fe02ab020d1b4d2dae4f3528cf5636b9744753920195e2",
       "measured": {
-        "l2_gas": 2312480,
+        "l2_gas": 2196640,
         "l1_data_gas": 416
       },
       "bound": {
-        "l2_gas": 3500000,
+        "l2_gas": 3294960,
         "l1_data_gas": 624
       }
     },
     {
       "step": "create_auction",
+      "tx": "0x4e282fb72565eb3f6d11dd11bcad2aff0273dd516579fa771bd99a92d78c959",
       "measured": {
-        "l2_gas": 12004560,
-        "l1_data_gas": 1824
+        "l2_gas": 13260880,
+        "l1_data_gas": 1952
       },
       "bound": {
-        "l2_gas": 18000000,
-        "l1_data_gas": 2736
+        "l2_gas": 19891320,
+        "l1_data_gas": 2928
       }
     },
     {
       "step": "place_bid",
+      "tx": "0x3ef692eaef0115b9171fb566aa7fea99b1966b52e054be1c6edc0e96ca816f6",
       "measured": {
-        "l2_gas": 7638080,
+        "l2_gas": 7912000,
         "l1_data_gas": 1024
       },
       "bound": {
-        "l2_gas": 11500000,
+        "l2_gas": 11868000,
         "l1_data_gas": 1536
       }
     },
     {
       "step": "seal",
+      "tx": "0x82e1bcefa0958e78cfe55046ec24a647f69446f4c03f44d4fd7ce9f1cca298",
       "measured": {
-        "l2_gas": 3351520,
+        "l2_gas": 3240800,
         "l1_data_gas": 448
       },
       "bound": {
-        "l2_gas": 5000000,
+        "l2_gas": 4861200,
         "l1_data_gas": 672
       }
     },
     {
-      "step": "settle (3 bids)",
+      "step": "post_reveal (relay)",
+      "tx": "0x6fe55d6c62d9373213c07ba759850442dec0e78aeb76dd12959eff9a08baad",
       "measured": {
-        "l2_gas": 6946080,
+        "l2_gas": 2424400,
+        "l1_data_gas": 288
+      },
+      "bound": {
+        "l2_gas": 3636600,
+        "l1_data_gas": 432
+      }
+    },
+    {
+      "step": "settle (3 bids)",
+      "tx": "0x31a5b967bf2f86fe18469acd211d229704a3354bcbb55baa29939800179fd65",
+      "measured": {
+        "l2_gas": 7035360,
         "l1_data_gas": 896
       },
       "bound": {
-        "l2_gas": 10400000,
+        "l2_gas": 10553040,
         "l1_data_gas": 1344
       }
     },
     {
       "step": "finalize",
+      "tx": "0x7cee352da3028a70acca17052994dd88d52844f0993e966a6a00a90370b8491",
       "measured": {
-        "l2_gas": 4496080,
+        "l2_gas": 4065440,
+        "l1_data_gas": 512
+      },
+      "bound": {
+        "l2_gas": 6098160,
+        "l1_data_gas": 768
+      }
+    },
+    {
+      "step": "collect",
+      "tx": "0x3acc36a598f58144f6e389cab38865718fb5180d6c85a44ffbacd508c9839dc",
+      "measured": {
+        "l2_gas": 5163680,
+        "l1_data_gas": 512
+      },
+      "bound": {
+        "l2_gas": 7745520,
+        "l1_data_gas": 768
+      }
+    },
+    {
+      "step": "withdraw_seller",
+      "tx": "0x54d055a0d5b499abf168f095990e26ffacdccaf47450e51c5c3d8bf4ab20608",
+      "measured": {
+        "l2_gas": 2022400,
+        "l1_data_gas": 320
+      },
+      "bound": {
+        "l2_gas": 3033600,
         "l1_data_gas": 480
-      },
-      "bound": {
-        "l2_gas": 6700000,
-        "l1_data_gas": 720
-      }
-    },
-    {
-      "step": "claim_lot",
-      "measured": {
-        "l2_gas": 3590480,
-        "l1_data_gas": 352
-      },
-      "bound": {
-        "l2_gas": 5400000,
-        "l1_data_gas": 528
-      }
-    },
-    {
-      "step": "claim_refund",
-      "measured": {
-        "l2_gas": 3325840,
-        "l1_data_gas": 416
-      },
-      "bound": {
-        "l2_gas": 5000000,
-        "l1_data_gas": 624
       }
     }
   ],
@@ -153,7 +173,7 @@
     },
     "deploy_account_oz": {
       "strk": 0.0668,
-      "note": "Not needed \u2014 a funded mainnet account already exists."
+      "note": "Not needed — a funded mainnet account already exists."
     },
     "pool_fee_read_live_strk": 6,
     "sncast_bound_multiplier": 1.384,

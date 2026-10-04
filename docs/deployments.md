@@ -2,6 +2,45 @@
 
 Everything here was read back from chain, not copied from a plan.
 
+## Mainnet — second version (current)
+
+Deployed 4 Oct 2026 from the same release build that ran on Sepolia (the class hashes
+match). Read back from chain after deploying: the anonymizer points at the pool and at
+the auction.
+
+| | |
+|---|---|
+| `SealedBidAuction` | [`0x01b81e43fa60a6ef78ed86fdcd472a1f0072fc1556723f04b94d8ac8c62908c7`](https://starkscan.co/contract/0x01b81e43fa60a6ef78ed86fdcd472a1f0072fc1556723f04b94d8ac8c62908c7) |
+| class hash | `0xbb605ad94f562e75dd3a867798489dcb5e71f38b0f1dfc4adb340d829f058d` — declared [`0x65ce575dfe…`](https://starkscan.co/tx/0x65ce575dfe2d74439ed49d4ac7229fb2ab7f787ec72eb8c1a0c9d598409b795), 31.04 STRK |
+| `AuctionAnonymizer` | [`0x00cb8007daa66eb9eb92c3b3e5a4e2b27f848ccef08d6e7688a2a737ff94e050`](https://starkscan.co/contract/0x00cb8007daa66eb9eb92c3b3e5a4e2b27f848ccef08d6e7688a2a737ff94e050) |
+| class hash | `0x32bb3bf49e29a93b248f6bd9a69be6de7fb3b0ccac469beded7e827c0adf269` — declared [`0x3f9c7f5c5a…`](https://starkscan.co/tx/0x3f9c7f5c5a0ad86a833b92236ab9b4425194194f17fa71fc34885edaa315dae), 4.04 STRK |
+| deploy block | 15866452 |
+| reveal relay | [`0x00b6bd64be4cab27fbf60b1cb34908a472441ab44820f4715053ef88a1e99966`](https://starkscan.co/contract/0x00b6bd64be4cab27fbf60b1cb34908a472441ab44820f4715053ef88a1e99966) |
+| STRK20 pool (theirs) | `0x040337b1af3c663e86e333bab5a4b28da8d4652a15a69beee2b677776ffe812a`, class `0x6d163f2b27df0f53c5b0d019366261ba8034af1bef949dee920a60fe58bcf83` |
+| smoke-test NFT collection | [`0x030adfdfc908ef197a3c3e7f6b6d0bd3cd9525bece1c33dcdddd0cecaf8f8bd2`](https://starkscan.co/contract/0x030adfdfc908ef197a3c3e7f6b6d0bd3cd9525bece1c33dcdddd0cecaf8f8bd2) — a test ERC-721 with an open mint |
+
+### Smoke test, 4 Oct 2026
+
+Nine auctions on the public rail at nominal value (0.001–0.008 STRK a rung), driven
+through the site's own screens. Every bid was collected, every seller paid and every lot
+returned or delivered; nothing is left in the contract. The private collect is not
+covered: the pool reports the helper as `Required` for open-note deposits, so the site
+offers the public collect instead.
+
+| Path | Auction | Transaction |
+|---|---|---|
+| Token lot: sealed bids, reveals posted by the relay, settled at the second price | #2 | [`0x31a5b967bf…`](https://starkscan.co/tx/0x31a5b967bf2f86fe18469acd211d229704a3354bcbb55baa29939800179fd65) |
+| Winner collects the token lot and the surplus | #2 | [`0x3acc36a598…`](https://starkscan.co/tx/0x3acc36a598f58144f6e389cab38865718fb5180d6c85a44ffbacd508c9839dc) |
+| A bid not revealed, at or below the price: forfeit redeemed in full | #2 | [`0x1384ff6950…`](https://starkscan.co/tx/0x1384ff6950fded48ca05d22dead1515a24ca914c6aea55f2984b7f3cc2468bb) |
+| NFT lot: winner collects the NFT | #3 | [`0x5a5de3f187…`](https://starkscan.co/tx/0x5a5de3f1877d549188b669a1143fa260eafb57145bac538829b1f4cdba27a22) |
+| Off-chain lot: buyer confirms delivery | #4 | [`0xef1153e0d5…`](https://starkscan.co/tx/0xef1153e0d5b1eb169027e73f93efaa6bd2cd21d54fca871f8cab08653bb2cf) |
+| Off-chain lot: buyer rejects; price and seller bond destroyed | #5 | [`0x65fb7015d6…`](https://starkscan.co/tx/0x65fb7015d6f1d5aa8de4390b920d929d30d863bfed74bea2dc958f28dd59023) |
+| Off-chain lot: released after the delivery deadline | #6 | [`0x1a7b89dfe9…`](https://starkscan.co/tx/0x1a7b89dfe991a9c527e98bd49b58900711c96c0bbef97537b1723e456c988fb) |
+| Auctioneer settles leaving out the higher, revealed bid | #7 | [`0x2c0b3722ae…`](https://starkscan.co/tx/0x2c0b3722ae85307bd8eea1c78390ba0fa3bf8ef9140233233859b66f58e9622) |
+| That bid voids the settlement, sent by the relay | #7 | [`0x14ed335842…`](https://starkscan.co/tx/0x14ed3358422a707d6c082163e9769030a99faf41d2a159fa09b6844b00d5b31) |
+| Abandoned after the grace period | #8 | [`0x4fbc9526eb…`](https://starkscan.co/tx/0x4fbc9526ebe5de570390f97f58fa8b536aa28f695b67abbcbda3d20487bb39b) |
+| No bids: no winner, the lot goes back to the seller | #0 | [`0x114147279a…`](https://starkscan.co/tx/0x114147279a03f654a8845b2731c6157eb03ea71d296af62ab4264f7e722a7d2) |
+
 ## Sepolia — rehearsal only
 
 **Sepolia is a rehearsal, not the deliverable.** The sprint requires mainnet. Nothing

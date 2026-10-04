@@ -9,6 +9,7 @@ import { STATUS } from "@/lib/ui";
 import { DashShell } from "@/components/DashShell";
 import { useDashData } from "@/components/DashData";
 import { useNow, useWallet } from "@/components/WalletProvider";
+import { plainReadError } from "@/lib/readError";
 
 function ActionCard({ a, now }: { a: DueAction; now: number }) {
   const urgent = isUrgent(a, now);
@@ -61,7 +62,7 @@ export default function OverviewClient() {
           </div>
         ) : d.error ? (
           <div className="banner">
-            <b>Could not read the chain.</b> {d.error}
+            <b>Could not read the chain.</b> {plainReadError(d.error)}
             <div style={{ marginTop: ".6rem" }}><button onClick={d.refresh}>Try again</button></div>
           </div>
         ) : d.actions.length === 0 ? (
