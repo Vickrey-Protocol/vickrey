@@ -20,6 +20,7 @@ import { sameAddress } from "@/lib/wallet";
 import { DashShell } from "@/components/DashShell";
 import { useDashData } from "@/components/DashData";
 import { Ladder } from "@/components/Ladder";
+import { NftImage } from "@/components/NftImage";
 import { useWallet } from "@/components/WalletProvider";
 
 /**
@@ -341,6 +342,9 @@ export default function Client() {
                   {nft.kind === "yours" && (
                     <div className="panel" style={{ marginBottom: "1rem" }}>
                       <p className="eyebrow">What bidders will see</p>
+                      <div style={{ marginTop: ".6rem" }}>
+                        <NftImage collection={collection.trim()} tokenId={BigInt(tokenId)} size={140} />
+                      </div>
                       <div className="spread" style={{ marginTop: ".5rem" }}>
                         <b>{nft.name || "NFT"} #{tokenId}</b><span className="lot-chip">NFT</span>
                       </div>

@@ -31,7 +31,7 @@ case "$NETWORK" in
   mainnet)
     RPC="https://api.cartridge.gg/x/starknet/mainnet"
     POOL="0x040337b1af3c663e86e333bab5a4b28da8d4652a15a69beee2b677776ffe812a"
-    POOL_CLASS="0x67dddd89d80fedadc06b6f160798f94800a4a70164e5a24301cd0d6076b554d"
+    POOL_CLASS="0x6d163f2b27df0f53c5b0d019366261ba8034af1bef949dee920a60fe58bcf83"  # upgraded: adds get_open_note_screening_policy
     EXPLORER="https://starkscan.co"          # verified: /contract and /tx both live
     CHAIN_ID="0x534e5f4d41494e"
     ;;

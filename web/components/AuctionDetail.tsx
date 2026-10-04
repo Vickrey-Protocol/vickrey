@@ -12,6 +12,7 @@ import { countdown, explorerContract, formatUnits, kindLabel, priceAt, utcDate }
 import type { StoredBid } from "@/lib/vault";
 import type { Connection } from "@/lib/wallet";
 import { STATUS } from "@/lib/ui";
+import { NftImage } from "@/components/NftImage";
 import { useWallet } from "@/components/WalletProvider";
 import { Ladder } from "@/components/Ladder";
 import { CountUp } from "@/components/CountUp";
@@ -159,6 +160,14 @@ export function AuctionDetail({
             </dd>
           </div>
         </dl>
+        {auction.lotKind === LotKind.Erc721 && (
+          <div className="row" style={{ marginTop: "1rem", gap: "1rem", alignItems: "flex-start", flexWrap: "wrap" }}>
+            <NftImage collection={auction.lotToken} tokenId={auction.lotTokenId} />
+            <p className="note" style={{ margin: 0, maxWidth: "32ch" }}>
+              Held by the contract until the auction ends. The winner names a public address to receive it.
+            </p>
+          </div>
+        )}
       </div>
 
       {offchain && !rejectOpen && auction.delivery && (

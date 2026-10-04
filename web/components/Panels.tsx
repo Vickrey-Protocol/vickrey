@@ -120,7 +120,7 @@ export function BidPanel({
   now: number;
   onPlaced: () => void;
 }) {
-  const { ensureChain, strk20Proof, noteStrk20Error } = useWallet();
+  const { ensureChain, strk20Proof, noteStrk20Error, retryStrk20 } = useWallet();
   const [level, setLevel] = useState<number | null>(null);
   const [rail, setRail] = useState<Rail>("public");
   /* Every change of rail the bidder did not make is announced, with its reason. */
@@ -377,7 +377,17 @@ export function BidPanel({
           </span>
         </button>
       </div>
-      {railNote && <p className="note" role="status">{railNote}</p>}
+      {railNote && (
+        <div className="note" role="status">
+          <p style={{ margin: 0 }}>{railNote}</p>
+          {strk20Proof === "failed" && connection?.strk20Declared && (
+            <button type="button" style={{ marginTop: ".5rem" }}
+                    onClick={() => { retryStrk20(); setRailNote(null); setRail("private"); }}>
+              Try the private rail again
+            </button>
+          )}
+        </div>
+      )}
 
       {rail === "private" && canPrivate && (
         <div className="panel" style={{ background: "var(--hatch-bg)" }}>

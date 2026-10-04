@@ -90,6 +90,8 @@ interface WalletState {
   strk20Proof: "untested" | "working" | "failed";
   /** Feed a real STRK20 call's error in, so the rail can stop offering what cannot work. */
   noteStrk20Error: (e: unknown) => void;
+  /** Forget a "failed" verdict so the next private-rail call can prove it either way. */
+  retryStrk20: () => void;
 }
 
 const Ctx = createContext<WalletState | null>(null);
@@ -464,15 +466,17 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     forgetWallet();
   }, []);
 
+  const retryStrk20 = useCallback(() => setStrk20Proof("untested"), []);
+
   const value = useMemo(
     () => ({
       connection, error, connecting, reconnecting, connect, disconnect, ensureChain,
       walletChain, switchChain, switching,
-      shielded, shieldedPending, shieldedErr, requestShielded, strk20Proof, noteStrk20Error,
+      shielded, shieldedPending, shieldedErr, requestShielded, strk20Proof, noteStrk20Error, retryStrk20,
     }),
     [connection, error, connecting, reconnecting, connect, disconnect, ensureChain,
      walletChain, switchChain, switching,
-     shielded, shieldedPending, shieldedErr, requestShielded, strk20Proof, noteStrk20Error],
+     shielded, shieldedPending, shieldedErr, requestShielded, strk20Proof, noteStrk20Error, retryStrk20],
   );
   /* Escape closes whichever dialog is up. A dialog that only closes by pointer is a
      trap for a keyboard user, and the wrong-network one is dismissible by design. */
