@@ -34,7 +34,8 @@ if ! git merge-base --is-ancestor "$COMMIT" "origin/$(git branch --show-current)
 fi
 
 echo "Deploying $COMMIT"
-npx vercel --prod --yes \
+# One archive, not one request per file: the free plan caps file uploads per day.
+npx vercel --prod --yes --archive=tgz \
   --build-env "NEXT_PUBLIC_COMMIT=$COMMIT" \
   --build-env "NEXT_PUBLIC_BUILT_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
