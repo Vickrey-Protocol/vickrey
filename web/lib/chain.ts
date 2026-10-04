@@ -20,7 +20,11 @@ import {
   type PrivateCollect,
 } from "./v2";
 
-export const provider = () => new RpcProvider({ nodeUrl: config.rpcUrl });
+/* One provider for the page, batching: reads issued together go out as one JSON-RPC batch.
+   A list page makes about seven reads per auction, and the public endpoint rate-limits
+   bursts of separate requests. */
+let shared: RpcProvider | null = null;
+export const provider = () => (shared ??= new RpcProvider({ nodeUrl: config.rpcUrl, batch: 0 }));
 
 /** Which contract an auction lives on. v1 is read-only on this site. */
 export type ContractVersion = 1 | 2;
