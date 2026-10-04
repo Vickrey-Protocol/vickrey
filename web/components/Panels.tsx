@@ -159,7 +159,7 @@ export function BidPanel({
     const tokens = payIsStrk ? [config.strkAddress] : [config.strkAddress, auction.paymentToken];
     const got = await withTimeout(connection.account.strk20Balances(tokens), WAIT.balance);
     if (got.outcome === "no-answer") {
-      return setShielded({ kind: "unknown", why: "Your wallet didn’t answer when asked for your shielded balance." });
+      return setShielded({ kind: "unknown", why: `Your wallet didn’t answer when asked for your shielded balance, so we can’t tell whether it covers this bid’s ${payIsStrk ? `${formatUnits(fee + auction.collateral, STRK_DECIMALS)} STRK` : "fee and collateral"}.` });
     }
     if (got.outcome === "failed") {
       noteStrk20Error(got.error);
@@ -253,7 +253,7 @@ export function BidPanel({
     { onTick: (ms) => setPhase({ kind: "confirming", walletSaid, elapsed: Math.floor(ms / 1000) }) });
 
     if (verdict.kind === "placed") {
-      reindexBid(auction.terms.auctionId, guessed, verdict.index);
+      reindexBid(auction.terms.auctionId, bid.claimCommitment, verdict.index);
       setPhase({ kind: "placed", bid: { ...stored, index: verdict.index, txHash }, txHash });
       onPlaced();
     } else {
@@ -267,7 +267,7 @@ export function BidPanel({
         <div className="spread"><h3 style={{ fontSize: "var(--step-1)" }}>Looking for your bid</h3>
           <span className="countdown">0:{String(phase.elapsed).padStart(2, "0")}</span></div>
         <p>{phase.walletSaid
-          ? <>Your wallet said: <i>{phase.walletSaid}</i> That doesn’t always mean it failed — we’re checking the auction itself for your bid.</>
+          ? <>Your wallet said: <i>{phase.walletSaid.replace(/[.!?]?\s*$/, ".")}</i> That doesn’t always mean it failed — we’re checking the auction itself for your bid.</>
           : "Checking the auction itself for your bid."}</p>
         <p className="note">Your claim secret is already saved in this browser.</p>
         <button disabled>Bid again — wait for the chain</button>
@@ -395,9 +395,9 @@ export function BidPanel({
           {shielded.kind === "enough" && <p className="ok">Your shielded balance covers it.</p>}
           {shielded.kind === "short" && (
             <p style={{ marginTop: ".5rem" }}>
-              You have <b className="mono">{formatUnits(shielded.have, shielded.feeToken ? STRK_DECIMALS : auction.paymentDecimals)}</b> shielded.
+              You have <b className="mono">{formatUnits(shielded.have, shielded.feeToken ? STRK_DECIMALS : auction.paymentDecimals)}{shielded.feeToken ? " STRK" : ` ${auction.paymentSymbol}`}</b> shielded.
               Shield <b className="mono">{formatUnits(shielded.need - shielded.have, shielded.feeToken ? STRK_DECIMALS : auction.paymentDecimals)}</b> more
-              {shielded.feeToken ? " STRK" : ` ${auction.paymentSymbol}`} in your wallet first.
+              in your wallet first — shielding has its own pool fee.
               <button style={{ marginLeft: ".6rem" }} onClick={() => void checkShielded()}>Check again</button>
             </p>
           )}
@@ -486,44 +486,74 @@ export function RevealPanel({
   const open = auction.status === Status.Sealed && now < deadline;
   const key = bids.map((b) => b.index).join(",");
 
+  /** One relay attempt. The chain decides, not the relay's answer: a request can fail
+      after an earlier one for the same reveal landed. Never "not posted" without asking. */
+  async function viaRelay(b: StoredBid): Promise<RevealState> {
+    const sealed = sealedFor(auction, b);
+    const r = await relay({ kind: "reveal", auctionId: auction.terms.auctionId.toString(),
+      bidIndex: b.index, ephX: sealed.ephX.toString(), cSeed: sealed.cSeed.toString(),
+      cLevel: sealed.cLevel.toString() });
+    const landed = r.ok || await isRevealPosted(auction, b.index, sealed).catch(() => false);
+    if (!landed) return { kind: "relay-failed", why: r.ok ? "" : r.why };
+    markRevealed(auction.terms.auctionId, b.index);
+    return { kind: "posted", tx: r.ok && r.tx ? r.tx : undefined };
+  }
+
   useEffect(() => {
     if (auction.status !== Status.Sealed || !bids.length) return;
     let live = true;
-    void (async () => {
-      for (const b of bids) {
-        const sealed = sealedFor(auction, b);
-        let posted: boolean;
-        try { posted = await isRevealPosted(auction, b.index, sealed); }
-        catch (e) {
-          if (live) setState((s) => ({ ...s, [b.index]: { kind: "unknown", why: errText(e) } }));
-          continue;
-        }
-        if (!live) return;
-        if (posted) {
-          markRevealed(auction.terms.auctionId, b.index);
-          setState((s) => ({ ...s, [b.index]: { kind: "posted" } }));
-          continue;
-        }
-        if (Date.now() / 1000 >= deadline) continue;
-        if (!config.relay) { setState((s) => ({ ...s, [b.index]: { kind: "self" } })); continue; }
-        setState((s) => ({ ...s, [b.index]: { kind: "posting" } }));
-        const r = await relay({ kind: "reveal", auctionId: auction.terms.auctionId.toString(),
-          bidIndex: b.index, ephX: sealed.ephX.toString(), cSeed: sealed.cSeed.toString(),
-          cLevel: sealed.cLevel.toString() });
-        if (!live) return;
-        if (r.ok) {
-          markRevealed(auction.terms.auctionId, b.index);
-          setState((s) => ({ ...s, [b.index]: { kind: "posted", tx: r.tx } }));
-        } else {
-          setState((s) => ({ ...s, [b.index]: { kind: "relay-failed", why: r.why } }));
-        }
+    /* Every bid at once: the relay queues them and finishes each on its side, so a page
+       closed after the first reveal lands still gets the others posted. */
+    void Promise.all(bids.map(async (b) => {
+      const sealed = sealedFor(auction, b);
+      let posted: boolean;
+      try { posted = await isRevealPosted(auction, b.index, sealed); }
+      catch (e) {
+        if (live) setState((s) => ({ ...s, [b.index]: { kind: "unknown", why: errText(e) } }));
+        return;
       }
-    })();
+      if (!live) return;
+      if (posted) {
+        markRevealed(auction.terms.auctionId, b.index);
+        setState((s) => ({ ...s, [b.index]: { kind: "posted" } }));
+        return;
+      }
+      if (Date.now() / 1000 >= deadline) return;
+      if (!config.relay) { setState((s) => ({ ...s, [b.index]: { kind: "self" } })); return; }
+      setState((s) => ({ ...s, [b.index]: { kind: "posting" } }));
+      const next = await viaRelay(b);
+      if (live) setState((s) => ({ ...s, [b.index]: next }));
+    }));
     return () => { live = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [auction.status, auction.terms.auctionId, key, deadline]);
 
+  /* A reveal the relay didn't post is tried again every minute until the window closes.
+     A failed request costs the relay nothing and counts against no cap. */
+  const failing = bids.filter((b) => state[b.index]?.kind === "relay-failed");
+  useEffect(() => {
+    if (!open || !config.relay || failing.length === 0) return;
+    let live = true;
+    const t = setTimeout(() => {
+      void (async () => {
+        for (const b of failing) {
+          const next = await viaRelay(b);
+          if (!live) return;
+          setState((s) => (s[b.index]?.kind === "relay-failed" ? { ...s, [b.index]: next } : s));
+        }
+      })();
+    }, 60_000);
+    return () => { live = false; clearTimeout(t); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, state]);
+
   if (auction.status !== Status.Sealed || bids.length === 0) return null;
+
+  async function retryNow(b: StoredBid) {
+    setState((s) => ({ ...s, [b.index]: { kind: "posting" } }));
+    const next = await viaRelay(b);
+    setState((s) => ({ ...s, [b.index]: next }));
+  }
 
   async function postMyself(b: StoredBid) {
     if (!connection) return setState((s) => ({ ...s, [b.index]: { kind: "self", err: "Connect a wallet first." } }));
@@ -581,12 +611,13 @@ export function RevealPanel({
           return (
             <div key={b.index} className={s.kind === "relay-failed" ? "warnbox" : ""}>
               {s.kind === "relay-failed"
-                ? <><b>The relay hasn’t posted your reveal for bid #{b.index}.</b> ({s.why}) You can post it yourself instead — that puts your wallet address next to bid #{b.index} on chain. Not your amount.</>
+                ? <><b>The relay hasn’t posted your reveal for bid #{b.index}.</b> {s.why ? `It said: ${s.why}.` : "It didn’t respond."} We’ll keep trying until the window closes. You can post it yourself now instead — that puts your wallet address next to bid #{b.index} on chain. Not your amount.</>
                 : <><b>Post your reveal for bid #{b.index}.</b> Posting it from your wallet puts your address next to bid #{b.index} on chain. Not your amount.</>}
               <div className="row" style={{ marginTop: ".6rem" }}>
                 <button className="primary" disabled={s.kind === "self" && s.busy} onClick={() => void postMyself(b)}>
                   {s.kind === "self" && s.busy ? "Waiting for your wallet…" : "Post it myself"}
                 </button>
+                {s.kind === "relay-failed" && <button onClick={() => void retryNow(b)}>Keep waiting for the relay</button>}
               </div>
               {s.kind === "self" && s.err && <p className="err">{s.err}</p>}
             </div>
@@ -614,6 +645,24 @@ export function DisputePanel({
   const [busy, setBusy] = useState(false);
 
   const settled = auction.status === Status.Settled;
+  const cancelled = auction.status === Status.Cancelled;
+  /* After a successful dispute the auction is Cancelled and this panel's question is
+     gone; what remains to say is which of my bids won it, read from the escrow the bond
+     was credited to. */
+  const [voided, setVoided] = useState<Array<{ index: number; escrow: bigint }>>([]);
+  const mineKey = bids.map((b) => b.index).join(",");
+  useEffect(() => {
+    if (!cancelled || !mineKey) return;
+    let live = true;
+    void Promise.all(bids.map(async (b) => {
+      try {
+        const st = await readBidState(auction.terms.auctionId, b.index, auction.contract);
+        return !st.claimed && st.escrow > auction.collateral ? { index: b.index, escrow: st.escrow } : null;
+      } catch { return null; }
+    })).then((rows) => { if (live) setVoided(rows.filter((r): r is { index: number; escrow: bigint } => r !== null)); });
+    return () => { live = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cancelled, mineKey, auction.terms.auctionId]);
   const candidates = settled ? bids.filter((b) => b.index !== auction.winnerIndex
     && (b.level > auction.clearingLevel || auction.winnerIndex === NO_WINNER)) : [];
   const candidateKey = candidates.map((b) => b.index).join(",");
@@ -634,6 +683,27 @@ export function DisputePanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [candidateKey, auction.terms.auctionId]);
 
+  if (cancelled && voided.length) {
+    const fmt = (x: bigint) => formatUnits(x, auction.paymentDecimals);
+    return (
+      <div className="panel okbox">
+        <h3 style={{ fontSize: "var(--step-1)" }}>The settlement is void</h3>
+        {voided.map((v) => (
+          <div key={v.index} className="stack" style={{ gap: ".6rem" }}>
+            <p style={{ margin: 0 }}>
+              The auction is cancelled and every bidder can collect their escrow. Bid #{v.index} holds{" "}
+              <b className="mono">{fmt(v.escrow - auction.bond)}</b> + <b className="mono">{fmt(auction.bond)}</b> bond.
+            </p>
+            <div className="row">
+              <button className="primary" onClick={() => document.getElementById("collect")?.scrollIntoView({ behavior: "smooth" })}>
+                Collect {fmt(v.escrow)} {auction.paymentSymbol}
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
   if (!settled) return null;
   const eligible = candidates.filter((b) => canDispute(auction, b, states[b.index]) && posted[b.index]);
   const unread = unreadCandidates(auction, candidates, states);
@@ -717,8 +787,8 @@ export const collectMode = (st: BidState, status: Status): "collect" | "redeem" 
 export const unredeemable = (st: BidState, status: Status, level: number, clearingLevel: number) =>
   isForfeit(st, status) && level > clearingLevel;
 
-function PrivateUnavailable({ pc, onCheck, onPublic }: {
-  pc: PrivateCollect; onCheck: () => void; onPublic: () => void;
+function PrivateUnavailable({ pc, winner, onCheck, onPublic }: {
+  pc: PrivateCollect; winner: boolean; onCheck: () => void; onPublic: () => void;
 }) {
   if (pc.verdict === "unavailable") {
     return (
@@ -730,7 +800,9 @@ function PrivateUnavailable({ pc, onCheck, onPublic }: {
           would still put your claim secret on chain with nothing collected, so we don’t send one.
         </p>
         <p className="note" style={{ marginTop: ".4rem" }}>
-          Collecting publicly reveals nothing about your bid. It does link this wallet to the collection.
+          {winner
+            ? "Collecting publicly reveals nothing about your bid: the surplus is the same for any winner. It does link this wallet to the win."
+            : "Collecting publicly reveals nothing about your bid: every bid escrowed the same amount. It does link this wallet to the bid."}
         </p>
       </div>
     );
@@ -787,6 +859,14 @@ export function CollectPanel({
 
   if (!final || bids.length === 0) return null;
   const privateOk = walletPrivate && pc?.verdict === "available";
+  const winning = auction.status === Status.Finalized ? bids.find((b) => b.index === auction.winnerIndex) : undefined;
+  const winState = winning ? state[winning.index] : undefined;
+  const noteCount = winning
+    ? collectNotes({ paymentToken: auction.paymentToken, paymentOut: winState?.escrow ?? 0n, isWinner: true,
+      lotKind: auction.lotKind, lotToken: auction.lotToken, lotAmount: auction.lotAmount }).length
+    : 1;
+  const notesLine = noteCount === 2 ? "Two private notes in your shielded balance. No address."
+    : "A private note in your shielded balance. No address.";
 
   async function run(b: StoredBid, st: BidState | null) {
     if (!connection) return setErr("Connect a wallet first.");
@@ -838,7 +918,7 @@ export function CollectPanel({
   }
 
   return (
-    <div className="panel">
+    <div className="panel" id="collect">
       <h3 style={{ fontSize: "var(--step-1)" }}>Collect</h3>
       <div className="rails" style={{ marginBlock: ".8rem" }}>
         <button className={rail === "public" ? "rail on" : "rail"} onClick={() => setRail("public")}>
@@ -851,14 +931,24 @@ export function CollectPanel({
           <span className="note">
             {!walletPrivate ? "Needs a wallet that speaks STRK20."
               : pc === null ? "Checking the pool…"
-                : pc.verdict === "available" ? "Private notes in your shielded balance. No address."
+                : pc.verdict === "available" ? notesLine
                   : "See below."}
           </span>
         </button>
       </div>
       {walletPrivate && pc && pc.verdict !== "available" && (
-        <PrivateUnavailable pc={pc} onCheck={() => { setPc(null); void readPrivateCollect().then(setPc); }}
+        <PrivateUnavailable pc={pc} winner={!!winning} onCheck={() => { setPc(null); void readPrivateCollect().then(setPc); }}
                             onPublic={() => setRail("public")} />
+      )}
+      {rail === "private" && privateOk && (
+        <dl className="facts" style={{ marginTop: ".8rem" }}>
+          {winning && winState && <div className="fact"><dt>Surplus</dt>
+            <dd>{formatUnits(winState.escrow, auction.paymentDecimals)} {auction.paymentSymbol}</dd></div>}
+          {winning && auction.lotKind === LotKind.Erc20 && <div className="fact"><dt>Lot</dt>
+            <dd>{formatUnits(auction.lotAmount, auction.lotDecimals)} {auction.lotSymbol}</dd></div>}
+          {auction.poolFee !== null && <div className="fact"><dt>Pool fee</dt>
+            <dd>{formatUnits(auction.poolFee, STRK_DECIMALS)} STRK</dd></div>}
+        </dl>
       )}
       <div className="stack" style={{ gap: ".8rem", marginTop: ".8rem" }}>
         {bids.map((b) => {
@@ -953,8 +1043,10 @@ export function DeliveryPanel({
     if (!connection) return setErr("Connect a wallet first.");
     setErr(null); setMsg(null); setBusy(true);
     try {
+      /* Confirm and reject check their caller is the buyer, and a read has no caller, so
+         only the permissionless release is tried as a read first. */
       setMsg(said(await sendAndWait(connection, [simpleCall(auction.contract, entrypoint, auction.terms.auctionId)],
-        { preflight: true }), done));
+        { preflight: entrypoint === "release_proceeds" }), done));
       onDone();
     } catch (e) { setErr(errText(e)); } finally { setBusy(false); setRejecting(false); }
   }
@@ -1027,7 +1119,8 @@ export function SellerPanel({
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  if (auction.version !== 2 || (auction.sellerOwed === 0n && !auction.lotReclaimable)) return null;
+  /* Once paid, the auction re-reads with nothing owed; the receipt line stays. */
+  if (auction.version !== 2 || (auction.sellerOwed === 0n && !auction.lotReclaimable && !msg)) return null;
   const isSeller = !!connection && sameAddress(connection.address, auction.seller);
 
   async function act(entrypoint: "withdraw_seller" | "reclaim_lot", done: string) {

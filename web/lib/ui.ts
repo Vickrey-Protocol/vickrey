@@ -14,6 +14,13 @@ export const TRUST_ASSURED =
 export const TRUST_NOT =
   "after sealing, the auctioneer learns every bid amount — it can never publish them or spend anyone's funds, but it knows them; it can settle without a bid by recording it as forfeited, and on the current contracts the dispute window does not reliably penalise that; and the number of bids, their timing, and the uniform escrow amount are public on-chain.";
 
+/**
+ * R2 for a v2 auction. Draft for the step 5 D2 rewrite: v2 posts each reveal on chain
+ * encrypted to the auction's key, and a dispute does void a settlement that left a bid out.
+ */
+export const TRUST_NOT_V2 =
+  "after sealing, the auctioneer learns every bid amount — it can never publish them or spend anyone's funds, but it knows them, and every bid sits on chain encrypted to the auction's key, readable by anyone who ever holds that key; it can settle without a bid by recording it as forfeited, but a bid it left out that beat the price, whose reveal was posted in time, voids that settlement and takes the auctioneer's bond; and the number of bids, their timing, and the uniform escrow amount are public on-chain.";
+
 export const STATUS: Record<Status, { label: string; cls: string }> = {
   [Status.None]:      { label: "unknown",   cls: "cancelled" },
   [Status.Open]:      { label: "bidding",   cls: "open" },

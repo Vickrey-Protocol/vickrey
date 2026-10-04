@@ -127,7 +127,7 @@ export function useDashData(): DashData {
           if (!live) return;
           const verdict = reconcile(
             { storedIndex: b.index, chainCount: count, foundIndex: found });
-          if (verdict.do === "reindex") reindexBid(a.terms.auctionId, b.index, verdict.to);
+          if (verdict.do === "reindex") reindexBid(a.terms.auctionId, b.claimCommitment, verdict.to);
 
           /*
             Rule 11 on the other edge. A count that does not yet reach the stored index
@@ -138,7 +138,7 @@ export function useDashData(): DashData {
             count passes it, at which point the search is conclusive and it is cleaned up.
             A stale row costs nothing; a deleted seed costs the escrow behind it.
           */
-          if (verdict.do === "drop") dropBid(a.terms.auctionId, b.index);
+          if (verdict.do === "drop") dropBid(a.terms.auctionId, b.claimCommitment);
         } catch {
           /* Unreadable chain. Absence of an answer is not "this bid does not exist", so
              nothing is dropped and the next poll tries again. */

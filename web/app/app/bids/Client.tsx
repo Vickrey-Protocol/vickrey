@@ -205,7 +205,7 @@ export default function Client() {
                   <td>{bid.revealedAt ? "yes" : <span className="undisclosed">not yet</span>}</td>
                   <td>{bid.claimSecret
                     ? <span className="note">held</span>
-                    : <span className="err">MISSING — refund unrecoverable</span>}</td>
+                    : <span className="err">MISSING — escrow unrecoverable</span>}</td>
                   <td><Link href={`/auction/${bid.auctionId}`}>Open →</Link></td>
                 </tr>
               ))}

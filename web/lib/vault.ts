@@ -205,8 +205,14 @@ export function saveBid(
  * returning a hash. Once a hash exists the transaction may still land, and a vault entry
  * removed on a guess is a secret destroyed.
  */
-export function dropBid(auctionId: bigint, index: number, contract: string = config.auctionAddress) {
-  const victims = read().filter((b) => here(b, auctionId, contract) && b.index === index);
+/**
+ * Removes one bid, named by its commitment. Never by index: every attempt is stored at
+ * the index it guessed before it was sent, so a failed attempt and a bid that landed can
+ * share one, and a drop by index deleted the landed bid's claim secret with the failure.
+ */
+export function dropBid(auctionId: bigint, commitment: bigint | string, contract: string = config.auctionAddress) {
+  const c = BigInt(commitment).toString();
+  const victims = read().filter((b) => here(b, auctionId, contract) && BigInt(b.claimCommitment).toString() === c);
   if (!victims.length) return;
   const ids = victims.map(identityOf);
   /* Announced before it is written, so a tab that sees the shrink can tell a proven
@@ -255,12 +261,13 @@ export function onVaultChange(cb: () => void): () => void {
  * `BidPlaced` carries it as a key, so the authoritative answer is available and was
  * simply never read.
  */
+/** Moves one bid, named by its commitment, to the index the chain gave it. */
 export function reindexBid(
-  auctionId: bigint, from: number, to: number, contract: string = config.auctionAddress,
+  auctionId: bigint, commitment: bigint | string, to: number, contract: string = config.auctionAddress,
 ) {
-  if (from === to) return;
+  const c = BigInt(commitment).toString();
   write(read().map((b) =>
-    here(b, auctionId, contract) && b.index === from ? { ...b, index: to } : b));
+    here(b, auctionId, contract) && BigInt(b.claimCommitment).toString() === c && b.index !== to ? { ...b, index: to } : b));
 }
 
 export function markRevealed(auctionId: bigint, index: number, contract: string = config.auctionAddress) {

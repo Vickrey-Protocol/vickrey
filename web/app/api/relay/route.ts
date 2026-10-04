@@ -29,6 +29,18 @@ const perBid = new Map<string, number>();
 const IP_PER_HOUR = 30;
 const PER_BID = 3;
 
+/*
+ * One account sends everything, so sends are queued: two posts racing for the same nonce
+ * would have the second refused. A stale-nonce refusal is retried once, after a pause.
+ */
+let queue: Promise<unknown> = Promise.resolve();
+const serial = <T,>(job: () => Promise<T>): Promise<T> => {
+  const run = queue.then(job, job);
+  queue = run.catch(() => undefined);
+  return run;
+};
+const nonceTrouble = (e: unknown) => /nonce/i.test(e instanceof Error ? e.message : String(e));
+
 const felt = (x: unknown) => {
   if (typeof x !== "string" && typeof x !== "number") throw new Error("bad field");
   const v = BigInt(x);
@@ -76,6 +88,15 @@ export async function POST(request: Request) {
   const provider = new RpcProvider({ nodeUrl: config.rpcUrl });
   const account = new Account({ provider, address: ADDRESS, signer: KEY });
   const call = { contractAddress: config.auctionAddress, entrypoint, calldata };
+  /* Already on chain: say so rather than paying to post it twice. Asked again inside the
+     queue too, where two requests for the same reveal can no longer both pass it. */
+  const alreadyPosted = async () => {
+    if (entrypoint !== "post_reveal") return false;
+    const posted = await provider.callContract({ contractAddress: config.auctionAddress,
+      entrypoint: "reveal_posted", calldata }).catch(() => null);
+    return !!posted && BigInt(posted[0]!) !== 0n;
+  };
+  if (await alreadyPosted()) return NextResponse.json({ tx: "", already: true });
   try {
     /* Simulated first: a call that would revert is never paid for. */
     await provider.callContract(call);
@@ -84,11 +105,27 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: `not sent: ${why}` }, { status: 422 });
   }
   try {
-    const { transaction_hash } = await account.execute(call);
+    const transaction_hash = await serial(async () => {
+      if (await alreadyPosted()) return "";
+      try {
+        const r = await account.execute(call);
+        await provider.waitForTransaction(r.transaction_hash, { retryInterval: 2000 }).catch(() => undefined);
+        return r.transaction_hash;
+      } catch (e) {
+        if (!nonceTrouble(e)) throw e;
+        await new Promise((r) => setTimeout(r, 4000));
+        const r = await account.execute(call);
+        await provider.waitForTransaction(r.transaction_hash, { retryInterval: 2000 }).catch(() => undefined);
+        return r.transaction_hash;
+      }
+    });
+    if (!transaction_hash) return NextResponse.json({ tx: "", already: true });
     perIp.set(ip, [...recent, now]);
     perBid.set(bidKey, (perBid.get(bidKey) ?? 0) + 1);
     return NextResponse.json({ tx: transaction_hash });
   } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message.slice(0, 200) : "send failed" }, { status: 502 });
+    /* The bidder sees one sentence, not the node's error dump. */
+    console.error("relay send failed", e);
+    return NextResponse.json({ error: nonceTrouble(e) ? "it was busy — try again in a moment" : "it couldn't send the transaction" }, { status: 502 });
   }
 }

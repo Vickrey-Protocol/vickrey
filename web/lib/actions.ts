@@ -29,7 +29,7 @@
  * them would make the other easy to forget.
  */
 import { Status } from "@vickrey/client";
-import type { AuctionView } from "@/lib/chain";
+import { abandonAt, revealDeadline, type AuctionView } from "@/lib/chain";
 import type { BidState } from "@/lib/chain";
 import type { StoredBid } from "@/lib/vault";
 import { sameAddress } from "@/lib/wallet";
@@ -101,42 +101,26 @@ export function actionsFor(
     /* The auctioneer's outer limit. `abandon` becomes callable here, so it bounds the
        bidder's seed window too — after it the auction can be cancelled out from under
        both of them. */
-    const settleBy = a.sealedAtTime > 0 ? a.sealedAtTime + a.disputeWindow : null;
+    const settleBy = a.sealedAtTime > 0 ? abandonAt(a) : null;
+    const revealBy = a.sealedAtTime > 0 ? revealDeadline(a) : null;
 
-    if (iBid && a.status === Status.Sealed) {
+    if (iBid && a.status === Status.Sealed && revealBy !== null && now < revealBy) {
       const unsent = bids.filter((b) => b.revealedAt === undefined);
       if (unsent.length) {
         out.push({
           kind: "send-seed", auctionId: id, role: "bidder",
           title: unsent.length === 1
-            ? `Send your seed — Auction #${id}`
-            : `Send ${unsent.length} seeds — Auction #${id}`,
-          /* This said "a bound, never the amount", which is false. The reveal is
-             `{index, seed, level}` and carries the level explicitly — and even without
-             it, the seed walks the chain, so any holder can find the level by trying all
-             P of them. "A bound, never the amount" describes what goes *on chain*, and
-             borrowing it for what the bidder hands the auctioneer overstated the
-             property in the one place a bidder decides whether to hand it over. */
-          detail: unsent.length === 1
-            ? "Hands the auctioneer your seed and level. They learn your exact bid — "
-              + "safely, because the bid set is already frozen, so knowing it cannot "
-              + "change which bids exist. The chain still never sees an amount."
-            : `${unsent.length} of your bids still need a seed. The auctioneer learns `
-              + "each exact bid, after the set was frozen, so the knowledge cannot change "
-              + "which bids exist. The chain still never sees an amount.",
-          consequence:
-            "The auctioneer settles without you and the bid is marked forfeited. If it was "
-            + "at or below the clearing price, you take the whole escrow back after "
-            + "finalize with Redeem forfeit. If it was above, the escrow stays in the "
-            + "contract.",
-          cta: "Send seed", href: bidHref, blocking: false,
-          /* `dispute_deadline` is written by `settle`, so during `Sealed` — the only
-             status this fires in — it is still 0, and the old `|| null` turned the
-             tightest window in the protocol into "No deadline", which sorts last.
-
-             There is no on-chain deadline for the bidder: the auctioneer settles when
-             they like. `bound` says exactly that. */
-          deadline: settleBy, deadlineKind: "bound",
+            ? `Reveal your bid — Auction #${id}`
+            : `Reveal ${unsent.length} bids — Auction #${id}`,
+          detail: "Bidding has closed. Your bid goes on chain now, encrypted to the "
+            + "auctioneer’s key for this auction: the auctioneer can read it and nobody else "
+            + "can. Open the auction to post it.",
+          consequence: "A bid not revealed by the deadline can’t be settled and is marked "
+            + "forfeited. If it was at or below the clearing price, you take the whole escrow "
+            + "back after finalize with Redeem forfeit. If it was above, the escrow stays in "
+            + "the contract.",
+          cta: "Reveal", href: bidHref, blocking: false,
+          deadline: revealBy, deadlineKind: "hard",
         });
       }
     }
@@ -268,13 +252,14 @@ export function actionsFor(
         });
       }
       /* `settle` *is* auctioneer-only — it is the one step with a caller check. */
-      if (isAuctioneer && a.status === Status.Sealed) {
+      /* Not before the reveal window closes: the contract refuses it until then. */
+      if (isAuctioneer && a.status === Status.Sealed && revealBy !== null && now >= revealBy) {
         out.push({
           kind: "settle", auctionId: id, role: "auctioneer",
           title: `Settle Auction #${id}`,
-          detail: "Submits one witness per bid plus a second for the runner-up, proving the "
-            + "clearing price without opening a single bid. It moves no money — it opens "
-            + "the dispute window, and puts your bond at risk if the outcome is wrong.",
+          detail: "Reads the reveals bidders posted on chain, decrypts them with this "
+            + "auction’s key, and submits the proofs. It moves no money — it opens the "
+            + "dispute window.",
           consequence: "Past this, anyone can abandon the auction. It cancels, every bidder "
             + "is refunded, the lot returns to the seller, and your bond is split among the "
             + "bidders — so missing it costs you the bond and the sale together.",

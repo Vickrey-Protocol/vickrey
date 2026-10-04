@@ -222,6 +222,9 @@ pub mod HostileERC20 {
     }
 }
 
+/// The SNIP-6 account interface id. OZ's safe transfer accepts any account.
+pub const ISRC6_ID: felt252 = 0x2ceccef7f994940b3962a6c67e0ba4fcd37df7d131417c604f91e03caecc1cd;
+
 /// The OpenZeppelin ERC-721 receiver interface id.
 pub const IERC721_RECEIVER_ID: felt252 =
     0x3a0dff5f70d80458ad14ae37bb182a728e3c8cdda0402a5daa86620bdf910bc;
@@ -268,7 +271,7 @@ pub mod MockERC721 {
     use crate::erc721::IERC721;
     use super::{
         IERC721ReceiverDispatcher, IERC721ReceiverDispatcherTrait, IERC721_RECEIVER_ID,
-        IMockERC721Admin, ISRC5Dispatcher, ISRC5DispatcherTrait,
+        IMockERC721Admin, ISRC5Dispatcher, ISRC5DispatcherTrait, ISRC6_ID,
     };
 
     #[storage]
@@ -337,18 +340,20 @@ pub mod MockERC721 {
             if class.is_zero() {
                 return;
             }
-            // Panics if `to` has no `supports_interface`, which is OZ's outcome too.
-            assert(
-                ISRC5Dispatcher { contract_address: to }.supports_interface(IERC721_RECEIVER_ID),
-                'SAFE_TRANSFER_FAILED',
-            );
-            assert(
-                IERC721ReceiverDispatcher { contract_address: to }
-                    .on_erc721_received(
-                        get_caller_address(), from, token_id, data,
-                    ) == IERC721_RECEIVER_ID,
-                'SAFE_TRANSFER_FAILED',
-            );
+            // Panics if `to` has no `supports_interface`, which is OZ's outcome too. A
+            // receiver gets the hook; anything else passes only as an account (ISRC6).
+            let src5 = ISRC5Dispatcher { contract_address: to };
+            if src5.supports_interface(IERC721_RECEIVER_ID) {
+                assert(
+                    IERC721ReceiverDispatcher { contract_address: to }
+                        .on_erc721_received(
+                            get_caller_address(), from, token_id, data,
+                        ) == IERC721_RECEIVER_ID,
+                    'SAFE_TRANSFER_FAILED',
+                );
+            } else {
+                assert(src5.supports_interface(ISRC6_ID), 'SAFE_TRANSFER_FAILED');
+            }
         }
     }
 }

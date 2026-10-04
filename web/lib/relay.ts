@@ -21,8 +21,8 @@ export async function relay(req: RelayRequest): Promise<RelayResult> {
     const res = await fetch("/api/relay", {
       method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(req),
     });
-    const body = (await res.json().catch(() => ({}))) as { tx?: string; error?: string };
-    if (res.ok && body.tx) return { ok: true, tx: body.tx };
+    const body = (await res.json().catch(() => ({}))) as { tx?: string; error?: string; already?: boolean };
+    if (res.ok && (body.tx || body.already)) return { ok: true, tx: body.tx ?? "" };
     return { ok: false, why: body.error ?? `the relay answered ${res.status}` };
   } catch (e) {
     return { ok: false, why: e instanceof Error ? e.message : "no response" };

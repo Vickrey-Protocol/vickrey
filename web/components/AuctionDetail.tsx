@@ -3,7 +3,8 @@
 
 import { AuctionKind, Status, type PublicBid } from "@vickrey/client";
 import { readLotCollection, readTerms, type AuctionView, type Terms } from "@/lib/chain";
-import { LotKind } from "@/lib/v2";
+import { lotText as lotLine } from "@/lib/lot";
+import { DeliveryOutcome, LotKind } from "@/lib/v2";
 import { parseTerms } from "@/lib/terms";
 import { lotLabel, type LotRail } from "@/lib/lotRail";
 import { useEffect, useState } from "react";
@@ -78,15 +79,16 @@ export function AuctionDetail({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [offchain, auction.terms.auctionId, auction.contract]);
 
-  const lotText = auction.lotKind === LotKind.Erc721
-    ? `${auction.lotName || auction.lotSymbol || "NFT"} #${auction.lotTokenId.toString()}`
-    : offchain ? "Off-chain item · terms below"
-      : `${formatUnits(auction.lotAmount, auction.lotDecimals)} ${auction.lotSymbol}`;
+  const lotText = offchain ? "Off-chain item · terms below" : lotLine(auction);
   const readOnly = auction.version === 1;
   const days = Math.round(auction.deliveryWindow / 86400);
   const windowWords = auction.deliveryWindow >= 86400
     ? `${days} day${days === 1 ? "" : "s"}`
     : `${Math.round(auction.deliveryWindow / 60)} minutes`;
+  /* Once delivery is decided or its deadline has passed, "you can reject before" a past
+     date would be wrong; the warning gives way to what happened. */
+  const rejectOpen = !auction.delivery || auction.delivery.outcome === DeliveryOutcome.None
+    || (auction.delivery.outcome === DeliveryOutcome.Pending && now < auction.delivery.deadline);
   const deadlineLine = auction.delivery
     ? utcDate(auction.delivery.deadline)
     : `the delivery deadline, ${windowWords} after the auction ends`;
@@ -159,7 +161,15 @@ export function AuctionDetail({
         </dl>
       </div>
 
-      {offchain && (
+      {offchain && !rejectOpen && auction.delivery && (
+        <p className="note" style={{ marginTop: "1rem" }}>
+          The contract did not hold this item.{" "}
+          {auction.delivery.outcome === DeliveryOutcome.Confirmed ? "The buyer confirmed delivery."
+            : auction.delivery.outcome === DeliveryOutcome.Rejected ? "The buyer rejected delivery."
+              : `The window to reject delivery closed ${utcDate(auction.delivery.deadline)} without a rejection.`}
+        </p>
+      )}
+      {offchain && rejectOpen && (
         <section aria-label="Before you bid" className="warnbox trust-warning" style={{ marginTop: "1rem" }}>
           <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M12 9v4M12 17h.01" /><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" /></svg>
           <p style={{ margin: 0 }}>
@@ -217,7 +227,11 @@ export function AuctionDetail({
               <dd className="undisclosed">never disclosed</dd></div>
             <div className="fact"><dt>Lot</dt>
               <dd>{offchain
-                ? (auction.lotClaimed ? "with the seller to deliver" : "awaiting the winner")
+                ? (!auction.lotClaimed ? "awaiting the winner"
+                  : auction.delivery?.outcome === DeliveryOutcome.Confirmed ? "delivered — the buyer confirmed"
+                    : auction.delivery?.outcome === DeliveryOutcome.Rejected ? "rejected by the buyer"
+                      : auction.delivery?.outcome === DeliveryOutcome.Released ? "the seller was paid"
+                        : "with the seller to deliver")
                 : auction.lotKind === LotKind.Erc721
                   ? (auction.lotClaimed ? "collected to a public address" : "awaiting collection")
                   : lotLabel(auction.lotClaimed, lotHow)}</dd></div>
@@ -329,7 +343,7 @@ export function AuctionDetail({
       </div>
 
       {/* R2: on every auction detail page, not only the landing page. */}
-      <div style={{ marginTop: "1.5rem" }}><TrustStatement /></div>
+      <div style={{ marginTop: "1.5rem" }}><TrustStatement version={auction.version} /></div>
     </>
   );
 }

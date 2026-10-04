@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { RpcProvider, hash, shortString } from "starknet";
 import { AuctionKind, Status } from "@vickrey/client";
-import { config, utcDate } from "@/lib/config";
+import { config, explorerContract, utcDate } from "@/lib/config";
 import { nameOf, ownerOf, provider, symbolOf } from "@/lib/chain";
 import {
   addPay, lotDecimals as asLotDecimals, payDecimals as asPayDecimals, showLot, showPay,
@@ -86,6 +86,15 @@ const download = (name: string, text: string) => {
   URL.revokeObjectURL(url);
 };
 
+/** A window as a person reads it: "3 minutes", "1 hour", "7 days". */
+function span(secs: number): string {
+  const unit = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
+  if (secs % 86400 === 0) return unit(secs / 86400, "day");
+  if (secs % 3600 === 0) return unit(secs / 3600, "hour");
+  if (secs % 60 === 0) return unit(secs / 60, "minute");
+  return unit(secs, "second");
+}
+
 export default function Client() {
   const { connection, ensureChain } = useWallet();
   const d = useDashData();
@@ -148,7 +157,7 @@ export default function Client() {
     (async () => {
       try {
         const owner = await ownerOf(collection, BigInt(tokenId));
-        const name = await nameOf(provider(), collection);
+        const name = await nameOf(provider(), collection, "");
         if (!live) return;
         setNft(connection && sameAddress(owner, connection.address)
           ? { kind: "yours", name } : { kind: "not-yours", owner });
@@ -314,7 +323,7 @@ export default function Client() {
               {lotKind === LotKind.Erc721 && (
                 <>
                   {field("Collection address", <input className="mono" value={collection} onChange={(e) => setCollection(e.target.value)} placeholder="0x…" />,
-                    "The ERC-721 contract. Bidders see its name and a link to it on the explorer.")}
+                    "The ERC-721 contract. Bidders will see its name and a link to it on the explorer.")}
                   {field("Token ID", <input className="mono" value={tokenId} onChange={(e) => setTokenId(e.target.value)} style={{ maxWidth: "14rem" }} />)}
                   <div className="panel" style={{ background: "var(--hatch-bg)", marginBottom: "1rem" }}>
                     <p className="eyebrow">Read from the collection</p>
@@ -327,7 +336,20 @@ export default function Client() {
                     </>}
                     {nft.kind === "not-yours" && <p className="err">This token belongs to {nft.owner.slice(0, 10)}…, not this wallet.</p>}
                     {nft.kind === "not-721" && <p className="err">This collection didn’t answer as an ERC-721, so it can’t be listed. ({nft.why})</p>}
+                    <p className="note" style={{ marginTop: ".4rem" }}>A collection that doesn’t answer as an ERC-721 is refused here, before anything is signed.</p>
                   </div>
+                  {nft.kind === "yours" && (
+                    <div className="panel" style={{ marginBottom: "1rem" }}>
+                      <p className="eyebrow">What bidders will see</p>
+                      <div className="spread" style={{ marginTop: ".5rem" }}>
+                        <b>{nft.name || "NFT"} #{tokenId}</b><span className="lot-chip">NFT</span>
+                      </div>
+                      <p className="note" style={{ margin: ".3rem 0" }}>
+                        <a href={explorerContract(collection.trim())} target="_blank" rel="noreferrer">View the collection on the explorer</a>
+                      </p>
+                      <p className="note">Held by the contract until the auction ends. The winner names a public address to receive it.</p>
+                    </div>
+                  )}
                 </>
               )}
 
@@ -442,8 +464,11 @@ export default function Client() {
 
               <div className="panel" style={{ border: "2px solid var(--ink)" }}>
                 <div className="spread"><b>Your reveal key for this auction</b><span className="lot-chip">Made in this browser</span></div>
-                <p style={{ marginTop: ".5rem" }}>Bids are revealed to you on chain, encrypted to this key. Only you can read them. The key is made fresh for this auction.</p>
-                {key && <p className="note mono">public key {key.publicX.slice(0, 8)}…{key.publicX.slice(-4)}</p>}
+                <p style={{ marginTop: ".5rem" }}>Bids are revealed to you on chain, encrypted to this key. Only you can read them. The key is made fresh for this auction and never leaves this browser unless you download it.</p>
+                {key && <dl className="facts">
+                  <div className="fact"><dt>Public key — goes into the listing</dt><dd className="mono">{key.publicX.slice(0, 6)}…{key.publicX.slice(-4)}</dd></div>
+                  <div className="fact"><dt>Secret key — stays with you</dt><dd className="note">hidden</dd></div>
+                </dl>}
                 <div className="warnbox" style={{ margin: ".6rem 0" }}>
                   <b>Download it now.</b> Without it you can’t read the bids, so you can’t settle —
                   and an auction you can’t settle ends with your bond paid to the bidders. Once the
@@ -472,10 +497,14 @@ export default function Client() {
                 <div className="fact"><dt>Highest bid possible</dt><dd>{derived.cap ? showPay(derived.cap, payD!, paySym) : "—"}</dd></div>
                 <div className="fact"><dt>Levels</dt><dd>{levels}</dd></div>
                 <div className="fact"><dt>Bidding closes</dt><dd>{utcDate(Math.floor(Date.now() / 1000) + closeIn)}</dd></div>
-                <div className="fact"><dt>Reveal window</dt><dd>{revealWin}s</dd></div>
-                <div className="fact"><dt>Dispute window</dt><dd>{window_}s</dd></div>
-                {lotKind === LotKind.OffChain && <div className="fact"><dt>Delivery window</dt><dd>{Math.round(delivery / 86400 * 10) / 10} days</dd></div>}
-                <div className="fact"><dt>You pay in at listing</dt><dd>{payD ? showPay((bondUnits + sellerBondUnits) as never, payD, paySym) : "—"}</dd></div>
+                <div className="fact"><dt>Reveal window</dt><dd>{span(revealWin)}</dd></div>
+                <div className="fact"><dt>Dispute window</dt><dd>{span(window_)}</dd></div>
+                {lotKind === LotKind.OffChain && <div className="fact"><dt>Delivery window</dt><dd>{span(delivery)}</dd></div>}
+                {lotKind === LotKind.OffChain && <div className="fact"><dt>Terms</dt><dd>{terms.length} characters</dd></div>}
+                {lotKind === LotKind.OffChain && terms && <div className="fact"><dt>Terms hash</dt><dd className="mono">{(() => { const h = `0x${termsHash(terms).toString(16)}`; return `${h.slice(0, 6)}…${h.slice(-4)}`; })()}</dd></div>}
+                <div className="fact"><dt>You pay in at listing</dt><dd>{payD ? showPay((bondUnits + sellerBondUnits) as never, payD, paySym) : "—"}
+                  {payD && lotKind === LotKind.OffChain && <span className="note" style={{ display: "block" }}>
+                    {showPay(bondUnits as never, payD, "")} auctioneer bond + {showPay(sellerBondUnits as never, payD, "")} seller bond.</span>}</dd></div>
               </dl>
               {!keySaved && <p className="err" style={{ marginTop: ".6rem" }}>Download and save the reveal key in step 4 first.</p>}
               {!lotOk && <p className="err" style={{ marginTop: ".6rem" }}>Step 1 isn’t complete.</p>}

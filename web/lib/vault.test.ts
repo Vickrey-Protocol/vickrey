@@ -30,7 +30,7 @@ describe("rolling back a bid that never landed", () => {
     saveBid(8n, bid(1), 0);
     saveBid(8n, bid(2), 1);
     saveBid(8n, bid(3), 2);
-    dropBid(8n, 1);
+    dropBid(8n, 1002n);
     expect(allBids().map((b) => b.index)).toEqual([0, 2]);
   });
 
@@ -38,7 +38,7 @@ describe("rolling back a bid that never landed", () => {
     /* Indices repeat across auctions, so a drop keyed on index alone would take both. */
     saveBid(8n, bid(1), 0);
     saveBid(9n, bid(1), 0);
-    dropBid(8n, 0);
+    dropBid(8n, 1001n);
     expect(allBids().map((b) => b.auctionId)).toEqual(["9"]);
   });
 });
@@ -46,7 +46,7 @@ describe("rolling back a bid that never landed", () => {
 describe("correcting an index the chain assigned differently", () => {
   it("renumbers in place, keeping the secret", () => {
     saveBid(8n, bid(4), 3);
-    reindexBid(8n, 3, 1);
+    reindexBid(8n, 1004n, 1);
     const [only] = allBids();
     expect(only!.index).toBe(1);
     expect(only!.claimSecret).toBe("11");
@@ -55,7 +55,7 @@ describe("correcting an index the chain assigned differently", () => {
 
   it("is a no-op when the guess was right", () => {
     saveBid(8n, bid(4), 2);
-    reindexBid(8n, 2, 2);
+    reindexBid(8n, 1004n, 2);
     expect(allBids()).toHaveLength(1);
     expect(allBids()[0]!.index).toBe(2);
   });
@@ -63,7 +63,7 @@ describe("correcting an index the chain assigned differently", () => {
   it("leaves other auctions alone", () => {
     saveBid(8n, bid(1), 0);
     saveBid(9n, bid(1), 0);
-    reindexBid(8n, 0, 5);
+    reindexBid(8n, 1001n, 5);
     expect(allBids().map((b) => `${b.auctionId}:${b.index}`).sort()).toEqual(["8:5", "9:0"]);
   });
 });
@@ -167,7 +167,7 @@ describe("a write cannot shrink the set without proof", () => {
   it("dropBid carries its own proof and still works", () => {
     saveBid(8n, bid(1), 0);
     saveBid(8n, bid(2), 1);
-    dropBid(8n, 1);
+    dropBid(8n, 1002n);
     expect(allBids().map((b) => b.level)).toEqual([1]);
   });
 });
@@ -175,7 +175,7 @@ describe("a write cannot shrink the set without proof", () => {
 describe("identity is the commitment, not the index", () => {
   it("a reindex is an edit, never a delete", () => {
     saveBid(8n, bid(1), 0);
-    reindexBid(8n, 0, 5);
+    reindexBid(8n, 1001n, 5);
     expect(allBids()).toHaveLength(1);
     expect(allBids()[0]!.index).toBe(5);
   });
@@ -184,6 +184,22 @@ describe("identity is the commitment, not the index", () => {
     saveBid(8n, bid(1), 0);
     saveBid(8n, bid(2), 0);
     expect(allBids()).toHaveLength(2);
+  });
+
+  it("dropping a failed attempt keeps the bid that landed at the same index", () => {
+    /* Both were stored at the index they guessed. The chain has the second; the first
+       never landed. Dropping the first must not take the second's claim secret. */
+    saveBid(8n, bid(1), 0);
+    saveBid(8n, bid(2), 0);
+    dropBid(8n, 1001n);
+    expect(allBids().map((b) => b.level)).toEqual([2]);
+  });
+
+  it("reindexing one bid leaves another at the same index where it is", () => {
+    saveBid(8n, bid(1), 0);
+    saveBid(8n, bid(2), 0);
+    reindexBid(8n, 1002n, 3);
+    expect(allBids().map((b) => `${b.level}@${b.index}`).sort()).toEqual(["1@0", "2@3"]);
   });
 
   it("restoreEntries adds only what is missing", () => {
@@ -219,7 +235,7 @@ describe("two contracts number their auctions from 0", () => {
       auctionId: "0", index: 0, level: 1, claimSecret: "1", seed: "2", claimCommitment: "3",
       upAnchor: "4", downAnchor: "5" }]));
     saveBid(0n, bid(1), 0);
-    dropBid(0n, 0);
+    dropBid(0n, 1001n);
     expect(allBids().map((b) => b.contract ?? "v1")).toEqual(["v1"]);
   });
 });

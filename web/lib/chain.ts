@@ -102,19 +102,21 @@ const n = (x: string) => BigInt(x);
  * *length*, which renders as a plausible-looking "4" rather than an obvious error.
  */
 /** `name()`, decoded the same way as `symbol()` — the ByteArray trap is identical. */
-export async function nameOf(p: RpcProvider, token: string): Promise<string> {
-  return textOf(p, token, "name");
+/** `fallback` is what a contract with no readable name gets: "tokens" for an ERC-20's
+    amount line, "" for a collection, which then shows as "NFT". */
+export async function nameOf(p: RpcProvider, token: string, fallback = "tokens"): Promise<string> {
+  return textOf(p, token, "name", fallback);
 }
 
 export async function symbolOf(p: RpcProvider, token: string): Promise<string> {
   return textOf(p, token, "symbol");
 }
 
-async function textOf(p: RpcProvider, token: string, entrypoint: string): Promise<string> {
+async function textOf(p: RpcProvider, token: string, entrypoint: string, fallback = "tokens"): Promise<string> {
   const printable = (s: string) => (/^[\x20-\x7e]{1,16}$/.test(s) ? s : null);
   try {
     const r = await p.callContract({ contractAddress: token, entrypoint, calldata: [] });
-    if (r.length === 1) return printable(shortString.decodeShortString(r[0]!)) ?? "tokens";
+    if (r.length === 1) return printable(shortString.decodeShortString(r[0]!)) ?? fallback;
     const numFullWords = Number(BigInt(r[0]!));
     const data = r.slice(1, 1 + numFullWords);
     const decoded = byteArray.stringFromByteArray({
@@ -122,9 +124,9 @@ async function textOf(p: RpcProvider, token: string, entrypoint: string): Promis
       pending_word: r[1 + numFullWords] ?? "0x0",
       pending_word_len: Number(BigInt(r[2 + numFullWords] ?? "0x0")),
     });
-    return printable(decoded) ?? "tokens";
+    return printable(decoded) ?? fallback;
   } catch {
-    return "tokens";
+    return fallback;
   }
 }
 
@@ -194,7 +196,8 @@ export async function readAuction(
     config.poolAddress
       ? readPoolFee(p as never, config.poolAddress).catch(() => null)
       : Promise.resolve(null),
-    isNft ? nameOf(p, lotToken) : Promise.resolve(""),
+    /* "tokens" is textOf's fallback for a symbol; for a collection's name, no name is "". */
+    isNft ? nameOf(p, lotToken, "") : Promise.resolve(""),
     lotKind === LotKind.OffChain
       ? call("get_delivery", [id.toString()]).then((r): Delivery | null => {
         const outcome = Number(n(r[2]!)) as DeliveryOutcome;

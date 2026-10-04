@@ -24,6 +24,7 @@ import type { StoredBid } from "@/lib/vault";
 const ME = "0x1";
 const SEALED_AT = 1_700_000_000;
 const WINDOW = 3600;
+const REVEAL = 600;
 
 const auction = (over: Partial<AuctionView> = {}): AuctionView => ({
   terms: {
@@ -41,7 +42,7 @@ const auction = (over: Partial<AuctionView> = {}): AuctionView => ({
   bidCount: 1, bidRoot: 0n, clearingLevel: 0, winnerIndex: 0,
   collateral: 10n, bond: 1n, lotClaimed: false, poolFee: null,
   version: 2, contract: "0xa", lotKind: 0, lotTokenId: 0n, lotName: "", revealKeyX: 0n,
-  revealKeyY: 0n, revealWindow: 0, deliveryWindow: 0, sellerBond: 0n, termsHash: 0n,
+  revealKeyY: 0n, revealWindow: REVEAL, deliveryWindow: 0, sellerBond: 0n, termsHash: 0n,
   sealedAtBlock: 0, delivery: null, sellerOwed: 0n, lotReclaimable: false,
   ...over,
 });
@@ -54,29 +55,32 @@ const myBid = (over: Partial<StoredBid> = {}): StoredBid => ({
 const sendSeed = (a: AuctionView[], b: StoredBid[]) =>
   actionsFor(a, b, ME, SEALED_AT + 1).find((x) => x.kind === "send-seed");
 
-describe("send-seed, the step that can be silently missed", () => {
-  it("carries a deadline while sealed, when dispute_deadline is still zero", () => {
+describe("reveal, the step that can be silently missed", () => {
+  it("settle is not offered while reveals can still arrive", () => {
+    const sealed = auction({ auctioneer: ME });
+    expect(actionsFor([sealed], [], ME, SEALED_AT + 1).map((x) => x.kind)).not.toContain("settle");
+  });
+
+  it("is due by the reveal deadline, which the contract enforces", () => {
     const found = sendSeed([auction()], [myBid()]);
     expect(found).toBeDefined();
-    // The regression: this was null, because `0 || null` is null.
-    expect(found!.deadline).not.toBeNull();
-    // The honest bound is the auctioneer's own: past it, anyone can abandon.
-    expect(found!.deadline).toBe(SEALED_AT + WINDOW);
+    expect(found!.deadline).toBe(SEALED_AT + REVEAL);
+    expect(found!.deadlineKind).toBe("hard");
+  });
+
+  it("is gone once the reveal window has closed — nothing can be posted then", () => {
+    const after = actionsFor([auction()], [myBid()], ME, SEALED_AT + REVEAL)
+      .find((x) => x.kind === "send-seed");
+    expect(after).toBeUndefined();
   });
 
   it("sorts above a later obligation instead of sinking below it", () => {
-    /* A second auction this user runs, sealed later, so its `settle` falls due after the
-       seed bound. Sorted by deadline the seed comes first; with the bug it had no
-       deadline at all and the sort drops those to the bottom.
-
-       The comparison has to be against an action that genuinely has a deadline. An
-       earlier version of this test used one that did not, so both compared equal, the
-       stable sort preserved insertion order, and it passed against the bug it was
-       written to catch. */
+    /* Sealed earlier, so its reveal window has closed and its settle is callable now —
+       but due later (reveal + window) than our reveal deadline. */
     const later = auction({
       terms: { ...auction().terms, auctionId: 2n },
       auctioneer: ME,
-      sealedAtTime: SEALED_AT + WINDOW * 10,
+      sealedAtTime: SEALED_AT - REVEAL,
     });
     const all = actionsFor([auction(), later], [myBid()], ME, SEALED_AT + 1);
     const seed = all.findIndex((x) => x.kind === "send-seed");
@@ -86,20 +90,13 @@ describe("send-seed, the step that can be silently missed", () => {
     expect(seed).toBeLessThan(settle);
   });
 
-  it("does not tell the bidder their escrow is lost", () => {
+  it("does not tell the bidder their escrow is lost, nor point them at a dispute", () => {
     const { detail, consequence } = sendSeed([auction()], [myBid()])!;
     const text = `${detail} ${consequence}`;
-    // `redeem_forfeit` returns the escrow in full, so no phrasing may claim otherwise.
     expect(text).not.toMatch(/forfeits your collateral/i);
-    // It says where the money comes back from, and when it does not.
     expect(consequence).toMatch(/redeem forfeit/i);
     expect(consequence).toMatch(/stays in the contract/i);
-    // A bidder who did not send their seed is never pointed at a dispute.
-    expect(`${detail} ${consequence}`).not.toMatch(/dispute/i);
-  });
-
-  it("marks its deadline as a bound, because the auctioneer may settle sooner", () => {
-    expect(sendSeed([auction()], [myBid()])!.deadlineKind).toBe("bound");
+    expect(text).not.toMatch(/dispute/i);
   });
 
   it("disappears once the seed has been sent", () => {
@@ -148,9 +145,9 @@ describe("nothing is offered before the chain will accept it", () => {
 
   it("gives the auctioneer's settle the deadline that abandon enforces", () => {
     const sealed = asAuctioneer({});
-    const settle = actionsFor([sealed], [], ME, SEALED_AT + 1)
+    const settle = actionsFor([sealed], [], ME, SEALED_AT + REVEAL)
       .find((x) => x.kind === "settle")!;
-    expect(settle.deadline).toBe(SEALED_AT + WINDOW);
+    expect(settle.deadline).toBe(SEALED_AT + REVEAL + WINDOW);
     expect(settle.deadlineKind).toBe("hard");
     expect(settle.consequence).toMatch(/bond/i);
   });
@@ -160,7 +157,7 @@ describe("counts mean what their label says", () => {
   it("does not count an auctioneer's work as the user's bids", () => {
     /* The reported symptom: sidebar said "My bids 2" for an address holding no bids. */
     const mine = asBidless();
-    const all = actionsFor(mine, [], ME, SEALED_AT + 1);
+    const all = actionsFor(mine, [], ME, SEALED_AT + REVEAL);
     expect(all.length).toBeGreaterThan(0);
     expect(bidderActions(all)).toHaveLength(0);
     expect(auctioneerActions(all)).toHaveLength(all.length);
@@ -294,7 +291,7 @@ describe("the party whose assets are locked is told they can act", () => {
   it("offers abandon and finalize to the seller too", () => {
     const sealed = auction({ auctioneer: "0x9", seller: ME, sealedAtTime: SEALED_AT,
       disputeWindow: WINDOW });
-    expect(actionsFor([sealed], [], ME, SEALED_AT + WINDOW + 1).map((x) => x.kind))
+    expect(actionsFor([sealed], [], ME, SEALED_AT + REVEAL + WINDOW + 1).map((x) => x.kind))
       .toContain("abandon");
     const settled = auction({ auctioneer: "0x9", seller: ME, status: Status.Settled,
       disputeDeadline: SEALED_AT });

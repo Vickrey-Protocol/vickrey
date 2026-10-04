@@ -69,7 +69,8 @@ export function AuctioneerSection({
   const canFinalize = auction.status === Status.Settled && now >= auction.disputeDeadline;
   const sealedForMe = isAuctioneer && auction.status === Status.Sealed;
   const canForget = isAuctioneer && final && !!key;
-  if (!canSeal && !canFinalize && !sealedForMe && !canForget) return null;
+  const waiting = auction.status === Status.Settled && !canFinalize;
+  if (!canSeal && !canFinalize && !sealedForMe && !canForget && !waiting) return null;
 
   async function invoke(entrypoint: "seal" | "finalize" | "settle", calldata?: string[]) {
     if (!connection) return setErr("Connect a wallet first.");
@@ -79,7 +80,9 @@ export function AuctioneerSection({
       const call = calldata
         ? { contractAddress: auction.contract, entrypoint, calldata }
         : simpleCall(auction.contract, entrypoint as "seal" | "finalize", auction.terms.auctionId);
-      await provider().callContract(call);
+      /* A read first, where a read means anything: `settle` checks its caller, and a read
+         comes from no address, so it would always fail there. */
+      if (entrypoint !== "settle") await provider().callContract(call);
       const res = await connection.account.execute(call);
       const outcome = receiptOutcome(await provider().waitForTransaction(res.transaction_hash));
       setMsg(outcome.kind === "reverted"
