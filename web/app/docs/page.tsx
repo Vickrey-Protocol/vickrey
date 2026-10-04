@@ -281,9 +281,10 @@ down_anchor = step^(P−1−ℓ)    a depth-(P−1−t) preimage proves  ℓ ≤
             <p>
               A uniform amount says nothing beyond &ldquo;someone bid&rdquo;, which the
               chain already shows. The cost is capital efficiency: a low bidder locks more
-              than they intend to spend. The difference comes back at settlement — and on
-              the private rail it comes back as a note inside the pool, so even the refund
-              does not reveal how much was unspent.
+              than they intend to spend. The difference comes back at settlement. It is
+              designed to come back on the private rail as a note inside the pool, so even
+              the refund would not reveal how much was unspent; that path is waiting on the
+              pool, and for now every refund is collected publicly.
             </p>
 
             <h3>A bid that is not revealed is settled around, not waited for</h3>
@@ -578,9 +579,12 @@ down_anchor = step^(P−1−ℓ)    a depth-(P−1−t) preimage proves  ℓ ≤
             </p>
             <p>
               Every way value comes back — a loser&rsquo;s refund, the winner&rsquo;s
-              surplus, a forfeited escrow redeemed late, the lot — returns as an{" "}
-              <b>open note credited inside the pool</b>. There is no public leg on the way
-              out, so winning does not put an address on chain next to a price.
+              surplus, a forfeited escrow redeemed late, the lot — is built to return as an{" "}
+              <b>open note credited inside the pool</b>, with no public leg on the way out.
+              That path is not available yet: the pool screens open-note deposits from
+              contracts it hasn&rsquo;t cleared, and it hasn&rsquo;t cleared the
+              anonymizer. Until it does, every collect is public, and collecting links the
+              collecting address to the auction.
             </p>
 
             <h3>Only one rail touches the pool</h3>

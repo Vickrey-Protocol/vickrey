@@ -303,7 +303,7 @@ export default function Client() {
             <>
               <p className="eyebrow">What are you selling?</p>
               <div className="rails" role="radiogroup" aria-label="Lot kind" style={{ margin: ".5rem 0 1.2rem" }}>
-                {kindCard(LotKind.Erc20, "Tokens", "An amount of an ERC-20 token. The contract holds it from listing, and the winner can collect it privately.")}
+                {kindCard(LotKind.Erc20, "Tokens", "An amount of an ERC-20 token. The contract holds it from listing. The winner collects it publicly for now; private collect is waiting on the pool.")}
                 {kindCard(LotKind.Erc721, "An NFT", "One ERC-721 token. The contract holds it from listing. It goes to a public address the winner names: the privacy pool can’t hold NFTs.")}
                 {kindCard(LotKind.OffChain, "Something off-chain", "A service, a physical item, a slot. The contract holds nothing, so bidders are trusting you to deliver. The winner’s payment is held until they confirm.")}
               </div>

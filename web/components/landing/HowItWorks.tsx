@@ -53,7 +53,7 @@ function Record() {
     ["down_anchor", "poseidon chain, P−1−ℓ steps", true],
     ["escrow", "the top of the ladder — the same for everyone", true],
     ["amount", "never in the clear — encrypted to the auctioneer after the seal", false],
-    ["address", "never on the private rail", false],
+    ["address", "not on a private-rail bid — collecting is public for now", false],
   ];
   return (
     <dl className="tw:m-0 tw:mt-6 tw:overflow-hidden tw:rounded-xl tw:border tw:border-neutral-200 tw:dark:border-neutral-700 tw:bg-white tw:dark:bg-black tw:font-mono tw:text-xs tw:shadow-aceternity">
@@ -105,8 +105,8 @@ export function LpHowItWorks() {
             <p className={DESC}>
               A bid is <b className="tw:font-semibold tw:text-black tw:dark:text-white">two hashes and an escrow</b>. The escrow is the same for everyone —
               the top of the ladder — so the amount you send says nothing about the amount
-              you bid. Your address never appears beside a price, and on the private rail it
-              never appears at all.
+              you bid. Your address never appears beside a price, and a private-rail bid
+              doesn&apos;t carry it at all. Collecting is public for now, so that step does.
             </p>
             <Record />
           </div>
