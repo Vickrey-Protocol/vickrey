@@ -1,6 +1,7 @@
 # Never uploaded to Vercel: private working files, build output, local state.
 # Plain names match at any depth.
 internal
+scripts/.e2e
 node_modules
 .next
 .next-alt
@@ -8,6 +9,4 @@ target
 *.mp4
 deployments.*.json
 hashes.json
-.env
-.env.local
-.env.*.local
+.env*

@@ -7,11 +7,10 @@
 # Use this rather than `vercel --prod` directly. It stamps the commit into the build so
 # the live site can say what it is, and it verifies afterwards instead of assuming.
 #
-# The reason it exists: the Vercel project has no git repository connected, so pushing
-# to `main` triggers nothing. Four commits — an entire route restructure — sat on main
-# while the live URL served the previous build and nothing said so. Connecting the repo
-# is the real fix (see docs/deployments.md); this makes the manual path safe until then,
-# and remains a useful post-deploy assertion afterwards.
+# Why it exists: before the Git repository was connected, pushing to `main` triggered
+# nothing, and four commits sat on main while the live URL served the previous build.
+# The repository is connected now, so a push to `main` deploys on its own; this remains
+# the manual path and the post-deploy assertion that the live site serves this commit.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
