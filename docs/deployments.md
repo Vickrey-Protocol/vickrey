@@ -27,8 +27,13 @@ returned or delivered; nothing is left in the contract. The private collect is n
 covered: the pool reports the helper as `Required` for open-note deposits, so the site
 offers the public collect instead.
 
+Fees on 4 Oct 2026, from these receipts: listing 0.2171 STRK, a bid 0.1295, settling three
+bids 0.1161, a collect 0.1012. Mainnet gas prices move, so later runs will differ.
+
 | Path | Auction | Transaction |
 |---|---|---|
+| Token lot listed (approve and `create_auction`, one transaction) | #2 | [`0x4e282fb725…`](https://starkscan.co/tx/0x4e282fb72565eb3f6d11dd11bcad2aff0273dd516579fa771bd99a92d78c959) |
+| A sealed bid (approve and `place_bid`, one transaction) | #2 | [`0x3ef692eaef…`](https://starkscan.co/tx/0x3ef692eaef0115b9171fb566aa7fea99b1966b52e054be1c6edc0e96ca816f6) |
 | Token lot: sealed bids, reveals posted by the relay, settled at the second price | #2 | [`0x31a5b967bf…`](https://starkscan.co/tx/0x31a5b967bf2f86fe18469acd211d229704a3354bcbb55baa29939800179fd65) |
 | Winner collects the token lot and the surplus | #2 | [`0x3acc36a598…`](https://starkscan.co/tx/0x3acc36a598f58144f6e389cab38865718fb5180d6c85a44ffbacd508c9839dc) |
 | A bid not revealed, at or below the price: forfeit redeemed in full | #2 | [`0x1384ff6950…`](https://starkscan.co/tx/0x1384ff6950fded48ca05d22dead1515a24ca914c6aea55f2984b7f3cc2468bb) |

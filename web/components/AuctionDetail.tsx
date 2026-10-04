@@ -329,8 +329,12 @@ export function AuctionDetail({
       <h2 className="section" data-reveal>The whole public record</h2>
       <div className="panel scroller">
         <p className="note" style={{ marginBottom: ".8rem" }}>
-          This is everything the chain holds about the bid book. No address, no amount —
-          two hash anchors and a claim handle per bid.
+          {auction.version === 1
+            ? <>This is everything the chain holds about the bid book. No address, no amount —
+              two hash anchors and a claim handle per bid.</>
+            : <>This is the bid book as the chain records it: a claim handle and two hash
+              anchors per bid, with no address and no amount. After the seal, each bid&rsquo;s
+              reveal is also on chain, encrypted to the auctioneer&rsquo;s key for this auction.</>}
         </p>
         <table>
           <thead>
