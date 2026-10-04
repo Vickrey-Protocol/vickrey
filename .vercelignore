@@ -1,0 +1,11 @@
+# Never uploaded to Vercel: private working files, build output, local state.
+internal/
+target/
+**/.next/
+**/.next-alt/
+**/node_modules/
+**/*.mp4
+deployments.*.json
+hashes.json
+.env*
+!web/.env.example
