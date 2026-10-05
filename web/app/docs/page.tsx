@@ -33,6 +33,9 @@ export default function Page() {
     <PublicShell>
       <header className="docs-head">
         <p className="eyebrow">Documentation</p>
+        <p style={{ margin: ".5rem 0 0" }}>
+          <Link href="/#demo" className="docs-demo">&#9654; Watch the demo <span className="mono" style={{ opacity: .6 }}>2:46</span></Link>
+        </p>
         <h1 className="display" style={{ fontSize: "var(--step-4)", margin: ".3rem 0 0" }}>
           How it works
         </h1>

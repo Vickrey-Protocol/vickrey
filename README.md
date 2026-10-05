@@ -1,3 +1,7 @@
+[![Vickrey v2 — full mainnet demo](assets/demo-thumbnail.jpg)](https://www.youtube.com/watch?v=Kk6CicIUVkc)
+
+*Full mainnet demo, 2:46*
+
 <img src=".github/assets/readme-header.png" alt="Vickrey — sealed-bid auctions on STRK20" width="820">
 
 # Vickrey

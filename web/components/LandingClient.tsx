@@ -18,6 +18,7 @@ import { LpFooter } from "@/components/landing/Footer";
 import { Nav } from "@/components/landing/Nav";
 import { Background } from "@/components/landing/Background";
 import { LpProblem } from "@/components/landing/Problem";
+import { LpDemo } from "@/components/landing/Demo";
 import { useNow } from "@/components/WalletProvider";
 
 /**
@@ -137,6 +138,7 @@ export default function LandingClient({ initial }: { initial: WireAuction[] }) {
         onOpen={() => { if (showcase) router.push(`/auction/${showcase.terms.auctionId}`); }}
       />
 
+      <LpDemo />
       <LpProblem />
       <LpHowItWorks />
       <LpProperties />

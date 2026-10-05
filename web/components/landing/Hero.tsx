@@ -8,6 +8,7 @@ import { HeroInstrument } from "@/components/HeroInstrument";
 import { Ladder } from "@/components/Ladder";
 import { TrustStatement } from "@/components/TrustStatement";
 import { LpButton } from "./Button";
+import { DEMO_LENGTH } from "./Demo";
 import { plainReadError } from "@/lib/readError";
 
 /**
@@ -83,6 +84,12 @@ export function LpHero({
         className="lp-hero-cta tw:relative tw:z-10 tw:mt-6 tw:flex tw:flex-wrap tw:items-center tw:justify-center tw:gap-4"
       >
         <LpButton onClick={goBid}>Place a sealed bid</LpButton>
+        {/* A plain anchor: it scrolls without JavaScript and gives the video a shareable URL. */}
+        <LpButton href="#demo" variant="outline" className="tw:group tw:flex tw:items-center tw:gap-2">
+          <svg viewBox="0 0 24 24" className="tw:h-3.5 tw:w-3.5 tw:fill-current" aria-hidden="true"><path d="M8 5.5v13l11-6.5z" /></svg>
+          <span>Watch the demo</span>
+          <span className="tw:font-mono tw:text-xs tw:opacity-60">{DEMO_LENGTH}</span>
+        </LpButton>
         <LpButton variant="simple" onClick={goSettled} className="tw:group tw:flex tw:items-center tw:space-x-2">
           <span>See a settled auction</span>
           <svg className="tw:h-3 tw:w-3 tw:stroke-[1px] tw:text-neutral-600 tw:dark:text-neutral-300 tw:transition-transform tw:duration-200 tw:group-hover:translate-x-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
